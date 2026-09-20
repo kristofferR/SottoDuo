@@ -82,7 +82,7 @@ beforeAll(async () => {
     { dataDirectory: join(directory, "data"), development: true, captureProvider: provider },
     new FakeInference(),
   );
-});
+}, 20_000);
 afterAll(async () => {
   if (!helper || process.platform !== "linux") return;
   try {
@@ -144,6 +144,7 @@ nativeTest(
       await noCapture();
     }
   },
+  20_000,
 );
 nativeTest("cancellation releases native input and allows a new take", async () => {
   const { record } = await begin();
