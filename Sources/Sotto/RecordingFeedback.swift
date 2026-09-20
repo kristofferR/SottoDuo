@@ -17,11 +17,11 @@ final class RecordingFeedback: ObservableObject {
         if next != levels { levels = next }
     }
 
-    func updateElapsed(_ elapsed: TimeInterval) {
-        let bounded = elapsed.isFinite ? min(LifecyclePolicy.maximumRecordingSeconds, max(0, elapsed)) : 0
+    func updateElapsed(_ elapsed: TimeInterval, maximumSeconds: TimeInterval = LifecyclePolicy.maximumRecordingSeconds) {
+        let bounded = elapsed.isFinite ? min(maximumSeconds, max(0, elapsed)) : 0
         let seconds = Int(bounded)
         if seconds != elapsedSeconds { elapsedSeconds = seconds }
-        let remaining = Int(LifecyclePolicy.maximumRecordingSeconds) - seconds
+        let remaining = Int(maximumSeconds) - seconds
         let notice: RecordingLimitNotice? = (1...30).contains(remaining) ? .approaching(secondsRemaining: remaining) : nil
         if limitNotice != notice { limitNotice = notice }
     }
@@ -50,7 +50,7 @@ enum RecordingLimitNotice: Equatable {
     var text: String {
         switch self {
         case .approaching(let seconds): "Recording limit in \(sottoDuration(Double(seconds)))"
-        case .stopped: "Stopped at the 3-minute limit"
+        case .stopped: "Stopped at the recording limit"
         }
     }
 

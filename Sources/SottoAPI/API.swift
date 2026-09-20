@@ -337,6 +337,7 @@ public struct GenerationRecord: Codable, Equatable, Sendable, Identifiable {
     public var updatedAt: Date
     public var settings: PreferencesSnapshot
     public var recognition: RecognitionState?
+    public var capture: RemoteCapture?
     public var inferenceAudio: AudioArtifact?
     public var originalAudio: AudioArtifact?
     public var rawText: String

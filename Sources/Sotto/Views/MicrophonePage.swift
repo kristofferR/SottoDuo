@@ -16,7 +16,7 @@ private struct MicrophoneSettingsView: View {
     var recordingInputName: String?
     @State private var editingProfile: ProfileEdit?
     @State private var confirmingRemoval = false
-    @State private var dropTargetUID: String?
+    @State private var dropTargetID: String?
     @State private var draggedPriority: MicrophonePriorityDrag?
     @State private var priorityDragOffset: CGFloat = 0
     @State private var priorityRowFrames: [String: CGRect] = [:]
@@ -26,9 +26,9 @@ private struct MicrophoneSettingsView: View {
         let profile = store.activeProfile
         let resolution = store.resolution
         let devices = store.availableDevices
-        let connected = Dictionary(devices.map { ($0.uid, $0) }, uniquingKeysWith: { first, _ in first })
-        let preferredUIDs = Set(profile.priority.map(\.uid))
-        let otherDevices = devices.filter { !preferredUIDs.contains($0.uid) }
+        let connected = Dictionary(devices.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let preferredIDs = Set(profile.priority.map(\.id))
+        let otherDevices = devices.filter { !preferredIDs.contains($0.id) }
 
         ScrollView {
             VStack(alignment: .leading, spacing: 25) {
@@ -46,7 +46,7 @@ private struct MicrophoneSettingsView: View {
                                 .padding(.vertical, 12)
                             Divider().padding(.horizontal, 16)
                             priorityList(profile: profile, connected: connected, otherDevices: otherDevices,
-                                         selectedUID: store.preferences.selection == .automatic ? resolution.device?.uid : nil)
+                                         selectedID: store.preferences.selection == .automatic ? resolution.device?.id : nil)
                         }
                     }
 
@@ -87,11 +87,11 @@ private struct MicrophoneSettingsView: View {
                             Text("System default").tag(MicrophoneChoice.systemDefault)
                             Divider()
                             ForEach(devices) { device in
-                                Text(device.name).tag(MicrophoneChoice.device(device.uid))
+                                Text(device.displayName).tag(MicrophoneChoice.device(device.id))
                             }
                             if case .fixed(let device) = store.preferences.selection,
-                               !devices.contains(where: { $0.uid == device.uid }) {
-                                Text("\(device.name) (disconnected)").tag(MicrophoneChoice.device(device.uid))
+                               !devices.contains(where: { $0.id == device.id }) {
+                                Text("\(device.displayName) (disconnected)").tag(MicrophoneChoice.device(device.id))
                             }
                         }
                         .labelsHidden()
@@ -105,11 +105,11 @@ private struct MicrophoneSettingsView: View {
                     HStack {
                         Text("Next dictation")
                         Spacer(minLength: 16)
-                        Text(resolution.device?.name ?? "No microphone available")
+                        Text(resolution.device?.displayName ?? "No microphone available")
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .foregroundStyle(.secondary)
-                            .help(resolution.device?.name ?? "Connect an audio input to record.")
+                            .help(resolution.device?.displayName ?? "Connect an audio input to record.")
                     }
                     .frame(height: 48)
                     .accessibilityIdentifier("microphone.resolved")
@@ -143,7 +143,7 @@ private struct MicrophoneSettingsView: View {
                     .frame(width: 56)
             }
             .disabled(store.preferences.selection == .automatic)
-            .help("Automatically use the first connected microphone in this list")
+            .help("Automatically use the first ready microphone in this list")
             .accessibilityIdentifier("microphone.profile.use")
 
             Button {
@@ -176,7 +176,7 @@ private struct MicrophoneSettingsView: View {
     }
 
     private func priorityList(profile: MicrophoneProfile, connected: [String: AudioInputDevice],
-                              otherDevices: [AudioInputDevice], selectedUID: String?) -> some View {
+                              otherDevices: [AudioInputDevice], selectedID: String?) -> some View {
         ScrollView {
             VStack(spacing: 0) {
                 if profile.priority.isEmpty && connected.isEmpty {
@@ -194,24 +194,24 @@ private struct MicrophoneSettingsView: View {
                         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
                     }
 
-                    ForEach(Array(profile.priority.enumerated()), id: \.element.uid) { position, device in
+                    ForEach(Array(profile.priority.enumerated()), id: \.element.id) { position, device in
                         preferredRow(device, position: position, count: profile.priority.count,
-                                     connected: connected[device.uid], isSelected: selectedUID == device.uid)
+                                     connected: connected[device.id], isSelected: selectedID == device.id)
                     }
 
                     if !otherDevices.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text("Connected inputs")
+                            Text("Available inputs")
                                 .font(.caption)
                                 .foregroundStyle(SottoPalette.muted)
                                 .padding(.top, 18)
                                 .padding(.bottom, 4)
                             ForEach(otherDevices) { device in
                                 HStack(spacing: 12) {
-                                    deviceLabel(device, available: true)
+                                    deviceLabel(device, available: store.isEligible(device))
                                         .padding(.leading, 30)
                                     Spacer(minLength: 8)
-                                    Text("Connected")
+                                    Text(store.availability(device))
                                         .font(.caption)
                                         .foregroundStyle(SottoPalette.muted)
                                         .fixedSize()
@@ -220,8 +220,8 @@ private struct MicrophoneSettingsView: View {
                                     }
                                     .buttonStyle(.borderless)
                                     .foregroundStyle(SottoPalette.accentInk)
-                                    .help("Add \(device.name) to \(profile.name)")
-                                    .accessibilityLabel("Add \(device.name) to priority list")
+                                    .help("Add \(device.displayName) to \(profile.name)")
+                                    .accessibilityLabel("Add \(device.displayName) to priority list")
                                 }
                                 .frame(minHeight: 64)
                                 .overlay(alignment: .bottom) { Divider() }
@@ -261,37 +261,37 @@ private struct MicrophoneSettingsView: View {
         .font(.caption)
         .foregroundStyle(store.storageError == nil ? .secondary : Color.orange)
         .frame(height: 32, alignment: .topLeading)
-        .help(store.storageError ?? "In Automatic mode, the first connected microphone in the selected list is used.")
+        .help(store.storageError ?? "In Automatic mode, the first ready microphone in the selected list is used.")
     }
 
     // Device names can change (or be normalized) without changing the selection.
-    // Only the stable HAL UID belongs in a Picker tag.
+    // Only the scoped source identity belongs in a Picker tag.
     private var inputChoice: Binding<MicrophoneChoice> {
         Binding {
             switch store.preferences.selection {
             case .automatic: .automatic
             case .systemDefault: .systemDefault
-            case .fixed(let device): .device(device.uid)
+            case .fixed(let device): .device(device.id)
             }
         } set: { choice in
             switch choice {
             case .automatic: store.select(.automatic)
             case .systemDefault: store.select(.systemDefault)
-            case .device(let uid):
-                if let device = store.connectedDevice(uid: uid) { store.select(.fixed(device)) }
+            case .device(let id):
+                if let device = store.connectedDevice(id: id) { store.select(.fixed(device)) }
             }
         }
     }
 
     private func selectionDetail(profile: MicrophoneProfile, resolution: MicrophoneResolution) -> String {
-        if let recordingInputName { return "Current take: \(recordingInputName). Changes apply to your next dictation." }
+        if let recordingInputName { return "Current take: \(recordingInputName) → this Mac. Changes apply to your next dictation." }
         switch resolution.reason {
         case .fallback(let requested):
-            if let requested { return "\(requested.name) is disconnected. It will be used again when it reconnects." }
+            if let requested { return "\(requested.displayName) is unavailable. It will be used again when it is ready." }
             return "The system input is unavailable. Using the first available microphone."
         case .unavailable: return "Connect an audio input to start dictating."
-        case .priority: return "The first connected microphone in “\(profile.name)” is used."
-        case .fixed: return "This microphone is preferred whenever it is connected."
+        case .priority: return "The first ready microphone in “\(profile.name)” is used."
+        case .fixed: return "This microphone is preferred whenever it is ready."
         case .systemDefault:
             return store.preferences.selection == .systemDefault
                 ? "Follows the macOS input. Your system settings stay unchanged."
@@ -301,7 +301,7 @@ private struct MicrophoneSettingsView: View {
 
     private func preferredRow(_ device: AudioInputDevice, position: Int, count: Int,
                               connected: AudioInputDevice?, isSelected: Bool) -> some View {
-        let isDragged = draggedPriority?.uid == device.uid && draggedPriority?.profileID == store.activeProfile.id
+        let isDragged = draggedPriority?.id == device.id && draggedPriority?.profileID == store.activeProfile.id
         return priorityRowContent(device, position: position, connected: connected)
         .opacity(isDragged ? 0.22 : 1)
         .contentShape(Rectangle())
@@ -318,35 +318,35 @@ private struct MicrophoneSettingsView: View {
         .background {
             GeometryReader { geometry in
                 Color.clear.preference(key: MicrophonePriorityFrames.self,
-                    value: [device.uid: geometry.frame(in: .named("microphone-priorities"))])
+                    value: [device.id: geometry.frame(in: .named("microphone-priorities"))])
             }
         }
         .overlay(alignment: .bottom) { Divider() }
         .contextMenu {
-            Button("Move up") { store.movePriority(uid: device.uid, by: -1) }
+            Button("Move up") { store.movePriority(id: device.id, by: -1) }
                 .disabled(position == 0)
-            Button("Move down") { store.movePriority(uid: device.uid, by: 1) }
+            Button("Move down") { store.movePriority(id: device.id, by: 1) }
                 .disabled(position == count - 1)
             Button("Move to top") {
                 store.movePriority(fromOffsets: IndexSet(integer: position), toOffset: 0)
             }
             .disabled(position == 0)
             Divider()
-            Button("Remove from priority list") { store.removeFromPriority(uid: device.uid) }
+            Button("Remove from priority list") { store.removeFromPriority(id: device.id) }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Priority \(position + 1), \((connected ?? device).name)")
-        .accessibilityValue(connected == nil ? "Disconnected" : isSelected ? "Connected, next dictation" : "Connected")
+        .accessibilityLabel("Priority \(position + 1), \((connected ?? device).displayName)")
+        .accessibilityValue(store.availability(device) + (isSelected ? ", next dictation" : ""))
         .accessibilityActions {
             if position > 0 {
-                Button("Move up") { store.movePriority(uid: device.uid, by: -1) }
+                Button("Move up") { store.movePriority(id: device.id, by: -1) }
             }
             if position < count - 1 {
-                Button("Move down") { store.movePriority(uid: device.uid, by: 1) }
+                Button("Move down") { store.movePriority(id: device.id, by: 1) }
             }
-            Button("Remove from priority list") { store.removeFromPriority(uid: device.uid) }
+            Button("Remove from priority list") { store.removeFromPriority(id: device.id) }
         }
-        .accessibilityIdentifier("microphone.priority.\(device.uid)")
+        .accessibilityIdentifier("microphone.priority.\(device.id)")
     }
 
     private func priorityRowContent(_ device: AudioInputDevice, position: Int,
@@ -356,15 +356,15 @@ private struct MicrophoneSettingsView: View {
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(SottoPalette.muted)
                 .frame(width: 18, alignment: .leading)
-            deviceLabel(connected ?? device, available: connected != nil)
+            deviceLabel(connected ?? device, available: store.isEligible(device))
             Spacer(minLength: 8)
-            Text(connected == nil ? "Disconnected" : "Connected")
+            Text(store.availability(device))
                 .font(.caption)
                 .foregroundStyle(SottoPalette.muted)
                 .fixedSize()
             MicrophoneReorderHandle()
-                .help("Drag to reorder \(device.name)")
-                .highPriorityGesture(priorityDragGesture(uid: device.uid))
+                .help("Drag to reorder \(device.displayName)")
+                .highPriorityGesture(priorityDragGesture(id: device.id))
         }
         .frame(minHeight: 64)
     }
@@ -372,11 +372,11 @@ private struct MicrophoneSettingsView: View {
     @ViewBuilder
     private func priorityDragOverlay(profile: MicrophoneProfile, connected: [String: AudioInputDevice]) -> some View {
         if let item = draggedPriority, item.profileID == profile.id,
-           let source = profile.priority.firstIndex(where: { $0.uid == item.uid }),
-           let sourceFrame = priorityRowFrames[item.uid] {
+           let source = profile.priority.firstIndex(where: { $0.id == item.id }),
+           let sourceFrame = priorityRowFrames[item.id] {
             let device = profile.priority[source]
             ZStack(alignment: .topLeading) {
-                priorityRowContent(device, position: source, connected: connected[device.uid])
+                priorityRowContent(device, position: source, connected: connected[device.id])
                     .padding(.horizontal, 10)
                     .frame(width: sourceFrame.width, height: sourceFrame.height)
                     .background(SottoPalette.surface, in: RoundedRectangle(cornerRadius: 8))
@@ -388,9 +388,9 @@ private struct MicrophoneSettingsView: View {
                     .position(x: sourceFrame.midX, y: sourceFrame.midY + priorityDragOffset)
 
                 // Draw last so the exact insertion edge remains visible above the lifted row.
-                if let targetUID = dropTargetUID,
-                   let target = profile.priority.firstIndex(where: { $0.uid == targetUID }),
-                   let targetFrame = priorityRowFrames[targetUID] {
+                if let targetID = dropTargetID,
+                   let target = profile.priority.firstIndex(where: { $0.id == targetID }),
+                   let targetFrame = priorityRowFrames[targetID] {
                     HStack(spacing: 0) {
                         Circle().frame(width: 7, height: 7)
                         Rectangle().frame(height: 3)
@@ -404,41 +404,41 @@ private struct MicrophoneSettingsView: View {
         }
     }
 
-    private func priorityDragGesture(uid: String) -> some Gesture {
+    private func priorityDragGesture(id: String) -> some Gesture {
         DragGesture(minimumDistance: 3, coordinateSpace: .named("microphone-priorities"))
             .updating($isPriorityDragging) { _, active, _ in active = true }
             .onChanged { value in
                 if draggedPriority == nil {
-                    draggedPriority = MicrophonePriorityDrag(profileID: store.activeProfile.id, uid: uid)
+                    draggedPriority = MicrophonePriorityDrag(profileID: store.activeProfile.id, id: id)
                 }
                 priorityDragOffset = value.translation.height
-                dropTargetUID = priorityUID(at: value.location.y)
+                dropTargetID = priorityID(at: value.location.y)
             }
             .onEnded { value in
                 defer { resetPriorityDrag() }
-                guard let item = draggedPriority, let targetUID = priorityUID(at: value.location.y) else { return }
-                movePriority(item, to: targetUID)
+                guard let item = draggedPriority, let targetID = priorityID(at: value.location.y) else { return }
+                movePriority(item, to: targetID)
             }
     }
 
     private func resetPriorityDrag() {
         draggedPriority = nil
-        dropTargetUID = nil
+        dropTargetID = nil
         priorityDragOffset = 0
     }
 
-    private func priorityUID(at y: CGFloat) -> String? {
-        store.activeProfile.priority.compactMap { device -> (uid: String, distance: CGFloat)? in
-            guard let frame = priorityRowFrames[device.uid] else { return nil }
-            return (device.uid, abs(frame.midY - y))
-        }.min(by: { $0.distance < $1.distance })?.uid
+    private func priorityID(at y: CGFloat) -> String? {
+        store.activeProfile.priority.compactMap { device -> (id: String, distance: CGFloat)? in
+            guard let frame = priorityRowFrames[device.id] else { return nil }
+            return (device.id, abs(frame.midY - y))
+        }.min(by: { $0.distance < $1.distance })?.id
     }
 
-    private func movePriority(_ item: MicrophonePriorityDrag, to targetUID: String) {
+    private func movePriority(_ item: MicrophonePriorityDrag, to targetID: String) {
         let profile = store.activeProfile
         guard item.profileID == profile.id,
-              let source = profile.priority.firstIndex(where: { $0.uid == item.uid }),
-              let target = profile.priority.firstIndex(where: { $0.uid == targetUID }) else { return }
+              let source = profile.priority.firstIndex(where: { $0.id == item.id }),
+              let target = profile.priority.firstIndex(where: { $0.id == targetID }) else { return }
         store.movePriority(fromOffsets: IndexSet(integer: source), toOffset: target > source ? target + 1 : target)
     }
 
@@ -449,7 +449,8 @@ private struct MicrophoneSettingsView: View {
                 .foregroundStyle(available ? SottoPalette.accentInk : SottoPalette.muted)
                 .frame(width: 20, height: 24)
                 .accessibilityHidden(true)
-            Text(device.name)
+            Text(device.displayName)
+                .help(device.displayName + " · " + store.availability(device))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundStyle(available ? SottoPalette.ink : SottoPalette.muted)
@@ -460,7 +461,7 @@ private struct MicrophoneSettingsView: View {
 
 private struct MicrophonePriorityDrag {
     var profileID: String
-    var uid: String
+    var id: String
 }
 
 private struct MicrophonePriorityFrames: PreferenceKey {

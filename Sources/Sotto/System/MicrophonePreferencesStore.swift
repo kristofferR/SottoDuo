@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SottoCore
+import SottoAPI
 
 enum MicrophoneProfileError: LocalizedError, Equatable {
     case emptyName
@@ -25,6 +26,10 @@ final class MicrophonePreferencesStore: ObservableObject {
     @Published private(set) var availableDevices: [AudioInputDevice] = []
     @Published private(set) var systemDefaultUID: String?
     @Published private(set) var storageError: String?
+    private var localDevices: [AudioInputDevice] = []
+    private var remoteSources: [String: AudioSource] = [:]
+    private var remoteDevices: [AudioInputDevice] = []
+    private var publishedAvailability: [String: String] = [:]
     private let configuration: ConfigurationStore
     private var subscriptions: Set<AnyCancellable> = []
 
@@ -44,28 +49,83 @@ final class MicrophonePreferencesStore: ObservableObject {
     }
 
     var activeProfile: MicrophoneProfile { preferences.activeProfile }
+    var prefersRemoteInput: Bool {
+        switch preferences.selection {
+        case .automatic: activeProfile.priority.contains { $0.remote != nil }
+        case .fixed(let device): device.remote != nil
+        case .systemDefault: false
+        }
+    }
     var resolution: MicrophoneResolution {
-        MicrophoneSelectionPolicy.resolve(preferences: preferences, available: availableDevices, systemDefaultUID: systemDefaultUID)
+        MicrophoneSelectionPolicy.resolve(preferences: preferences, available: availableDevices.filter { isEligible($0) }, systemDefaultUID: systemDefaultUID)
     }
     var otherDevices: [AudioInputDevice] {
-        let preferred = Set(activeProfile.priority.map(\.uid))
-        return availableDevices.filter { !preferred.contains($0.uid) }
+        let preferred = Set(activeProfile.priority.map(\.id))
+        return availableDevices.filter { !preferred.contains($0.id) }
     }
 
-    func connectedDevice(uid: String) -> AudioInputDevice? {
-        availableDevices.first { $0.uid == uid }
+    func connectedDevice(id: String) -> AudioInputDevice? {
+        availableDevices.first { $0.id == id }
+    }
+
+    func isEligible(_ device: AudioInputDevice, at now: Date = Date()) -> Bool {
+        device.remote == nil ? localDevices.contains(where: { $0.id == device.id })
+            : remoteSources[device.id]?.isEligible(at: now) == true
+    }
+
+    func availability(_ device: AudioInputDevice) -> String {
+        guard device.remote != nil else { return isEligible(device) ? "Connected" : "Disconnected" }
+        guard let source = remoteSources[device.id] else { return "Remote unavailable" }
+        if isEligible(device) { return "Remote ready" }
+        if !source.present || source.link == .disconnected { return "Disconnected" }
+        if source.audioHealth == .degraded { return "Audio degraded" }
+        return "Remote unavailable"
+    }
+
+    func updateRemote(_ sources: [AudioSource], server: String) {
+        remoteSources = [:]
+        remoteDevices = sources.prefix(32).compactMap { source in
+            let device = AudioInputDevice(uid: source.identity.id, name: source.name,
+                transport: AudioInputTransport(rawValue: source.transport.rawValue) ?? .other,
+                remote: RemoteInputHost(server: server, hostID: source.identity.hostID))
+            guard remoteSources[device.id] == nil else { return nil }
+            remoteSources[device.id] = source
+            return device
+        }
+        rebuildDevices()
+    }
+
+    func clearRemote() {
+        remoteSources = [:]; remoteDevices = []
+        rebuildDevices()
+    }
+
+    func resolution(excluding id: String) -> MicrophoneResolution {
+        MicrophoneSelectionPolicy.resolve(preferences: preferences,
+            available: availableDevices.filter { $0.id != id && isEligible($0) }, systemDefaultUID: systemDefaultUID)
+    }
+
+    private func rebuildDevices() {
+        let devices = localDevices + remoteDevices
+        let statuses = Dictionary(devices.map { ($0.id, availability($0)) }, uniquingKeysWith: { first, _ in first })
+        // Timestamp-only polls do not repaint the settings/controller. A status
+        // transition must still invalidate resolution when device metadata is unchanged.
+        if availableDevices != devices { availableDevices = devices }
+        else if publishedAvailability != statuses { objectWillChange.send() }
+        publishedAvailability = statuses
     }
 
     func update(devices: [AudioInputDevice], systemDefaultUID: String?) {
-        if availableDevices != devices { availableDevices = devices }
+        localDevices = devices
+        rebuildDevices()
         if self.systemDefaultUID != systemDefaultUID { self.systemDefaultUID = systemDefaultUID }
         guard configuration.isLoaded else { return }
         // Refresh names/transport without forgetting offline favorites or order.
         var next = preferences
         for index in next.profiles.indices {
-            next.profiles[index].priority = next.profiles[index].priority.map { connectedDevice(uid: $0.uid) ?? $0 }
+            next.profiles[index].priority = next.profiles[index].priority.map { connectedDevice(id: $0.id) ?? $0 }
         }
-        if case .fixed(let device) = next.selection, let connected = connectedDevice(uid: device.uid) {
+        if case .fixed(let device) = next.selection, let connected = connectedDevice(id: device.id) {
             next.selection = .fixed(connected)
         }
         save(next)
@@ -120,13 +180,13 @@ final class MicrophonePreferencesStore: ObservableObject {
 
     func addToPriority(_ device: AudioInputDevice) {
         editPriority { entries in
-            guard !entries.contains(where: { $0.uid == device.uid }) else { return }
+            guard !entries.contains(where: { $0.id == device.id }) else { return }
             entries.append(device)
         }
     }
 
-    func removeFromPriority(uid: String) {
-        editPriority { $0.removeAll { $0.uid == uid } }
+    func removeFromPriority(id: String) {
+        editPriority { $0.removeAll { $0.id == id } }
     }
 
     func movePriority(fromOffsets offsets: IndexSet, toOffset destination: Int) {
@@ -142,9 +202,9 @@ final class MicrophonePreferencesStore: ObservableObject {
         }
     }
 
-    func movePriority(uid: String, by offset: Int) {
+    func movePriority(id: String, by offset: Int) {
         editPriority { entries in
-            guard [-1, 1].contains(offset), let index = entries.firstIndex(where: { $0.uid == uid }),
+            guard [-1, 1].contains(offset), let index = entries.firstIndex(where: { $0.id == id }),
                   entries.indices.contains(index + offset) else { return }
             entries.swapAt(index, index + offset)
         }

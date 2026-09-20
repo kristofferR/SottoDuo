@@ -857,7 +857,7 @@ final class NativeIntegrationTests: XCTestCase {
         feedback.updateElapsed(180)
         feedback.finish(atLimit: true)
         XCTAssertEqual(feedback.limitNotice, .stopped)
-        XCTAssertEqual(feedback.limitNotice?.text, "Stopped at the 3-minute limit")
+        XCTAssertEqual(feedback.limitNotice?.text, "Stopped at the recording limit")
         feedback.clearLevels()
         XCTAssertEqual(feedback.limitNotice, .stopped, "Processing retains the reason capture stopped")
         feedback.reset()

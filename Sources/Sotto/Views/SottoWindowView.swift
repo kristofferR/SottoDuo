@@ -158,8 +158,10 @@ struct DictationPage: View {
 
                 if !controller.allPermissionsGranted {
                     VStack(spacing: 10) {
-                        PermissionRow(title: "Microphone", detail: "Capture your voice while dictating.",
-                                      granted: controller.permissions.microphone, action: controller.requestMicrophone)
+                        if !controller.usesRemoteInput {
+                            PermissionRow(title: "Microphone", detail: "Use a Mac microphone, including fallback.",
+                                          granted: controller.permissions.microphone, action: controller.requestMicrophone)
+                        }
                         PermissionRow(title: "Accessibility", detail: "Use the hold key and insert text.",
                                       granted: controller.permissions.accessibility, action: controller.requestAccessibility)
                         HStack { PermissionHelpButton(); Spacer() }

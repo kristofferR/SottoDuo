@@ -147,9 +147,10 @@ final class SottoController: ObservableObject {
     var isBusy: Bool { activity.isBusy }
     var canCancelWithEscape: Bool { !hotkey.isHoldingFn }
     var isServerReady: Bool { serverHealth?.ready == true && serverHealth?.apiVersion == SottoAPI.version }
-    var canTest: Bool { isServerReady && permissions.microphone && microphones.resolution.device != nil && !isBusy }
-    var selectedInputName: String { microphones.resolution.device?.name ?? "No microphone available" }
-    var allPermissionsGranted: Bool { permissions.microphone && permissions.accessibility }
+    var canTest: Bool { isServerReady && microphones.resolution.device != nil && !isBusy }
+    var selectedInputName: String { microphones.resolution.device?.displayName ?? "No microphone available" }
+    var usesRemoteInput: Bool { microphones.resolution.device?.remote != nil }
+    var allPermissionsGranted: Bool { (usesRemoteInput || permissions.microphone) && permissions.accessibility }
     var onHUDVisibility: ((Bool) -> Void)?
     var onShowWindow: (() -> Void)?
 
@@ -168,6 +169,9 @@ final class SottoController: ObservableObject {
     private var transcriptionTask: Task<Void, Never>?
     private var uploadTask: Task<FinishGenerationRequest, Error>?
     private var uploadPipe: AudioChunkPipe?
+    private var remoteCapture: RemoteCaptureSession?
+    private var sourceMonitorTask: Task<Void, Never>?
+    private var activationTimeoutTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var monitorTask: Task<Void, Never>?
     private var hudTask: Task<Void, Never>?
@@ -198,9 +202,9 @@ final class SottoController: ObservableObject {
     private var lockObserver: NSObjectProtocol?
     private var unlockObserver: NSObjectProtocol?
 
-    init(configuration: ConfigurationStore, startServices: Bool = true) {
+    init(configuration: ConfigurationStore, startServices: Bool = true, clientPreferences: ClientPreferencesStore? = nil) {
         self.configuration = configuration
-        preferences = ClientPreferencesStore(root: configuration.url.deletingLastPathComponent())
+        preferences = clientPreferences ?? ClientPreferencesStore(root: configuration.url.deletingLastPathComponent())
         microphones = MicrophonePreferencesStore(configuration: configuration)
         permissions = startServices ? PermissionSnapshot.capture()
             : PermissionSnapshot(microphone: false, accessibility: false, inputMonitoring: false)
@@ -221,6 +225,13 @@ final class SottoController: ObservableObject {
         refreshDJIMicButton()
         updateLoginItem()
         refreshServer()
+        sourceMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, !isShuttingDown else { return }
+                try? await refreshAudioSources()
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
         monitorTask = Task { [weak self] in
             var count = 0
             while !Task.isCancelled {
@@ -243,6 +254,21 @@ final class SottoController: ObservableObject {
 
     private func client() throws -> ServerClient {
         try ServerClient(endpoint: preferences.endpoint, token: preferences.token)
+    }
+
+    private func refreshAudioSources() async throws {
+        let connection = try client()
+        let endpoint = preferences.endpoint
+        let token = preferences.token
+        do {
+            let sources = try await connection.audioSources()
+            guard endpoint == preferences.endpoint, token == preferences.token, !Task.isCancelled else { return }
+            microphones.updateRemote(sources, server: connection.endpoint.absoluteString)
+        } catch {
+            guard endpoint == preferences.endpoint, token == preferences.token, !Task.isCancelled else { throw error }
+            microphones.clearRemote()
+            throw error
+        }
     }
 
     func refreshServer() {
@@ -298,6 +324,7 @@ final class SottoController: ObservableObject {
             return
         }
         continuationAnchors.removeAll()
+        microphones.clearRemote()
         serverHealth = nil
         sharedPreferences = nil
         generations = []
@@ -692,6 +719,8 @@ final class SottoController: ObservableObject {
         recordingTrigger = nil
         sessionID = UUID()
         microphoneStartTask?.cancel(); microphoneStartTask = nil
+        activationTimeoutTask?.cancel(); activationTimeoutTask = nil
+        remoteCapture?.cancelMonitoring(); remoteCapture = nil
         transcriptionTask?.cancel(); transcriptionTask = nil
         uploadPipe?.cancel(); uploadPipe = nil
         uploadTask?.cancel(); uploadTask = nil
@@ -757,9 +786,10 @@ final class SottoController: ObservableObject {
         // generation remains independently owned and may complete in history.
         let generation = activeGenerationID
         let connection = activeClient
-        let shouldCancel = !serverSealed
+        let shouldCancel = remoteCapture.map { !$0.isSealed } ?? !serverSealed
         resetSession()
         if shouldCancel, let generation, let connection { Task { try? await connection.cancel(generation) } }
+        sourceMonitorTask?.cancel()
         monitorTask?.cancel(); refreshTask?.cancel(); hudTask?.cancel(); permissionTask?.cancel()
         configuration.stopWatching()
         subscriptions.removeAll()
@@ -828,10 +858,6 @@ final class SottoController: ObservableObject {
         let isTest = trigger == .test
         stopShortcutCheck()
         guard isServerReady else { showError(serverStatusMessage); refreshServer(); onShowWindow?(); return }
-        guard permissions.microphone else { showError("Allow microphone access, then try again."); onShowWindow?(); return }
-        guard let input = microphones.resolution.device, let deviceID = audioDevices.deviceID(for: input.uid) else {
-            showError("No microphone is available. Connect an input and try again."); onShowWindow?(); return
-        }
         hudTask?.cancel(); errorMessage = nil
         liveTranscript = ""
         sessionID = UUID()
@@ -841,7 +867,7 @@ final class SottoController: ObservableObject {
         serverSealed = false
         recordingClipboardChangeCount = NSPasteboard.general.changeCount
         insertionDestination = nil
-        recordingInputName = input.name
+        recordingInputName = nil
         recordingFeedback.reset()
         activity = .starting
         statusMessage = "Connecting recording…"
@@ -856,62 +882,131 @@ final class SottoController: ObservableObject {
                 prepareContinuation(for: destination.target.map(DictationDestination.field))
             }
         } else { prepareContinuation(for: .test) }
+        let deadline = ProcessInfo.processInfo.systemUptime + 3
+        activationTimeoutTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            guard let self, sessionID == current, activity == .starting else { return }
+            failSession("The microphone did not start in time. Try another take.", cancelServer: true)
+        }
         microphoneStartTask = Task { [weak self] in
             guard let self else { return }
-            defer { if sessionID == current { microphoneStartTask = nil } }
+            defer {
+                if sessionID == current {
+                    microphoneStartTask = nil
+                    activationTimeoutTask?.cancel(); activationTimeoutTask = nil
+                }
+            }
             do {
-                let connection = try client()
-                let created = try await connection.create(.init(requestID: current,
-                    device: .init(id: preferences.deviceID, name: preferences.deviceName), mode: isTest ? .test : .dictation))
-                guard sessionID == current, activity == .starting, !Task.isCancelled else {
-                    Task { try? await connection.cancel(created.id) }; return
-                }
-                guard created.status == .receiving else { throw ServerClientError.invalidResponse }
-                activeGenerationID = created.id
-                activeClient = connection
-                sharedPreferences = created.settings
-                let pipe = AudioChunkPipe { [weak self] error in
-                    Task { @MainActor [weak self] in
-                        guard let self, sessionID == current else { return }
-                        failSession(error.localizedDescription, cancelServer: true)
-                    }
-                }
-                uploadPipe = pipe
-                recorder.onChunk = { pipe.append($0) }
-                uploadTask = Task { [weak self] in
-                    do {
-                        if created.recognition != nil {
-                            return try await connection.uploadStreaming(pipe.stream, to: created.id,
-                                preserveOriginal: created.settings.preferences.keepOriginalAudio) { [weak self] recognition in
-                                    await self?.applyRecognition(recognition, session: current)
-                                }
-                        }
-                        return try await connection.upload(pipe.stream, to: created.id, preserveOriginal: created.settings.preferences.keepOriginalAudio)
-                    }
-                    catch {
-                        if let self, sessionID == current, !Task.isCancelled {
-                            failSession(Self.connectionMessage(error), cancelServer: true)
-                        }
-                        throw error
-                    }
-                }
-                recordingStart = ProcessInfo.processInfo.systemUptime
-                statusMessage = "Starting microphone…"
-                try await recorder.start(deviceID: deviceID, preserveOriginalAudio: created.settings.preferences.keepOriginalAudio)
+                // Discovery failure invalidates remote eligibility; local upload
+                // admission still checks server availability independently.
+                if microphones.prefersRemoteInput { try? await refreshAudioSources() }
                 guard sessionID == current, activity == .starting, !Task.isCancelled else { return }
-                activity = .recording
-                statusMessage = "Listening"
-                startRecordingTimer()
+                guard let input = microphones.resolution.device else {
+                    throw ServerClientError.captureUnavailable("No microphone is ready. Connect an input and try again.")
+                }
+                do {
+                    try await startInput(input, session: current, requestID: current, isTest: isTest, deadline: deadline)
+                } catch ServerClientError.captureUnavailable(let message) {
+                    // Only a definitive pre-ready rejection permits one fresh admission.
+                    guard input.remote != nil, sessionID == current, activity == .starting,
+                          !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline,
+                          let fallback = microphones.resolution(excluding: input.id).device else { throw ServerClientError.captureUnavailable(message) }
+                    try await startInput(fallback, session: current, requestID: UUID(), isTest: isTest, deadline: deadline)
+                }
             } catch is CancellationError {
             } catch AudioRecordingError.cancelled {
             } catch {
                 guard sessionID == current, !Task.isCancelled else { return }
-                serverHealth = nil
-                serverStatusMessage = Self.connectionMessage(error)
-                failSession(serverStatusMessage, cancelServer: true)
+                if error is URLError { serverHealth = nil; serverStatusMessage = Self.connectionMessage(error) }
+                failSession(Self.connectionMessage(error), cancelServer: true)
                 refreshServer()
             }
         }
+    }
+
+    private func startInput(_ input: AudioInputDevice, session current: UUID, requestID: UUID,
+                            isTest: Bool, deadline: TimeInterval) async throws {
+        try Task.checkCancellation()
+        recordingInputName = input.displayName
+        let base = try client()
+        let device = DeviceIdentity(id: preferences.deviceID, name: preferences.deviceName)
+        let remaining = deadline - ProcessInfo.processInfo.systemUptime
+        guard remaining > 0 else { throw ServerClientError.captureUnavailable("The microphone did not start in time. Try another take.") }
+        if let remote = input.remote {
+            guard remote.server == base.endpoint.absoluteString else { throw ServerClientError.invalidResponse }
+            let connection = try base.owningCapture()
+            let source = AudioSourceIdentity(hostID: remote.hostID, id: input.uid)
+            statusMessage = "Starting remote microphone…"
+            let requestedAt = ProcessInfo.processInfo.systemUptime
+            let created = try await connection.startCapture(.init(requestID: requestID, device: device,
+                mode: isTest ? .test : .dictation, source: source), timeout: remaining)
+            guard sessionID == current, activity == .starting, !Task.isCancelled else {
+                Task { try? await connection.cancel(created.id) }; return
+            }
+            activeGenerationID = created.id; activeClient = connection
+            guard created.capture?.source == source else { throw ServerClientError.invalidResponse }
+            let capture = try RemoteCaptureSession(record: created, connection: connection, requestedAt: requestedAt)
+            remoteCapture = capture
+            sharedPreferences = created.settings
+            recordingStart = ProcessInfo.processInfo.systemUptime
+            activity = .recording
+            statusMessage = "Listening · remote microphone → this Mac"
+            capture.monitor { [weak self] record in
+                guard let self, sessionID == current else { return }
+                if isRecording {
+                    if let peak = record.capture?.peak { recordingFeedback.append(Float(peak)) }
+                    if let recognition = record.recognition { applyRecognition(recognition, session: current) }
+                } else { applyProgress(record, session: current) }
+            } onFailure: { [weak self] error in
+                guard let self, sessionID == current else { return }
+                failSession(Self.connectionMessage(error), cancelServer: remoteCapture?.isSealed != true)
+            }
+        } else {
+            guard permissions.microphone else {
+                onShowWindow?()
+                throw ServerClientError.captureUnavailable("Allow microphone access in macOS Settings to use the local input or microphone fallback.")
+            }
+            guard let deviceID = audioDevices.deviceID(for: input.uid) else {
+                throw ServerClientError.captureUnavailable("The selected Mac microphone disconnected. Try another take.")
+            }
+            let connection = base
+            let created = try await connection.create(.init(requestID: requestID, device: device, mode: isTest ? .test : .dictation), timeout: remaining)
+            guard sessionID == current, activity == .starting, !Task.isCancelled else {
+                Task { try? await connection.cancel(created.id) }; return
+            }
+            activeGenerationID = created.id; activeClient = connection
+            guard created.status == .receiving, created.capture == nil else { throw ServerClientError.invalidResponse }
+            sharedPreferences = created.settings
+            let pipe = AudioChunkPipe { [weak self] error in
+                Task { @MainActor [weak self] in
+                    guard let self, sessionID == current else { return }
+                    failSession(error.localizedDescription, cancelServer: true)
+                }
+            }
+            uploadPipe = pipe
+            recorder.onChunk = { pipe.append($0) }
+            uploadTask = Task { [weak self] in
+                do {
+                    if created.recognition != nil {
+                        return try await connection.uploadStreaming(pipe.stream, to: created.id,
+                            preserveOriginal: created.settings.preferences.keepOriginalAudio) { [weak self] recognition in
+                                await self?.applyRecognition(recognition, session: current)
+                            }
+                    }
+                    return try await connection.upload(pipe.stream, to: created.id, preserveOriginal: created.settings.preferences.keepOriginalAudio)
+                } catch {
+                    if let self, sessionID == current, !Task.isCancelled { failSession(Self.connectionMessage(error), cancelServer: true) }
+                    throw error
+                }
+            }
+            recordingStart = ProcessInfo.processInfo.systemUptime
+            statusMessage = "Starting microphone…"
+            try await recorder.start(deviceID: deviceID, preserveOriginalAudio: created.settings.preferences.keepOriginalAudio)
+            guard sessionID == current, activity == .starting, !Task.isCancelled else { return }
+            activity = .recording
+            statusMessage = "Listening"
+        }
+        startRecordingTimer()
     }
 
     private func finishDictation(atLimit: Bool = false) {
@@ -921,13 +1016,16 @@ final class SottoController: ObservableObject {
         let releasedAt = ProcessInfo.processInfo.systemUptime
         destinationTask?.finish()
         guard releasedAt - recordingStart >= 0.25 else { cancelDictation(); return }
-        guard let id = activeGenerationID, let connection = activeClient, let uploadTask, let uploadPipe else {
+        guard let id = activeGenerationID, let connection = activeClient else {
             failSession("This recording has no server session.", cancelServer: true); return
         }
         stopRecordingTimer(); resetLevels()
         recordingFeedback.finish(atLimit: atLimit)
         activity = .transcribing
-        statusMessage = "Finishing upload…"
+        statusMessage = remoteCapture == nil ? "Finishing upload…" : "Stopping remote microphone…"
+        let capture = remoteCapture
+        let uploadTask = uploadTask
+        let uploadPipe = uploadPipe
         let current = sessionID
         let test = isTestSession
         let capturedDestination = insertionDestination
@@ -938,16 +1036,18 @@ final class SottoController: ObservableObject {
             var capturedAudio: CapturedAudio?
             defer { capturedAudio?.cleanup() }
             do {
-                let audio = try await recorder.stop()
-                capturedAudio = audio
-                guard sessionID == current, !Task.isCancelled else { return }
-                uploadPipe.finish()
-                var finish = try await uploadTask.value
-                guard sessionID == current, !Task.isCancelled else { return }
-                // All PCM is acknowledged; no local artifact is needed while
-                // the independent server transcribes and stores its result.
-                audio.cleanup()
-                capturedAudio = nil
+                var finish: FinishGenerationRequest?
+                if capture == nil {
+                    guard let uploadTask, let uploadPipe else { throw ServerClientError.invalidResponse }
+                    let audio = try await recorder.stop()
+                    capturedAudio = audio
+                    guard sessionID == current, !Task.isCancelled else { return }
+                    uploadPipe.finish()
+                    finish = try await uploadTask.value
+                    guard sessionID == current, !Task.isCancelled else { return }
+                    audio.cleanup()
+                    capturedAudio = nil
+                }
                 let destination: InsertionDestination
                 if test { destination = .clipboard }
                 else if let capturedDestination { destination = capturedDestination }
@@ -957,13 +1057,22 @@ final class SottoController: ObservableObject {
                     resolved = .clipboard
                 } else { resolved = destination }
                 let anchor: DictationDestination? = test ? .test : resolved.target.flatMap { $0.selection == nil ? nil : .field($0) }
-                finish.continuationID = anchor.flatMap { self.continuation(for: $0)?.generationID }
-                serverSealed = true // An interrupted response may still mean the server accepted the seal.
-                var result = try await connection.finish(id, value: finish)
+                let continuationID = anchor.flatMap { self.continuation(for: $0)?.generationID }
                 guard sessionID == current, !Task.isCancelled else { return }
-                if !result.status.isTerminal {
-                    result = try await connection.events(id) { [weak self] record in
-                        await self?.applyProgress(record, session: current)
+                var result: GenerationRecord
+                if let capture {
+                    result = try await capture.stop(continuationID: continuationID)
+                    serverSealed = true
+                } else {
+                    guard var finish else { throw ServerClientError.invalidResponse }
+                    finish.continuationID = continuationID
+                    serverSealed = true // An interrupted response may still mean the server accepted the seal.
+                    result = try await connection.finish(id, value: finish)
+                    guard sessionID == current, !Task.isCancelled else { return }
+                    if !result.status.isTerminal {
+                        result = try await connection.events(id) { [weak self] record in
+                            await self?.applyProgress(record, session: current)
+                        }
                     }
                 }
                 guard sessionID == current, !Task.isCancelled else { return }
@@ -978,6 +1087,7 @@ final class SottoController: ObservableObject {
                 do { try await connection.delivery(id, receipt: receipt) }
                 catch { continuationAnchors.removeAll { $0.generationID == id } }
                 guard sessionID == current, !Task.isCancelled else { return }
+                capture?.cancelMonitoring(); remoteCapture = nil
                 activeGenerationID = nil; activeClient = nil; self.uploadTask = nil; self.uploadPipe = nil
                 destinationTask = nil; insertionDestination = nil; recordingListHint = nil; recordingInputName = nil
                 recorder.onChunk = nil
@@ -990,7 +1100,7 @@ final class SottoController: ObservableObject {
             } catch {
                 guard sessionID == current, !Task.isCancelled else { return }
                 if error is URLError { serverHealth = nil; serverStatusMessage = Self.connectionMessage(error) }
-                failSession(Self.connectionMessage(error), cancelServer: !serverSealed)
+                failSession(Self.connectionMessage(error), cancelServer: capture.map { !$0.isSealed } ?? !serverSealed)
             }
         }
     }
@@ -999,14 +1109,14 @@ final class SottoController: ObservableObject {
         guard sessionID == session, isCapturing else { return }
         liveTranscript = recognition.partialText ?? ""
         if recognition.provider == .whisper {
-            statusMessage = recognition.fallbackReason == nil ? "Listening locally" : "Listening locally (cloud unavailable)"
+            statusMessage = recognition.fallbackReason == nil ? "Listening · server recognition" : "Listening · server recognition (cloud unavailable)"
         }
     }
 
     private func applyProgress(_ generation: GenerationRecord, session: UUID) {
         guard sessionID == session, isBusy else { return }
         switch generation.status {
-        case .receiving: statusMessage = "Finishing upload…"
+        case .receiving: statusMessage = remoteCapture == nil ? "Finishing upload…" : "Stopping remote microphone…"
         case .queued: statusMessage = "Waiting for server…"
         case .transcribing: statusMessage = "Transcribing on server…"
         case .proofreading: statusMessage = "Proofreading on server…"
@@ -1138,7 +1248,7 @@ final class SottoController: ObservableObject {
     private func restForSystem() {
         stopShortcutCheck()
         if isBusy {
-            let cancelServer = !serverSealed
+            let cancelServer = remoteCapture.map { !$0.isSealed } ?? !serverSealed
             failSession("Recording interrupted while your Mac was away. Check shared history for completed results.", cancelServer: cancelServer)
         }
         continuationAnchors.removeAll()
@@ -1236,8 +1346,9 @@ final class SottoController: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, self.isCapturing else { return }
                 let elapsed = ProcessInfo.processInfo.systemUptime - self.recordingStart
-                self.recordingFeedback.updateElapsed(elapsed)
-                if elapsed >= LifecyclePolicy.maximumRecordingSeconds { self.finishDictation(atLimit: true) }
+                let maximum = self.remoteCapture.map { $0.stopAt - self.recordingStart } ?? LifecyclePolicy.maximumRecordingSeconds
+                self.recordingFeedback.updateElapsed(elapsed, maximumSeconds: maximum)
+                if elapsed >= maximum { self.finishDictation(atLimit: true) }
             }
         }
         timer.tolerance = 0.025

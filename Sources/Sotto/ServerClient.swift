@@ -5,6 +5,7 @@ import SottoAPI
 enum ServerClientError: LocalizedError {
     case invalidEndpoint
     case rejected(Int, String)
+    case captureUnavailable(String)
     case invalidResponse
     case disconnected
     case uploadBacklog
@@ -15,6 +16,7 @@ enum ServerClientError: LocalizedError {
         switch self {
         case .invalidEndpoint: "The server address is invalid."
         case .rejected(_, let message): message
+        case .captureUnavailable(let message): message
         case .invalidResponse: "The server returned an invalid response."
         case .disconnected: "The server connection was interrupted. Any completed result is available in shared history."
         case .uploadBacklog: "The connection cannot keep up with the microphone. This recording was stopped."
@@ -31,12 +33,21 @@ enum ServerClientError: LocalizedError {
 struct ServerClient: Sendable {
     let endpoint: URL
     private let token: String
+    private let captureOwner: String?
     let session: URLSession
 
-    init(endpoint: String, token: String, session: URLSession? = nil) throws {
+    init(endpoint: String, token: String, session: URLSession? = nil, captureOwner: String? = nil) throws {
         self.endpoint = try ServerEndpoint(endpoint).url
         self.token = token
+        self.captureOwner = captureOwner
         self.session = session ?? Self.defaultSession
+    }
+
+    func owningCapture() throws -> ServerClient {
+        let secret = SymmetricKey(size: .bits256).withUnsafeBytes { bytes in
+            bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        return try ServerClient(endpoint: endpoint.absoluteString, token: token, session: session, captureOwner: secret)
     }
 
     private static let defaultSession: URLSession = {
@@ -62,20 +73,27 @@ struct ServerClient: Sendable {
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("streaming-v1", forHTTPHeaderField: "X-Sotto-Recognition")
+        request.setValue("capture-v1", forHTTPHeaderField: "X-Sotto-Capture")
+        if let captureOwner { request.setValue(captureOwner, forHTTPHeaderField: "X-Sotto-Capture-Owner") }
         if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         return request
     }
 
-    func json<Response: APIWireModel>(path: String, method: String = "GET", body: Data? = nil) async throws -> Response {
-        let (data, response) = try await session.data(for: request(path: path, method: method, body: body))
+    func json<Response: APIWireModel>(path: String, method: String = "GET", body: Data? = nil,
+                                     timeout: TimeInterval = 12) async throws -> Response {
+        var request = try request(path: path, method: method, body: body)
+        request.timeoutInterval = timeout
+        let (data, response) = try await session.data(for: request)
         try Self.validate(response, data: data)
         guard data.count <= 16 * 1_024 * 1_024 else { throw ServerClientError.invalidResponse }
         do { return try SottoAPI.decodeWire(Response.self, from: data) }
         catch { throw ServerClientError.invalidResponse }
     }
 
-    func send(path: String, method: String, body: Data? = nil) async throws {
-        let (data, response) = try await session.data(for: request(path: path, method: method, body: body))
+    func send(path: String, method: String, body: Data? = nil, timeout: TimeInterval = 12) async throws {
+        var request = try request(path: path, method: method, body: body)
+        request.timeoutInterval = timeout
+        let (data, response) = try await session.data(for: request)
         try Self.validate(response, data: data)
     }
 
@@ -92,6 +110,11 @@ struct ServerClient: Sendable {
     private static func validate(_ response: URLResponse, data: Data = Data()) throws {
         guard let response = response as? HTTPURLResponse else { throw ServerClientError.invalidResponse }
         guard (200..<300).contains(response.statusCode) else {
+            if response.statusCode == 503,
+               let error = try? SottoAPI.decoder().decode(APIErrorResponse.self, from: data),
+               ["source_unavailable", "capture_failed", "capture_timeout"].contains(error.code) {
+                throw ServerClientError.captureUnavailable(String(error.message.prefix(1_000)))
+            }
             let message: String
             if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let detail = object["message"] as? String ?? object["error"] as? String {
@@ -146,6 +169,28 @@ final class AudioChunkPipe: @unchecked Sendable {
 }
 
 extension ServerClient {
+    func audioSources() async throws -> [AudioSource] {
+        do {
+            let result: AudioSourceList = try await json(path: "v1/audio-sources", timeout: 1)
+            guard result.sources.count <= 32,
+                  Set(result.sources.map(\.identity)).count == result.sources.count else {
+                throw ServerClientError.invalidResponse
+            }
+            return result.sources
+        } catch ServerClientError.rejected(404, _) {
+            return [] // A server without capture support still accepts local uploads.
+        }
+    }
+    func startCapture(_ value: StartCaptureRequest, timeout: TimeInterval) async throws -> GenerationRecord {
+        try await json(path: "v1/captures", method: "POST", body: Self.encode(value), timeout: timeout)
+    }
+    func heartbeat(_ id: UUID) async throws {
+        try await send(path: "v1/generations/\(id)/capture/heartbeat", method: "POST", timeout: 1)
+    }
+    func stopCapture(_ id: UUID, continuationID: UUID?) async throws -> GenerationRecord {
+        try await json(path: "v1/generations/\(id)/capture/stop", method: "POST",
+                       body: Self.encode(StopCaptureRequest(continuationID: continuationID)), timeout: 6)
+    }
     func health() async throws -> ServerHealth { try await json(path: "v1/health") }
     func preferences() async throws -> PreferencesSnapshot { try await json(path: "v1/preferences") }
     func updatePreferences(_ value: PreferencesSnapshot) async throws -> PreferencesSnapshot {
@@ -222,9 +267,11 @@ extension ServerClient {
         let sha256 = hash.finalize().map { String(format: "%02x", $0) }.joined()
         return WisprFlowArtifactManifest(filename: filename, byteCount: byteCount, sha256: sha256)
     }
-    func generation(_ id: UUID) async throws -> GenerationRecord { try await json(path: "v1/generations/\(id)") }
-    func create(_ value: CreateGenerationRequest) async throws -> GenerationRecord {
-        try await json(path: "v1/generations", method: "POST", body: Self.encode(value))
+    func generation(_ id: UUID, timeout: TimeInterval = 12) async throws -> GenerationRecord {
+        try await json(path: "v1/generations/\(id)", timeout: timeout)
+    }
+    func create(_ value: CreateGenerationRequest, timeout: TimeInterval = 12) async throws -> GenerationRecord {
+        try await json(path: "v1/generations", method: "POST", body: Self.encode(value), timeout: timeout)
     }
     func finish(_ id: UUID, value: FinishGenerationRequest) async throws -> GenerationRecord {
         try await json(path: "v1/generations/\(id)/finish", method: "POST", body: Self.encode(value))
