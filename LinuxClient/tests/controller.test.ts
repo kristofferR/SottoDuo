@@ -1,0 +1,260 @@
+import { afterEach, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { GenerationService } from "../../Server/src/generation-service.ts";
+import { createHTTPServer } from "../../Server/src/http-server.ts";
+import type { CaptureProvider } from "../../Server/src/capture-sessions.ts";
+import { FakeInference } from "../../Server/tests/support.ts";
+import { API, APIError } from "../src/api.ts";
+import { Controller, type Desktop } from "../src/controller.ts";
+import type { Source } from "../src/sources.ts";
+const cleanup: (() => Promise<void>)[] = [];
+afterEach(async () => {
+  for (const close of cleanup.splice(0).reverse()) await close();
+});
+async function until(predicate: () => boolean) {
+  const deadline = Date.now() + 5000;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error("Timed out");
+    await Bun.sleep(5);
+  }
+}
+async function fixture() {
+  const sources = (): Source[] =>
+    ["dji", "built-in"].map((id) => ({
+      identity: { hostID: "desktop", id },
+      name: id,
+      transport: "usb",
+      present: true,
+      link: "connected",
+      capture: "available",
+      audioHealth: "unknown",
+      observedAt: new Date().toISOString(),
+    }));
+  const starts: string[] = [];
+  const provider: CaptureProvider = {
+    sources,
+    async start(options) {
+      starts.push(options.generation.capture!.source.id);
+      await options.write("inference", 0, { sampleRate: 16000, channels: 1 }, Buffer.alloc(64000));
+      if (options.generation.settings.preferences.keepOriginalAudio)
+        await options.write(
+          "original",
+          0,
+          { sampleRate: 48000, channels: 1 },
+          Buffer.alloc(192000),
+        );
+      return {
+        stop: async () => ({
+          inferenceFrames: 16000,
+          ...(options.generation.settings.preferences.keepOriginalAudio
+            ? { originalFrames: 48000 }
+            : {}),
+        }),
+      };
+    },
+  };
+  const directory = await mkdtemp(join(tmpdir(), "sotto-linux-test-"));
+  const service = await GenerationService.open(
+    { dataDirectory: directory, development: true, captureProvider: provider },
+    new FakeInference(),
+  );
+  const app = createHTTPServer(service, "fixture-token");
+  const address = await app.listen({ host: "127.0.0.1", port: 0 });
+  cleanup.push(async () => {
+    await service.shutdown();
+    await app.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+  const api = new API(address, "fixture-token");
+  let unlocked = true;
+  let deliveries = 0;
+  let mode: "inserted" | "preview" | "uncertain" = "inserted";
+  const notices: string[] = [];
+  const desktop: Desktop = {
+    unlocked: async () => unlocked,
+    capture: async () => ({
+      close() {},
+      deliver: async () => {
+        deliveries++;
+        return mode;
+      },
+    }),
+    defaultInput: async () => ({ hostID: "desktop", id: "built-in" }),
+    notify: (value) => {
+      notices.push(value);
+    },
+  };
+  const controller = new Controller(
+    api,
+    desktop,
+    { id: "desktop-client", name: "Omarchy" },
+    { hostID: "desktop", mode: "automatic", priority: [{ hostID: "desktop", id: "dji" }] },
+  );
+  cleanup.push(async () => {
+    await controller.cancel();
+    await controller.settled();
+  });
+  return {
+    controller,
+    api,
+    service,
+    starts,
+    notices,
+    desktop,
+    deliveries: () => deliveries,
+    lock: () => {
+      unlocked = false;
+    },
+    delivery: (value: typeof mode) => {
+      mode = value;
+    },
+  };
+}
+test("owned HTTP capture reuses history and delivers once, including duplicate release commands", async () => {
+  const f = await fixture();
+  f.controller.start();
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  f.controller.stop();
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.starts).toEqual(["dji"]);
+  expect(f.deliveries()).toBe(1);
+  expect(f.controller.result?.text).toBe("Hello world. ");
+  const record = await f.api.get(f.controller.result!.id);
+  expect(record.device.id).toBe("desktop-client");
+  expect(record.capture?.source.id).toBe("dji");
+  expect(record.delivery?.status).toBe("inserted");
+});
+test("definitive startup rejection permits one fallback with fresh owner and request ID", async () => {
+  const f = await fixture();
+  const start = f.api.start.bind(f.api);
+  const requests: { id: string; owner: string }[] = [];
+  f.api.start = async (...args) => {
+    requests.push({ id: args[0], owner: args[3] });
+    if (requests.length === 1) throw new APIError(503, "source_unavailable");
+    return start(...args);
+  };
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  f.controller.stop();
+  await f.controller.settled();
+  expect(requests.length).toBe(2);
+  expect(requests[0]!.owner).not.toBe(requests[1]!.owner);
+  expect(requests[0]!.id).not.toBe(requests[1]!.id);
+  expect(f.starts).toEqual(["built-in"]);
+  expect(f.deliveries()).toBe(1);
+});
+test("uncertain admission never opens a fallback microphone", async () => {
+  const f = await fixture();
+  let calls = 0;
+  f.api.start = async () => {
+    calls++;
+    throw new Error("Network timeout after possible admission");
+  };
+  f.controller.start();
+  await f.controller.settled();
+  expect(calls).toBe(1);
+  expect(f.deliveries()).toBe(0);
+  expect(f.controller.result).toBeUndefined();
+});
+test("cancel during admission cancels its late response and cannot deliver", async () => {
+  const f = await fixture();
+  const start = f.api.start.bind(f.api);
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let admitted = false;
+  f.api.start = async (...args) => {
+    const record = await start(...args);
+    admitted = true;
+    await gate;
+    return record;
+  };
+  f.controller.start();
+  await until(() => admitted);
+  await f.controller.cancel();
+  finish();
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(0);
+  expect(f.controller.result).toBeUndefined();
+});
+test("release during admission stops after readiness instead of leaving an open microphone", async () => {
+  const f = await fixture();
+  const start = f.api.start.bind(f.api);
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let admitted = false;
+  f.api.start = async (...args) => {
+    const record = await start(...args);
+    admitted = true;
+    await gate;
+    return record;
+  };
+  f.controller.start();
+  await until(() => admitted);
+  f.controller.stop();
+  finish();
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
+  expect(f.controller.result?.text).toBe("Hello world. ");
+});
+test("lock and heartbeat failure cancel capture without delivery", async () => {
+  for (const cause of ["lock", "network"]) {
+    const f = await fixture();
+    f.controller.start();
+    await until(() => f.controller.state.startsWith("recording"));
+    if (cause === "lock") f.lock();
+    else
+      f.api.heartbeat = async () => {
+        throw new Error("Offline");
+      };
+    await f.controller.settled();
+    expect(f.deliveries()).toBe(0);
+    expect(f.controller.result).toBeUndefined();
+  }
+});
+test("clipboard fallback and ambiguous insertion never retry delivery, even if receipt fails", async () => {
+  for (const mode of ["preview", "uncertain"] as const) {
+    const f = await fixture();
+    f.delivery(mode);
+    f.api.delivery = async () => {
+      throw new Error("Receipt offline");
+    };
+    f.controller.start();
+    await until(() => f.controller.state.startsWith("recording"));
+    f.controller.stop();
+    await f.controller.settled();
+    expect(f.controller.result?.delivery).toBe(mode);
+    expect(f.deliveries()).toBe(1);
+    f.controller.stop();
+    await f.controller.settled();
+    expect(f.deliveries()).toBe(1);
+  }
+});
+test("owner heartbeats continue through a slow drain and stop after sealing", async () => {
+  const f = await fixture();
+  const stop = f.api.stop.bind(f.api),
+    heartbeat = f.api.heartbeat.bind(f.api);
+  let heartbeats = 0;
+  f.api.heartbeat = async (...args) => {
+    heartbeats++;
+    await heartbeat(...args);
+  };
+  f.api.stop = async (...args) => {
+    await Bun.sleep(1300);
+    return stop(...args);
+  };
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  await Bun.sleep(1150);
+  f.controller.stop();
+  await f.controller.settled();
+  expect(heartbeats).toBeGreaterThanOrEqual(2);
+  expect(f.deliveries()).toBe(1);
+});
