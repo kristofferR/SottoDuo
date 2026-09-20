@@ -4,11 +4,14 @@ import XCTest
 @testable import Sotto
 
 final class StreamingUploadTests: XCTestCase {
-    private func client() throws -> ServerClient {
+    private func client(blockUpgrade: Bool = false) throws -> ServerClient {
         guard let endpoint = ProcessInfo.processInfo.environment["SOTTO_STREAM_TEST_URL"] else {
             throw XCTSkip("Run Server/tests/fixtures/streaming-client-server.ts for the native streaming contract test.")
         }
-        return try ServerClient(endpoint: endpoint, token: "sotto-native-streaming-test-token-2026")
+        let configuration = URLSessionConfiguration.ephemeral
+        if blockUpgrade { configuration.httpAdditionalHeaders = ["X-Sotto-Test-Block-Upgrade": "1"] }
+        return try ServerClient(endpoint: endpoint, token: "sotto-native-streaming-test-token-2026",
+                                session: URLSession(configuration: configuration))
     }
 
     func testStreamingArchivesBothFormatsAndReturnsCloudText() async throws {
@@ -19,8 +22,13 @@ final class StreamingUploadTests: XCTestCase {
         try await take(sample: 0.25, expectedText: "Hello world.", expectedProvider: .whisper)
     }
 
-    private func take(sample: Float, expectedText: String, expectedProvider: RecognitionState.Provider) async throws {
-        let client = try client()
+    func testRejectedWebSocketUpgradeFallsBackWithoutLosingAudio() async throws {
+        try await take(sample: 0, expectedText: "Cloud transcript.", expectedProvider: .soniox, blockUpgrade: true)
+    }
+
+    private func take(sample: Float, expectedText: String, expectedProvider: RecognitionState.Provider, blockUpgrade: Bool = false) async throws {
+        let client = try client(blockUpgrade: blockUpgrade)
+        defer { client.session.invalidateAndCancel() }
         let record = try await client.create(.init(requestID: UUID(), device: .init(id: "native-stream-test", name: "Native test"), mode: .test))
         let pipe = AudioChunkPipe()
         let previews = RecognitionUpdates()
@@ -44,8 +52,12 @@ final class StreamingUploadTests: XCTestCase {
             XCTAssertEqual(counts.inferenceFrames, 16_000)
             XCTAssertEqual(counts.originalFrames, 48_000)
             let updates = await previews.values
-            XCTAssertTrue(updates.contains { $0.provider == expectedProvider })
-            if expectedProvider == .soniox { XCTAssertTrue(updates.contains { $0.partialText == "Live cloud preview." }) }
+            if blockUpgrade {
+                XCTAssertTrue(updates.isEmpty)
+            } else {
+                XCTAssertTrue(updates.contains { $0.provider == expectedProvider })
+                if expectedProvider == .soniox { XCTAssertTrue(updates.contains { $0.partialText == "Live cloud preview." }) }
+            }
             var completed = try await client.finish(record.id, value: counts)
             if !completed.status.isTerminal { completed = try await client.events(record.id) { _ in } }
             XCTAssertEqual(completed.status, .completed)

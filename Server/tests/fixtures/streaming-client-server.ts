@@ -40,6 +40,10 @@ const preferences = await service.getPreferences();
 preferences.preferences.textCorrectionEnabled = false;
 await service.updatePreferences(preferences);
 const app = createHTTPServer(service, "sotto-native-streaming-test-token-2026");
+app.addHook("onRequest", async (request, reply) => {
+  if (request.url.endsWith("/stream") && request.headers["x-sotto-test-block-upgrade"] === "1")
+    return reply.code(426).send({ message: "Fixture proxy does not forward WebSocket upgrades." });
+});
 const address = await app.listen({ host: process.env.SOTTO_TEST_HOST ?? "127.0.0.1", port: 0 });
 console.log(address);
 for (const signal of ["SIGTERM", "SIGINT"] as const)

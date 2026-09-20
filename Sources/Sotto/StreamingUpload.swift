@@ -20,9 +20,23 @@ extension ServerClient {
         let socket = session.webSocketTask(with: request)
         socket.maximumMessageSize = 262_144
         let transport = InferenceUpload(socket: socket)
-        let originals = AudioChunkPipe()
         socket.resume()
         let reader = Task { try await transport.readUpdates(onRecognition) }
+        do {
+            // Confirm the upgrade before consuming the single-use microphone stream.
+            try await withTaskCancellationHandler {
+                try await transport.waitForConnection()
+            } onCancel: {
+                reader.cancel()
+                socket.cancel(with: .goingAway, reason: nil)
+            }
+        } catch {
+            reader.cancel()
+            socket.cancel(with: .goingAway, reason: nil)
+            try Task.checkCancellation()
+            return try await upload(stream, to: id, preserveOriginal: preserveOriginal)
+        }
+        let originals = AudioChunkPipe()
         let originalUpload = Task {
             do {
                 var buffer = UploadBuffer(kind: .original)
@@ -98,6 +112,7 @@ private actor InferenceUpload {
     private var acknowledgedSequence = 0
     private var pending: [Int: Int64] = [:]
     private var ended = false
+    private var connected = false
     private var failure: Error?
 
     init(socket: URLSessionWebSocketTask) { self.socket = socket }
@@ -108,6 +123,15 @@ private actor InferenceUpload {
     func fail(_ error: Error) {
         if failure == nil { failure = error }
         socket.cancel(with: .goingAway, reason: nil)
+    }
+    func waitForConnection() async throws {
+        let deadline = ContinuousClock.now + .seconds(3)
+        while !connected {
+            try check()
+            guard ContinuousClock.now < deadline else { throw ServerClientError.disconnected }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try check()
     }
     func readUpdates(_ update: @escaping @Sendable (RecognitionState) async -> Void) async throws {
         do {
@@ -130,6 +154,7 @@ private actor InferenceUpload {
                     ended = true
                 case "recognition":
                     guard let recognition = value.recognition else { throw ServerClientError.invalidResponse }
+                    connected = true
                     await update(recognition)
                 case "error": throw ServerClientError.rejected(422, value.message ?? "Audio streaming failed.")
                 default: throw ServerClientError.invalidResponse
