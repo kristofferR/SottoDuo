@@ -12,7 +12,7 @@ Configure `SONIOX_API_KEY` in the server environment, or pass `--soniox-key-file
 
 The model is `stt-rt-v5`, using `wss://stt-rt.soniox.com/transcribe-websocket`. Only normalized 16 kHz mono float32 audio is sent to Soniox. Original microphone audio stays in the existing server archive. Recognition vocabulary and dictionary terms are sent as bounded context; deterministic dictionary replacement still runs afterward. Selecting Local only affects subsequent takes; each take retains its admission-time preferences.
 
-Whisper, VAD, Qwen, their model configuration, and their build/install scripts remain intact. Native helpers retain their existing warm-up policy, keeping offline fallback ready when models are installed. Soniox does not replace Qwen proofreading. Missing proof assets preserve deterministic text as before. A working local model installation is needed for offline recognition; cloud-only operation does not make unavailable local models usable.
+Whisper, VAD, Qwen, their model configuration, and their build/install scripts remain intact. Native helpers retain their existing warm-up policy, keeping offline fallback ready when models are installed. Soniox does not replace Qwen proofreading. Missing proof assets preserve deterministic text as before. Automatic mode waits for local Whisper to be available and loaded before accepting a recording. Cloud only can accept recordings without local models. A working local model installation is needed for offline recognition; cloud-only operation does not make unavailable local models usable.
 
 ## Recording and storage
 
@@ -35,7 +35,7 @@ If Soniox fails during capture, Automatic keeps archiving audio and uses the ent
 - Server end receipt: `{"type":"ended","frameCount":16000}`. This acknowledges upload completion, not transcription completion. The client can close the upload socket after this.
 - Server error: `{"type":"error","message":"..."}`, followed by closure.
 
-Original audio uses the existing sequenced HTTP route. After all audio is acknowledged the client calls the existing `/finish`, then reads the existing NDJSON events until terminal. Existing HTTP-only clients still work; their inference uploads are also streamed to Soniox as they arrive. The Mac chooses the new transport when the admitted record includes `recognition`; otherwise it uses the original HTTP upload implementation. The retained Swift reference server implements local recognition only.
+Original audio uses the existing sequenced HTTP route. After all audio is acknowledged the client calls the existing `/finish`, then reads the existing NDJSON events until terminal. Clients opt into recognition fields by sending `X-Sotto-Recognition: streaming-v1`. Without this header, both servers omit `recognitionMode` and `recognition` from JSON and NDJSON responses so older strict v1 decoders remain compatible. Stored metadata retains the full fields. Existing HTTP-only clients still work; their inference uploads are also streamed to Soniox as they arrive. The Mac chooses the new transport when the admitted record includes `recognition`; otherwise it uses the original HTTP upload implementation. The retained Swift reference server implements local recognition only and rejects Cloud only settings and admissions.
 
 ## Keeping upstream merges small
 

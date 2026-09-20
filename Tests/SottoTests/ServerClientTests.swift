@@ -15,6 +15,17 @@ final class ServerClientTests: XCTestCase {
         XCTAssertFalse(request.url?.absoluteString.contains("private-token") == true)
     }
 
+    func testStreamingRequestPreservesTLSForMixedCaseSchemes() throws {
+        for endpoint in ["https://example.com", "HTTPS://example.com", "hTtPs://example.com"] {
+            let request = try ServerClient(endpoint: endpoint, token: "private-token").streamingRequest(to: UUID())
+            XCTAssertEqual(request.url?.scheme, "wss")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer private-token")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Sotto-Recognition"), "streaming-v1")
+        }
+        let local = try ServerClient(endpoint: "HTTP://127.0.0.1:8391", token: "").streamingRequest(to: UUID())
+        XCTAssertEqual(local.url?.scheme, "ws")
+    }
+
     func testKnownWisprFlowIDsBatchesLargeHistoryWithinServerLimits() async throws {
         let fixture = HTTPFixture()
         defer { fixture.session.invalidateAndCancel() }

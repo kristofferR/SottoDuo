@@ -2,16 +2,21 @@ import Foundation
 import SottoAPI
 
 extension ServerClient {
-    /// Inference frames and archival original audio have independent send queues.
-    func uploadStreaming(_ stream: AsyncThrowingStream<CapturedAudioChunk, Error>, to id: UUID,
-                         preserveOriginal: Bool,
-                         onRecognition: @escaping @Sendable (RecognitionState) async -> Void) async throws -> FinishGenerationRequest {
+    func streamingRequest(to id: UUID) throws -> URLRequest {
         var request = try request(path: "v1/generations/\(id)/stream")
         guard let url = request.url, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw ServerClientError.invalidEndpoint
         }
-        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        components.scheme = components.scheme?.lowercased() == "https" ? "wss" : "ws"
         request.url = components.url
+        return request
+    }
+
+    /// Inference frames and archival original audio have independent send queues.
+    func uploadStreaming(_ stream: AsyncThrowingStream<CapturedAudioChunk, Error>, to id: UUID,
+                         preserveOriginal: Bool,
+                         onRecognition: @escaping @Sendable (RecognitionState) async -> Void) async throws -> FinishGenerationRequest {
+        let request = try streamingRequest(to: id)
         let socket = session.webSocketTask(with: request)
         socket.maximumMessageSize = 262_144
         let transport = InferenceUpload(socket: socket)

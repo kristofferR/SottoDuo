@@ -57,6 +57,11 @@ const artifactName = (value: string) => {
 };
 
 type IDParams = { id: string };
+// v1 clients generated before streaming reject unknown fields, even optional ones.
+const legacyJSON = (value: unknown) =>
+  JSON.stringify(value, (key, item) =>
+    key === "recognitionMode" || key === "recognition" ? undefined : item,
+  );
 export function createHTTPServer(service: GenerationService, token?: string) {
   const app = Fastify({ logger: false, bodyLimit: 262_144 });
   registerAudioStream(app, service);
@@ -95,6 +100,9 @@ export function createHTTPServer(service: GenerationService, token?: string) {
   });
   app.addHook("onSend", async (_request, reply) => {
     reply.header("Cache-Control", "no-store");
+  });
+  app.addHook("preHandler", async (request, reply) => {
+    if (request.headers["x-sotto-recognition"] !== "streaming-v1") reply.serializer(legacyJSON);
   });
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ServiceError)
@@ -192,9 +200,11 @@ export function createHTTPServer(service: GenerationService, token?: string) {
   });
   app.get<{ Params: IDParams }>("/v1/generations/:id/events", async (request, reply) => {
     const events = await service.events(identifier(request.params.id));
+    const encode =
+      request.headers["x-sotto-recognition"] === "streaming-v1" ? JSON.stringify : legacyJSON;
     const source = Readable.from(
       (async function* () {
-        for await (const record of events) yield `${JSON.stringify(record)}\n`;
+        for await (const record of events) yield `${encode(record)}\n`;
       })(),
       { objectMode: false },
     );

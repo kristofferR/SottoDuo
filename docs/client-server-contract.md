@@ -42,6 +42,8 @@ Errors are `APIErrorResponse`; relevant codes 400 invalid input, 401 auth, 404 m
 
 ## Shared preferences
 
+Send `X-Sotto-Recognition: streaming-v1` to receive the optional recognition fields in JSON and NDJSON. Without this header, responses retain the legacy v1 shape for strict older clients.
+
 GET/PUT use `{ "revision": N, "preferences": { ... } }`. A save must include the current revision; successful validation returns the incremented snapshot. Active generations keep their admission-time snapshot.
 
 | Field | Default / limit |

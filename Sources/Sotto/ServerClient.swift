@@ -61,6 +61,7 @@ struct ServerClient: Sendable {
         request.httpBody = body
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("streaming-v1", forHTTPHeaderField: "X-Sotto-Recognition")
         if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         return request
     }

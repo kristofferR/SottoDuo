@@ -154,7 +154,8 @@ public actor GenerationService {
     public func health() async -> ServerHealth {
         let state = await inference.readiness(proofreadingEnabled: false)
         let writable = FileManager.default.isWritableFile(atPath: configuration.dataDirectory.path) && (try? requireDiskSpace()) != nil
-        let ready = state.available && state.speechLoaded && writable
+        let cloudOnly = preferences.preferences.recognitionMode == .cloud
+        let ready = !cloudOnly && state.available && state.speechLoaded && writable
         let message = !writable ? "Server storage is unavailable or full." : (activeID != nil ? "Server is handling a recording." :
             (ready ? "Server ready." : (warming ? "Loading server models…" : "Server models are unavailable.")))
         if !state.speechLoaded, !warming, activeID == nil { beginWarmup() }
@@ -163,7 +164,7 @@ public actor GenerationService {
             proofreading: ModelRuntimeInfo(modelID: "Qwen3-4B-Instruct-2507", backend: Self.proofBackend,
                                            ready: state.proofLoaded, message: preferences.preferences.textCorrectionEnabled ?
                                                (state.proofLoaded ? nil : "Unavailable; deterministic text is preserved.") : "Disabled"),
-            message: message)
+            message: cloudOnly ? "Cloud recognition requires the TypeScript server. Choose Automatic or Local only." : message)
     }
 
     public func getPreferences() -> PreferencesSnapshot { preferences }
@@ -171,6 +172,7 @@ public actor GenerationService {
     public func updatePreferences(_ update: PreferencesSnapshot) throws -> PreferencesSnapshot {
         guard update.revision == preferences.revision else { throw ServiceError(409, "stale_preferences", "Preferences changed on another device. Reload and try again.") }
         if let error = update.preferences.validationError { throw ServiceError(400, "invalid_preferences", error) }
+        guard update.preferences.recognitionMode != .cloud else { throw ServiceError(400, "unsupported_recognition", "Cloud recognition requires the TypeScript server. Choose Automatic or Local only.") }
         let next = PreferencesSnapshot(revision: preferences.revision + 1, preferences: update.preferences)
         let data = try SottoAPI.encoder().encode(next)
         guard data.count <= Self.maximumPreferencesBytes else {
@@ -189,6 +191,7 @@ public actor GenerationService {
         }
         if let existing = records.values.first(where: { $0.requestID == request.requestID && $0.device.id == request.device.id }) { return existing }
         guard activeID == nil else { throw ServiceError(409, "server_busy", "The server is handling another recording. Try again when it finishes.") }
+        guard preferences.preferences.recognitionMode != .cloud else { throw ServiceError(503, "unsupported_recognition", "Cloud recognition requires the TypeScript server. Choose Automatic or Local only.") }
         let state = await inference.readiness(proofreadingEnabled: false)
         guard state.available else { beginWarmup(); throw ServiceError(503, "server_unavailable", state.message) }
         guard state.speechLoaded else {

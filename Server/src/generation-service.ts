@@ -354,11 +354,9 @@ export class GenerationService {
     return this.mutate(() => {
       const cloud = this.prefersCloud;
       const ready =
-        (cloud ||
-          (this.preferences.preferences.recognitionMode !== "cloud" &&
-            state.available &&
-            state.speechLoaded)) &&
-        writable;
+        (this.preferences.preferences.recognitionMode === "cloud"
+          ? cloud
+          : state.available && state.speechLoaded) && writable;
       const message = !writable
         ? "Server storage is unavailable or full."
         : this.activeID
@@ -379,7 +377,10 @@ export class GenerationService {
         speech: {
           modelID: cloud ? this.configuration.soniox!.model : "whisper-large-v3-turbo",
           backend: cloud ? "soniox/websocket" : this.speechBackend,
-          ready: cloud || state.speechLoaded,
+          ready:
+            this.preferences.preferences.recognitionMode === "cloud"
+              ? cloud
+              : state.available && state.speechLoaded,
           message: cloud ? "Cloud configured; connection checked per recording." : undefined,
         },
         proofreading: {
@@ -462,11 +463,11 @@ export class GenerationService {
           "cloud_unavailable",
           "Configure a Soniox API key on the server, or choose automatic/local recognition.",
         );
-      if (!this.prefersCloud && !state.available) {
+      if (this.preferences.preferences.recognitionMode !== "cloud" && !state.available) {
         this.beginWarmup();
         throw new ServiceError(503, "server_unavailable", state.message);
       }
-      if (!this.prefersCloud && !state.speechLoaded) {
+      if (this.preferences.preferences.recognitionMode !== "cloud" && !state.speechLoaded) {
         this.beginWarmup();
         throw new ServiceError(
           503,

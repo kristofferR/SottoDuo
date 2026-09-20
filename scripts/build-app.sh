@@ -46,7 +46,9 @@ if [[ -z "$signing_identity" ]]; then
     available_identities=$(security find-identity -v -p codesigning)
     identities=""
     if [[ "$app_name" == Sotto ]]; then
-        identities=$(printf '%s\n' "$available_identities" | awk '/"Developer ID Application:/ {print $2}')
+        developer_identities=$(printf '%s\n' "$available_identities" | awk '/"Developer ID Application:/ {print $2}')
+        developer_id_count=$(printf '%s\n' "$developer_identities" | awk 'NF {n++} END {print n+0}')
+        if [[ "$developer_id_count" == 1 ]]; then identities="$developer_identities"; fi
     fi
     if [[ -z "$identities" ]]; then
         identities=$(printf '%s\n' "$available_identities" | awk '/"Apple Development:/ {print $2}')

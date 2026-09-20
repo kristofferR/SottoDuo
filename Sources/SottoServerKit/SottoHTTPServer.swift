@@ -20,14 +20,14 @@ public enum SottoHTTPServer {
         let router = Router()
         router.add(middleware: ServerMiddleware(token: token))
         router.get("/v1/health") { _, _ in try json(await service.health()) }
-        router.get("/v1/preferences") { _, _ in try json(await service.getPreferences()) }
+        router.get("/v1/preferences") { request, _ in try json(await service.getPreferences(), request: request) }
         router.put("/v1/preferences") { request, _ in
             let update = try await decode(PreferencesSnapshot.self, request: request)
-            return try json(await service.updatePreferences(update))
+            return try json(await service.updatePreferences(update), request: request)
         }
         router.post("/v1/generations") { request, _ in
             let input = try await decode(CreateGenerationRequest.self, request: request)
-            return try json(await service.create(input), status: .created)
+            return try json(await service.create(input), status: .created, request: request)
         }
         router.post("/v1/imports/wispr-flow/known") { request, _ in
             let input = try await decode(WisprFlowKnownIDsRequest.self, request: request)
@@ -49,8 +49,8 @@ public enum SottoHTTPServer {
             return try json(await service.uploadWisprFlowArtifact(identifier(context), filename: filename,
                                                                  data: Data(buffer.readableBytesView)))
         }
-        router.post("/v1/imports/wispr-flow/:id/complete") { _, context in
-            try json(await service.completeWisprFlowImport(identifier(context)))
+        router.post("/v1/imports/wispr-flow/:id/complete") { request, context in
+            try json(await service.completeWisprFlowImport(identifier(context)), request: request)
         }
         router.delete("/v1/imports/wispr-flow/:id") { _, context in
             try await service.cancelWisprFlowImport(identifier(context))
@@ -63,9 +63,9 @@ public enum SottoHTTPServer {
                 limit = value
             } else { limit = 50 }
             return try json(await service.history(limit: limit, before: request.uri.queryParameters.get("before"),
-                                                  source: request.uri.queryParameters.get("source")))
+                                                  source: request.uri.queryParameters.get("source")), request: request)
         }
-        router.get("/v1/generations/:id") { _, context in try json(await service.get(identifier(context))) }
+        router.get("/v1/generations/:id") { request, context in try json(await service.get(identifier(context)), request: request) }
         router.post("/v1/generations/:id/audio/:kind") { request, context in
             let id = try identifier(context)
             guard let rawKind = context.parameters.get("kind"), let kind = AudioKind(rawValue: rawKind),
@@ -81,18 +81,18 @@ public enum SottoHTTPServer {
         }
         router.post("/v1/generations/:id/finish") { request, context in
             let input = try await decode(FinishGenerationRequest.self, request: request)
-            return try json(await service.finish(identifier(context), request: input), status: .accepted)
+            return try json(await service.finish(identifier(context), request: input), status: .accepted, request: request)
         }
-        router.post("/v1/generations/:id/cancel") { _, context in try json(await service.cancel(identifier(context))) }
+        router.post("/v1/generations/:id/cancel") { request, context in try json(await service.cancel(identifier(context)), request: request) }
         router.post("/v1/generations/:id/delivery") { request, context in
             let input = try await decode(DeliveryReceipt.self, request: request)
-            return try json(await service.recordDelivery(identifier(context), receipt: input))
+            return try json(await service.recordDelivery(identifier(context), receipt: input), request: request)
         }
-        router.get("/v1/generations/:id/events") { _, context in
+        router.get("/v1/generations/:id/events") { request, context in
             let stream = try await service.events(identifier(context))
             return Response(status: .ok, headers: [.contentType: "application/x-ndjson", .cacheControl: "no-store"], body: .init { writer in
                 for await record in stream {
-                    var data = try SottoAPI.encoder().encode(record)
+                    var data = try encodeResponse(record, request: request)
                     data.append(0x0a)
                     try await writer.write(ByteBuffer(bytes: data))
                 }
@@ -127,9 +127,23 @@ public enum SottoHTTPServer {
         catch { throw ServiceError(400, "invalid_json", "The request did not contain valid \(String(describing: type)) JSON.") }
     }
 
-    fileprivate static func json<T: Encodable>(_ value: T, status: HTTPResponse.Status = .ok) throws -> Response {
+    // Old generated v1 decoders reject the optional recognition fields.
+    private static func encodeResponse<T: Encodable>(_ value: T, request: Request?) throws -> Data {
+        let data = try SottoAPI.encoder().encode(value)
+        if request?.headers[.init("X-Sotto-Recognition")!] == "streaming-v1" { return data }
+        func legacy(_ value: Any) -> Any {
+            if let object = value as? [String: Any] {
+                return object.filter { $0.key != "recognitionMode" && $0.key != "recognition" }.mapValues(legacy)
+            }
+            if let array = value as? [Any] { return array.map(legacy) }
+            return value
+        }
+        return try JSONSerialization.data(withJSONObject: legacy(JSONSerialization.jsonObject(with: data)))
+    }
+
+    fileprivate static func json<T: Encodable>(_ value: T, status: HTTPResponse.Status = .ok, request: Request? = nil) throws -> Response {
         Response(status: status, headers: [.contentType: "application/json; charset=utf-8", .cacheControl: "no-store"],
-                 body: .init(byteBuffer: ByteBuffer(bytes: try SottoAPI.encoder().encode(value))))
+                 body: .init(byteBuffer: ByteBuffer(bytes: try encodeResponse(value, request: request))))
     }
 }
 

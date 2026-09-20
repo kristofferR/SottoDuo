@@ -284,3 +284,43 @@ test("cancelling while cloud finalization is pending unblocks processing and nev
   expect(next.status).toBe("receiving");
   await f.service.cancel(next.id);
 });
+
+test.each([false, true])(
+  "automatic requires usable local fallback (available=%s)",
+  async (available) => {
+    const f = await setup();
+    f.local.readiness = async () => ({
+      available,
+      speechLoaded: false,
+      proofLoaded: false,
+      message: "Local unavailable.",
+    });
+    expect((await f.service.health()).ready).toBe(false);
+    await expect(f.create()).rejects.toThrow(available ? "loading" : "Local unavailable");
+    expect(f.counters().starts).toBe(0);
+    f.local.readiness = async () => ({
+      available: true,
+      speechLoaded: true,
+      proofLoaded: true,
+      message: "Ready.",
+    });
+    expect((await f.service.health()).ready).toBe(true);
+    const record = await f.create();
+    expect(record.recognition?.provider).toBe("soniox");
+  },
+);
+
+test("explicit cloud-only remains usable without local models", async () => {
+  const f = await setup("cloud");
+  f.local.readiness = async () => ({
+    available: false,
+    speechLoaded: false,
+    proofLoaded: false,
+    message: "Local unavailable.",
+  });
+  expect((await f.service.health()).ready).toBe(true);
+  const record = await f.create();
+  await f.service.appendAudio(record.id, "inference", 0, format, pcm);
+  expect((await finish(f.service, record.id)).status).toBe("completed");
+  expect(f.local.calls).toBe(0);
+});
