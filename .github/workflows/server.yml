@@ -26,6 +26,11 @@ jobs:
       - run: bun run fmt:check
       - run: bun run check
       - run: bun run test
+      - name: Verify optional PipeWire capture helper
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libsamplerate0-dev pipewire-bin libspa-0.2-modules
+          bash scripts/test-capture.sh
       - run: bun run generate:api --check --typescript-only
 
   swift:

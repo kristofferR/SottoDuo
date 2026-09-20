@@ -3,13 +3,18 @@ import { parseConfiguration, usage, type ServerConfiguration } from "./configura
 import { createHTTPServer } from "./http-server.ts";
 import { GenerationService, defaultProofreadingPrompt } from "./generation-service.ts";
 import { NativeInference, type InferenceBackend } from "./inference/native-inference.ts";
+import { PipeWireCaptureProvider } from "./capture/pipewire-provider.ts";
 
 export async function startServer(configuration: ServerConfiguration, backend?: InferenceBackend) {
   const lock = acquireDataDirectoryLock(configuration.dataDirectory);
   let service: GenerationService | undefined;
+  let capture: PipeWireCaptureProvider | undefined;
   try {
+    capture = configuration.capture
+      ? await PipeWireCaptureProvider.open(configuration.capture)
+      : undefined;
     service = await GenerationService.open(
-      configuration,
+      { ...configuration, captureProvider: capture },
       backend ?? new NativeInference(configuration.inference),
     );
     const app = createHTTPServer(service, configuration.token);
@@ -22,7 +27,11 @@ export async function startServer(configuration: ServerConfiguration, backend?: 
           await service!.shutdown();
         } finally {
           try {
-            await app.close();
+            try {
+              await capture?.close();
+            } finally {
+              await app.close();
+            }
           } finally {
             lock.release();
           }
@@ -31,7 +40,11 @@ export async function startServer(configuration: ServerConfiguration, backend?: 
     return { app, service, address, close };
   } catch (error) {
     try {
-      await service?.shutdown();
+      try {
+        await service?.shutdown();
+      } finally {
+        await capture?.close();
+      }
     } finally {
       lock.release();
     }

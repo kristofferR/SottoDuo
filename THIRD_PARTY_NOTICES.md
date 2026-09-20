@@ -1,5 +1,13 @@
 # Third-party notices
 
+## Optional Linux capture helper
+
+The separately enabled `sotto-capture` helper dynamically links system **PipeWire** (MIT), **libsamplerate** (BSD-2-Clause), and **libusb** (LGPL-2.1-or-later). Their shared libraries remain supplied and replaceable by the system package manager; they are not copied into Sotto packages. Corresponding sources and licenses are available from [PipeWire](https://gitlab.freedesktop.org/pipewire/pipewire), [libsamplerate](https://github.com/libsndfile/libsamplerate), and [libusb](https://github.com/libusb/libusb). License texts accompany the helper in `resources/linux-capture-LICENSE.txt`.
+
+The read-only DJI V2 status decoder is based on this project's hardware captures and protocol research from [DJI-Mic-Control](https://github.com/ShadowBitBasher/DJI-Mic-Control/tree/9ba76880807a71d4eaba74c785dbee186a98f43b), released under the Unlicense. Sotto sends no DJI control commands.
+
+## Inference and API dependencies
+
 - **whisper.cpp / ggml**, MIT license, pinned to v1.9.3 (371b5a7561823ab2bb32142d2751e35e7534727b). Source and license: [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp). Linked statically into the native helper. Its bundled nlohmann/json and WAV decoder retain their upstream notices in source.
 - **Whisper large-v3-turbo**, MIT license. [Model card](https://huggingface.co/openai/whisper-large-v3-turbo), [GGML conversion](https://huggingface.co/ggerganov/whisper.cpp). Downloaded separately, not committed into this repository. The full-precision model is pinned by revision and SHA-256 in `SpeechModel.swift` and `download-model.sh`.
 - **Qwen3-4B-Instruct-2507**, Apache-2.0 license. [Official model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507), [current MLX 4-bit conversion](https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit/tree/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b). The non-thinking model is downloaded separately, not committed. Revision, byte counts, and SHA-256 values for all six model/tokenizer/configuration files are pinned in `TextModel.swift`; processing metadata identifies the full manifest. Apache-2.0 license text is in `Resources/Qwen-LICENSE.txt`.

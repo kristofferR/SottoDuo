@@ -83,6 +83,15 @@ mkdir -p "$staging_dir/helpers" "$staging_dir/resources"
 bun run --cwd Server build --outfile "$staging_dir/sotto-server"
 cp "$speech_helper" "$staging_dir/helpers/sotto-engine"
 cp "$text_helper" "$staging_dir/helpers/sotto-text-engine"
+if [[ "${SOTTO_BUILD_CAPTURE:-0}" == 1 ]]; then
+    if [[ "$server_platform" != Linux ]]; then
+        printf 'Optional PipeWire capture requires Linux.\n' >&2
+        exit 1
+    fi
+    bash "$project_dir/scripts/build-capture.sh" "$staging_dir/helpers/sotto-capture"
+    cp -R Server/packaging "$staging_dir/packaging"
+    cp docs/pipewire-capture.md "$staging_dir/CAPTURE.md"
+fi
 if [[ "$server_platform" == Darwin ]]; then
     cp "$text_helper_dir/mlx.metallib" "$staging_dir/helpers/mlx.metallib"
     for bundle in "$text_helper_dir/resources/"*.bundle "$text_helper_dir/"*.bundle; do

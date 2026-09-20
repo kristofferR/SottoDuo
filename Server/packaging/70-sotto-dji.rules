@@ -1,0 +1,3 @@
+# Optional local-seat access to this receiver only. Install before 73-seat-late.rules.
+# libusb requires a writable device handle even for read-only bulk-IN status.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2ca3", ATTR{idProduct}=="4011", TAG+="uaccess"

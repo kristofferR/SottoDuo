@@ -1,6 +1,6 @@
 # Remote capture sessions
 
-Ref [#5](https://github.com/kristofferR/sottoniox/issues/5). This implements the session boundary for a microphone attached to the server's host. A trusted local `CaptureProvider` supplies audio; production PipeWire/DJI integration is separate work in #6. With no provider, discovery returns an empty list and the existing local-upload API works unchanged.
+Ref [#5](https://github.com/kristofferR/sottoniox/issues/5). This implements the session boundary for a microphone attached to the server's host. A trusted local `CaptureProvider` supplies audio; the optional [Linux PipeWire/DJI provider](pipewire-capture.md) implements that boundary for #6. With no provider, discovery returns an empty list and the existing local-upload API works unchanged.
 
 ## Source and destination
 
