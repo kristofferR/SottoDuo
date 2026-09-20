@@ -63,3 +63,33 @@ test("remote listeners require a bounded regular UTF8 token file", async () => {
     "whitespace",
   );
 });
+
+test("Soniox credentials are optional, bounded, server-only, and may come from a private file", async () => {
+  expect((await parseConfiguration([], environment)).soniox).toBeUndefined();
+  expect(
+    (await parseConfiguration([], { ...environment, SONIOX_API_KEY: "api-secret" })).soniox,
+  ).toEqual({
+    apiKey: "api-secret",
+    model: "stt-rt-v5",
+    endpoint: "wss://stt-rt.soniox.com/transcribe-websocket",
+  });
+  const directory = await mkdtemp(join(tmpdir(), "sotto-soniox-config-"));
+  directories.push(directory);
+  const file = join(directory, "key");
+  await writeFile(file, "file-secret\n", { mode: 0o600 });
+  expect(
+    (
+      await parseConfiguration(["--soniox-key-file", file], {
+        ...environment,
+        SONIOX_API_KEY: "env-secret",
+      })
+    ).soniox?.apiKey,
+  ).toBe("file-secret");
+  await writeFile(file, "\n");
+  await expect(parseConfiguration(["--soniox-key-file", file], environment)).rejects.toThrow(
+    "Soniox key",
+  );
+  await expect(
+    parseConfiguration([], { ...environment, SONIOX_API_KEY: "bad key" }),
+  ).rejects.toThrow("Soniox key");
+});

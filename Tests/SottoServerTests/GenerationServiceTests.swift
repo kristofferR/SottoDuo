@@ -6,6 +6,53 @@ import SottoAPI
 import XCTest
 
 final class GenerationServiceTests: XCTestCase {
+    func testReferenceServerRejectsCloudOnlyIncludingPersistedPreferences() async throws {
+        try await withFixture { service, fixture in
+            var cloud = await service.getPreferences()
+            cloud.preferences.recognitionMode = .cloud
+            do {
+                _ = try await service.updatePreferences(cloud)
+                XCTFail("The local reference server must reject cloud-only policy")
+            } catch let error as ServiceError { XCTAssertEqual(error.code, "unsupported_recognition") }
+            try SottoAPI.encoder().encode(cloud).write(to: fixture.configuration.dataDirectory.appendingPathComponent("preferences.json"))
+            let reopened = try GenerationService(configuration: fixture.configuration)
+            let health = await reopened.health()
+            XCTAssertFalse(health.ready)
+            do {
+                _ = try await reopened.create(Self.request())
+                XCTFail("Persisted cloud-only policy must block local admission")
+            } catch let error as ServiceError { XCTAssertEqual(error.code, "unsupported_recognition") }
+            cloud.preferences.recognitionMode = .local
+            _ = try await reopened.updatePreferences(cloud)
+            let ready = await reopened.health()
+            // This reopened service uses real model paths, so validate the policy via saved settings.
+            XCTAssertFalse(ready.message?.contains("Cloud recognition requires") == true)
+            await reopened.shutdown()
+        }
+    }
+
+    func testReferenceServerNegotiatesRecognitionFields() async throws {
+        try await withFixture { service, _ in
+            let record = try await service.create(Self.request())
+            _ = try await service.cancel(record.id)
+            let app = Application(router: SottoHTTPServer.makeRouter(service: service))
+            try await app.test(.router) { client in
+                for uri in ["/v1/preferences", "/v1/generations", "/v1/generations/\(record.id)", "/v1/generations/\(record.id)/events"] {
+                    try await client.execute(uri: uri, method: .get, headers: [.init("Host")!: "localhost"]) { response in
+                        XCTAssertEqual(response.status, .ok)
+                        let text = String(decoding: response.body.readableBytesView, as: UTF8.self)
+                        XCTAssertFalse(text.contains("\"recognitionMode\""))
+                    }
+                    try await client.execute(uri: uri, method: .get, headers: [.init("Host")!: "localhost", .init("X-Sotto-Recognition")!: "streaming-v1"]) { response in
+                        XCTAssertEqual(response.status, .ok)
+                        let text = String(decoding: response.body.readableBytesView, as: UTF8.self)
+                        XCTAssertTrue(text.contains("\"recognitionMode\""))
+                    }
+                }
+            }
+        }
+    }
+
     func testOutOfOrderListSurvivesUnsupportedProofreadingName() async throws {
         let source = "I have a list of things to do. One is book the room Three is pick up the keys. Two is send the invitation. Four is I need to get God, what's it called? I need to get the meeting room sorted so I can go there and figure out whether I can get this meeting room."
         let formatted = "I have a list of things to do.\n\n1. book the room\n3. pick up the keys\n2. send the invitation\n4. I need to get God, what's it called? I need to get the meeting room sorted so I can go there and figure out whether I can get this meeting room."

@@ -265,3 +265,42 @@ describe("Fastify API contract", () => {
     }
   });
 });
+
+test("v1 responses negotiate recognition fields across preferences, history and events", async () => {
+  const { app, service } = await fixture();
+  const headers = { "x-sotto-recognition": "streaming-v1" };
+  const settings = await service.getPreferences();
+  settings.preferences.recognitionMode = "local";
+  await service.updatePreferences(settings);
+  const legacy = (await app.inject({ method: "GET", url: "/v1/preferences" })).json();
+  expect(legacy.preferences.recognitionMode).toBeUndefined();
+  const saved = await app.inject({ method: "PUT", url: "/v1/preferences", payload: legacy });
+  expect(saved.statusCode).toBe(200);
+  expect(saved.json().preferences.recognitionMode).toBeUndefined();
+  const modern = (await app.inject({ method: "GET", url: "/v1/preferences", headers })).json();
+  expect(modern.preferences.recognitionMode).toBe("local");
+  const created = await app.inject({
+    method: "POST",
+    url: "/v1/generations",
+    payload: {
+      requestID: randomUUID(),
+      device: { id: "legacy-client", name: "Legacy Mac" },
+      mode: "test",
+    },
+  });
+  expect(created.statusCode).toBe(201);
+  const id: string = created.json().id;
+  expect(created.json().recognition).toBeUndefined();
+  expect(created.json().settings.preferences.recognitionMode).toBeUndefined();
+  await service.cancel(id);
+  for (const path of [`/v1/generations/${id}`, "/v1/generations", `/v1/generations/${id}/events`]) {
+    const old = await app.inject({ method: "GET", url: path });
+    expect(old.statusCode).toBe(200);
+    expect(old.body).not.toContain('"recognition"');
+    expect(old.body).not.toContain('"recognitionMode"');
+    const current = await app.inject({ method: "GET", url: path, headers });
+    expect(current.statusCode).toBe(200);
+    expect(current.body).toContain('"recognition"');
+    expect(current.body).toContain('"recognitionMode":"local"');
+  }
+});

@@ -26,6 +26,7 @@ public struct DeviceIdentity: Codable, Equatable, Sendable {
 }
 
 public struct ServerPreferences: Codable, Equatable, Sendable {
+    public var recognitionMode: RecognitionMode
     public var language: String
     public var proofreadingPrompt: String
     public var vocabulary: String
@@ -54,16 +55,18 @@ public struct ServerPreferences: Codable, Equatable, Sendable {
     public static let supportedLanguages = ["en", "auto", "es", "fr", "de", "it", "pt", "nl", "ja", "zh", "ko", "hi", "ar", "pl", "ru", "uk", "sv"]
     public init(language: String = "en", proofreadingPrompt: String = Self.defaultProofreadingPrompt, vocabulary: String = "",
                 dictionary: PersonalDictionary = .default, textCorrectionEnabled: Bool = true,
-                keepOriginalAudio: Bool = true) {
+                keepOriginalAudio: Bool = true, recognitionMode: RecognitionMode = .automatic) {
+        self.recognitionMode = recognitionMode
         self.language = language; self.proofreadingPrompt = proofreadingPrompt; self.vocabulary = vocabulary
         self.dictionary = dictionary; self.textCorrectionEnabled = textCorrectionEnabled
         self.keepOriginalAudio = keepOriginalAudio
     }
     private enum CodingKeys: String, CodingKey {
-        case language, proofreadingPrompt, vocabulary, dictionary, textCorrectionEnabled, keepOriginalAudio
+        case recognitionMode, language, proofreadingPrompt, vocabulary, dictionary, textCorrectionEnabled, keepOriginalAudio
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        recognitionMode = try values.decodeIfPresent(RecognitionMode.self, forKey: .recognitionMode) ?? .automatic
         language = try values.decode(String.self, forKey: .language)
         proofreadingPrompt = try values.decodeIfPresent(String.self, forKey: .proofreadingPrompt) ?? Self.defaultProofreadingPrompt
         vocabulary = try values.decode(String.self, forKey: .vocabulary)
@@ -333,6 +336,7 @@ public struct GenerationRecord: Codable, Equatable, Sendable, Identifiable {
     public var createdAt: Date
     public var updatedAt: Date
     public var settings: PreferencesSnapshot
+    public var recognition: RecognitionState?
     public var inferenceAudio: AudioArtifact?
     public var originalAudio: AudioArtifact?
     public var rawText: String

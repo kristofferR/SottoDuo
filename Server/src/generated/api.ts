@@ -308,7 +308,16 @@ export interface components {
       id: string;
       name: string;
     };
+    /** @enum {string} */
+    RecognitionMode: "automatic" | "cloud" | "local";
+    RecognitionState: {
+      /** @enum {string} */
+      provider: "soniox" | "whisper";
+      fallbackReason?: string;
+      partialText?: string;
+    };
     ServerPreferences: {
+      recognitionMode?: components["schemas"]["RecognitionMode"];
       /** @enum {string} */
       language:
         | "en"
@@ -507,6 +516,7 @@ export interface components {
       /** Format: date-time */
       updatedAt: string;
       settings: components["schemas"]["PreferencesSnapshot"];
+      recognition?: components["schemas"]["RecognitionState"];
       inferenceAudio?: components["schemas"]["AudioArtifact"];
       originalAudio?: components["schemas"]["AudioArtifact"];
       rawText: string;
