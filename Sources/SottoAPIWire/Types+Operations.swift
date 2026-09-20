@@ -343,13 +343,13 @@ public enum Operations {
                 /// Creates a new `NoContent`.
                 public init() {}
             }
-            /// Owner lease renewed. Send every second; expiry is five seconds.
+            /// Owner lease renewed. Send every second; expiry is six seconds.
             ///
             /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)/responses/204`.
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.HeartbeatCapture.Output.NoContent)
-            /// Owner lease renewed. Send every second; expiry is five seconds.
+            /// Owner lease renewed. Send every second; expiry is six seconds.
             ///
             /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)/responses/204`.
             ///

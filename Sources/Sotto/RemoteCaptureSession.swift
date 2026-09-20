@@ -11,6 +11,8 @@ final class RemoteCaptureSession {
     /// server's 180-second admission deadline. Use the client's earlier send time.
     let stopAt: TimeInterval
     private(set) var isSealed = false
+    private(set) var sealMayHaveSucceeded = false
+    var shouldCancelServer: Bool { !isSealed && !sealMayHaveSucceeded }
     private var stopping = false
     private var cancelled = false
     private var leaseTask: Task<Void, Never>?
@@ -51,7 +53,7 @@ final class RemoteCaptureSession {
                         markSealed(); return
                     }
                     guard !cancelled, !isSealed, !Task.isCancelled else { return }
-                    // One immediate, one-second retry fits inside the five-second lease.
+                    // One immediate, one-second retry fits inside the six-second lease.
                     // An explicit server rejection (including source loss) is final.
                     consecutiveFailures += 1
                     if error is URLError, consecutiveFailures == 1 { continue }
@@ -76,6 +78,7 @@ final class RemoteCaptureSession {
 
     func stop(continuationID: UUID?) async throws -> GenerationRecord {
         stopping = true
+        sealMayHaveSucceeded = true
         let record = try await connection.stopCapture(id, continuationID: continuationID)
         guard !cancelled, !Task.isCancelled else { throw CancellationError() }
         guard record.capture?.state == .sealed, record.capture?.source == source else {

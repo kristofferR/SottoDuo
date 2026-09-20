@@ -744,7 +744,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Owner lease renewed. Send every second; expiry is five seconds. */
+      /** @description Owner lease renewed. Send every second; expiry is six seconds. */
       204: {
         headers: {
           [name: string]: unknown;

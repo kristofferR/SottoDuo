@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include "audio.h"
 
+#define CAPTURE_STARTUP_TIMEOUT_SECONDS 5
+
 /* stdout is a bounded, nonblocking pipe. A slow consumer fails the take instead
  * of blocking PipeWire or silently discarding samples. Never print PCM/errors. */
 static bool output(const void *bytes, size_t size) {
@@ -145,7 +147,8 @@ static void watchdog(void *context, uint64_t expirations) {
     struct capture *c = context;
     double now = boot_time();
     if (now - c->tick > 2 || now - c->started > 181 ||
-        (!c->ready && now - c->started > 3) || (c->ready && now - c->last_audio > 1)) fail(c);
+        (!c->ready && now - c->started > CAPTURE_STARTUP_TIMEOUT_SECONDS) ||
+        (c->ready && now - c->last_audio > 1)) fail(c);
     c->tick = now;
 }
 static int capture(char **args) {

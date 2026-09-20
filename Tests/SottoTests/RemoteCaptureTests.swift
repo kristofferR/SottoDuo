@@ -33,8 +33,8 @@ final class RemoteCaptureTests: XCTestCase {
             XCTAssertTrue(controller.recordingInputName?.contains("capture-fixture") == true)
             try await until { controller.liveTranscript == "Remote preview." }
             try await until { controller.recordingFeedback.levels.contains { $0 > 0 } }
-            try await Task.sleep(for: .seconds(5.2))
-            XCTAssertTrue(controller.isRecording, "The five-second lease must be renewed")
+            try await Task.sleep(for: .seconds(6.2))
+            XCTAssertTrue(controller.isRecording, "The six-second lease must be renewed")
             controller.toggleTestRecording()
             try await until { controller.activity == .success }
             XCTAssertEqual(controller.lastDeliveryStatus, .tested)

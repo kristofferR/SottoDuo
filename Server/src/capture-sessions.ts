@@ -13,8 +13,8 @@ type Source = components["schemas"]["AudioSource"];
 type StartRequest = components["schemas"]["StartCaptureRequest"];
 type StopRequest = components["schemas"]["StopCaptureRequest"];
 export const captureLimits = {
-  readyMS: 3_000,
-  leaseMS: 5_000,
+  readyMS: 5_000,
+  leaseMS: 6_000,
   drainMS: 5_000,
   sourceAgeMS: 3_500,
   maximumMS: 180_000,
@@ -54,6 +54,7 @@ interface Session {
   continuationID?: string;
   timer?: ReturnType<typeof setInterval>;
   lastLevelAt: number;
+  failure?: ServiceError;
 }
 const sameSource = (a: StartRequest["source"], b: StartRequest["source"]) =>
   a.hostID === b.hostID && a.id === b.id;
@@ -112,6 +113,12 @@ export class CaptureSessions {
       if (this.stopping)
         throw new ServiceError(503, "server_stopping", "The server is shutting down.");
       const existing = await this.service.findRequest(request.requestID, request.device.id);
+      const active = this.active;
+      if (existing && active?.id === existing.id) {
+        await this.service.authorizeCapture(existing.id, owner);
+        if (this.active !== active) throw closed();
+        return { ready: active.ready };
+      }
       if (!existing && (!this.provider || !this.eligible(request.source)))
         throw new ServiceError(
           503,
@@ -138,8 +145,18 @@ export class CaptureSessions {
           void this.fail(session, "The destination stopped renewing its recording lease.");
         else if (Date.now() - session.startedAt >= captureLimits.maximumMS)
           void this.fail(session, "The recording reached its time limit.");
-        else if (!this.safeEligible(session.source))
-          void this.fail(session, "The microphone became unavailable or its status expired.");
+        else if (!this.safeEligible(session.source)) {
+          if (session.state === "preparing")
+            this.abortPreparation(
+              session,
+              new ServiceError(
+                503,
+                "source_unavailable",
+                "The microphone became unavailable before recording was ready.",
+              ),
+            );
+          else void this.fail(session, "The microphone became unavailable or its status expired.");
+        }
       }, 250);
       session.timer.unref();
       session.ready = this.prepare(session, record);
@@ -178,7 +195,16 @@ export class CaptureSessions {
             void this.service.updateCapture(session.id, "recording", peak).catch(() => {});
           },
           lost: () => {
-            void this.fail(session, "The microphone lost its audio source.");
+            if (session.state === "preparing")
+              this.abortPreparation(
+                session,
+                new ServiceError(
+                  503,
+                  "capture_failed",
+                  "The microphone could not start recording.",
+                ),
+              );
+            else void this.fail(session, "The microphone lost its audio source.");
           },
         }),
         captureLimits.readyMS,
@@ -211,7 +237,7 @@ export class CaptureSessions {
     return new Promise((resolve, reject) => {
       const abort = () => {
         cleanup();
-        reject(closed());
+        reject(session.failure ?? closed());
       };
       const timer = setTimeout(() => {
         cleanup();
@@ -235,6 +261,11 @@ export class CaptureSessions {
         },
       );
     });
+  }
+  private abortPreparation(session: Session, error: ServiceError) {
+    if (this.active !== session || session.state !== "preparing") return;
+    session.failure = error;
+    session.controller.abort();
   }
   async heartbeat(id: string, owner?: string) {
     await this.service.authorizeCapture(id, owner);

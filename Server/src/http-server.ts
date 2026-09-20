@@ -1,7 +1,7 @@
 import { registerAudioStream } from "./audio-stream.ts";
 import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
-import Fastify, { type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import {
   MAXIMUM_ARTIFACT_BYTES,
   MAXIMUM_CHUNK_BYTES,
@@ -82,8 +82,13 @@ const captureOwner = (request: FastifyRequest) => {
   const value = request.headers["x-sotto-capture-owner"];
   return typeof value === "string" ? value : undefined;
 };
-export function createHTTPServer(service: GenerationService, token?: string) {
+export function createHTTPServer(
+  service: GenerationService,
+  token?: string,
+  beforeRoutes?: (app: FastifyInstance) => void,
+) {
   const app = Fastify({ logger: false, bodyLimit: 262_144 });
+  beforeRoutes?.(app);
   registerAudioStream(app, service);
   const parseJSON = app.getDefaultJsonParser("error", "error");
   app.removeContentTypeParser("application/json");

@@ -9,7 +9,7 @@ API version 1, default port **8391**. [`Server/api/openapi.yaml`](../Server/api/
 | `GET /v1/health` | `ServerHealth`; server reachability differs from ready inference. Lightweight health contains no user data. |
 | `GET /v1/audio-sources` | `AudioSourceList`; up to 32 cached source observations, without starting capture. |
 | `POST /v1/captures` | `StartCaptureRequest` → 201 `GenerationRecord` after remote capture readiness; requires a capture owner secret. |
-| `POST /v1/generations/:id/capture/heartbeat` | Owner-authenticated lease renewal → 204; send every second, expires after five seconds. |
+| `POST /v1/generations/:id/capture/heartbeat` | Owner-authenticated lease renewal → 204; send every second, expires after six seconds. |
 | `POST /v1/generations/:id/capture/stop` | `StopCaptureRequest` → 202 `GenerationRecord` after provider audio drains and seals; requires the owner secret. |
 | `GET /v1/preferences` | `PreferencesSnapshot` |
 | `PUT /v1/preferences` | `PreferencesSnapshot` with expected revision; validates and returns incremented snapshot, 409 if stale. |

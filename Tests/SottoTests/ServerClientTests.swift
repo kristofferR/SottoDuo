@@ -41,6 +41,31 @@ final class ServerClientTests: XCTestCase {
         XCTAssertEqual(fixture.requests.last?.timeoutInterval, 1)
     }
 
+    @MainActor
+    func testInterruptedRemoteStopIsNotCancelledAsUnsealed() async throws {
+        let fixture = HTTPFixture()
+        defer { fixture.session.invalidateAndCancel() }
+        let connection = try ServerClient(endpoint: fixture.endpoint, token: "", session: fixture.session).owningCapture()
+        let source = AudioSourceIdentity(hostID: "desk", id: "dji")
+        var record = GenerationRecord(requestID: UUID(), device: .init(id: "mac", name: "Mac"), settings: .init())
+        record.capture = .init(source: source, state: .recording)
+        let capture = try RemoteCaptureSession(
+            record: record,
+            connection: connection,
+            requestedAt: ProcessInfo.processInfo.systemUptime)
+        fixture.respond = { request in
+            XCTAssertTrue(request.url?.path.hasSuffix("/capture/stop") == true)
+            throw URLError(.networkConnectionLost)
+        }
+        do {
+            _ = try await capture.stop(continuationID: nil)
+            XCTFail("Expected the interrupted stop response to fail")
+        } catch is URLError {}
+        XCTAssertFalse(capture.isSealed)
+        XCTAssertFalse(capture.shouldCancelServer)
+        capture.cancelMonitoring()
+    }
+
     func testConnectionRejectsCredentialsInURLsAndKeepsBearerInHeader() throws {
         XCTAssertThrowsError(try ServerClient(endpoint: "https://person:secret@example.com", token: ""))
         XCTAssertThrowsError(try ServerClient(endpoint: "https://example.com?token=secret", token: ""))

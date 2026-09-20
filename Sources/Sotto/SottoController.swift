@@ -786,7 +786,7 @@ final class SottoController: ObservableObject {
         // generation remains independently owned and may complete in history.
         let generation = activeGenerationID
         let connection = activeClient
-        let shouldCancel = remoteCapture.map { !$0.isSealed } ?? !serverSealed
+        let shouldCancel = remoteCapture?.shouldCancelServer ?? !serverSealed
         resetSession()
         if shouldCancel, let generation, let connection { Task { try? await connection.cancel(generation) } }
         sourceMonitorTask?.cancel()
@@ -959,7 +959,7 @@ final class SottoController: ObservableObject {
                 } else { applyProgress(record, session: current) }
             } onFailure: { [weak self] error in
                 guard let self, sessionID == current else { return }
-                failSession(Self.connectionMessage(error), cancelServer: remoteCapture?.isSealed != true)
+                failSession(Self.connectionMessage(error), cancelServer: remoteCapture?.shouldCancelServer ?? true)
             }
         } else {
             guard permissions.microphone else {
@@ -1100,7 +1100,7 @@ final class SottoController: ObservableObject {
             } catch {
                 guard sessionID == current, !Task.isCancelled else { return }
                 if error is URLError { serverHealth = nil; serverStatusMessage = Self.connectionMessage(error) }
-                failSession(Self.connectionMessage(error), cancelServer: capture.map { !$0.isSealed } ?? !serverSealed)
+                failSession(Self.connectionMessage(error), cancelServer: capture?.shouldCancelServer ?? !serverSealed)
             }
         }
     }
@@ -1248,7 +1248,7 @@ final class SottoController: ObservableObject {
     private func restForSystem() {
         stopShortcutCheck()
         if isBusy {
-            let cancelServer = remoteCapture.map { !$0.isSealed } ?? !serverSealed
+            let cancelServer = remoteCapture?.shouldCancelServer ?? !serverSealed
             failSession("Recording interrupted while your Mac was away. Check shared history for completed results.", cancelServer: cancelServer)
         }
         continuationAnchors.removeAll()

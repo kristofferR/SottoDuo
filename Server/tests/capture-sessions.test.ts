@@ -18,6 +18,7 @@ class FakeCapture implements CaptureProvider {
   stopGate?: Promise<void>;
   stopCalls = 0;
   available = true;
+  failBeforeReady = false;
   age = 0;
   originalFrames = 48_000;
   sources(): components["schemas"]["AudioSource"][] {
@@ -37,6 +38,10 @@ class FakeCapture implements CaptureProvider {
   async start(options: StartOptions) {
     this.calls++;
     this.options = options;
+    if (this.failBeforeReady) {
+      options.lost();
+      throw new Error("Fixture source failed before readiness");
+    }
     await this.gate;
     return {
       stop: async () => {
@@ -305,7 +310,17 @@ test("startup timeout aborts hardware and releases admission", async () => {
   expect(f.provider.options!.signal.aborted).toBe(true);
   const records = await f.service.history();
   expect(records.items[0]?.status).toBe("cancelled");
-}, 5_000);
+}, 7_000);
+
+test("provider loss before readiness remains eligible for client fallback", async () => {
+  const f = await fixture();
+  f.provider.failBeforeReady = true;
+  const result = await f.start();
+  expect(result.statusCode).toBe(503);
+  expect(result.json().code).toBe("capture_failed");
+  expect(f.provider.options!.signal.aborted).toBe(true);
+  expect((await f.service.get(f.provider.options!.generation.id)).status).toBe("cancelled");
+});
 
 test("owner lease expiry cancels recording even while source status remains fresh", async () => {
   const f = await fixture();
@@ -322,7 +337,7 @@ test("owner lease expiry cancels recording even while source status remains fres
   ).toBe(204);
   await Bun.sleep(3_000);
   expect(f.provider.options!.signal.aborted).toBe(false);
-  await Bun.sleep(2_300);
+  await Bun.sleep(3_300);
   expect(f.provider.options!.signal.aborted).toBe(true);
   expect((await f.service.get(id)).status).toBe("cancelled");
   expect(

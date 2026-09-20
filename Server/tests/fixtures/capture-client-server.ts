@@ -94,37 +94,38 @@ const service = await GenerationService.open(
 const preferences = await service.getPreferences();
 preferences.preferences.textCorrectionEnabled = false;
 await service.updatePreferences(preferences);
-const app = createHTTPServer(service, "sotto-native-capture-test-token-2026");
 let discoveryUnavailable = false;
 const droppedHeartbeats = new Set<string>();
+const app = createHTTPServer(service, "sotto-native-capture-test-token-2026", (app) => {
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.url === "/v1/audio-sources" && discoveryUnavailable)
+      return reply
+        .code(503)
+        .send({ code: "invalid_sources", message: "Fixture discovery unavailable" });
+    const match = /^\/v1\/generations\/([^/]+)\/(events|capture\/heartbeat)$/.exec(request.url);
+    if (!match) return;
+    const record = await service.get(match[1]!);
+    const source = record.capture?.source.id;
+    if (match[2] === "capture/heartbeat") {
+      if (
+        source === "heartbeat-loss" ||
+        (source === "heartbeat-once" && !droppedHeartbeats.has(record.id))
+      ) {
+        droppedHeartbeats.add(record.id);
+        reply.hijack();
+        reply.raw.destroy();
+      }
+      return;
+    }
+    if (record.capture?.source.id !== "event-loss") return;
+    reply.hijack();
+    reply.raw.writeHead(200, { "Content-Type": "application/x-ndjson" });
+    reply.raw.end(JSON.stringify(record) + "\n");
+  });
+});
 app.post<{ Body: { unavailable: boolean } }>("/fixture/discovery", async (request, reply) => {
   discoveryUnavailable = request.body.unavailable === true;
   return reply.code(204).send();
-});
-app.addHook("onRequest", async (request, reply) => {
-  if (request.url === "/v1/audio-sources" && discoveryUnavailable)
-    return reply
-      .code(503)
-      .send({ code: "invalid_sources", message: "Fixture discovery unavailable" });
-  const match = /^\/v1\/generations\/([^/]+)\/(events|capture\/heartbeat)$/.exec(request.url);
-  if (!match) return;
-  const record = await service.get(match[1]!);
-  const source = record.capture?.source.id;
-  if (match[2] === "capture/heartbeat") {
-    if (
-      source === "heartbeat-loss" ||
-      (source === "heartbeat-once" && !droppedHeartbeats.has(record.id))
-    ) {
-      droppedHeartbeats.add(record.id);
-      reply.hijack();
-      reply.raw.destroy();
-    }
-    return;
-  }
-  if (record.capture?.source.id !== "event-loss") return;
-  reply.hijack();
-  reply.raw.writeHead(200, { "Content-Type": "application/x-ndjson" });
-  reply.raw.end(JSON.stringify(record) + "\n");
 });
 console.log(await app.listen({ host: process.env.SOTTO_TEST_HOST ?? "127.0.0.1", port: 0 }));
 for (const signal of ["SIGTERM", "SIGINT"] as const)

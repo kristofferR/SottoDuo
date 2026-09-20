@@ -61,7 +61,7 @@ paths:
             "$ref": "#/components/schemas/UUID"
       responses:
         "204":
-          description: "Owner lease renewed. Send every second; expiry is five seconds."
+          description: "Owner lease renewed. Send every second; expiry is six seconds."
         default:
           "$ref": "#/components/responses/APIError"
   "/v1/generations/{id}/capture/stop":

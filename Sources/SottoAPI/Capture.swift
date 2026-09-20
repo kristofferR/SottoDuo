@@ -17,14 +17,16 @@ extension AudioSource {
     }
 }
 
+public enum CaptureMode: String, Codable, Sendable { case dictation, test }
+
 public struct StartCaptureRequest: Codable, Sendable, APIWireModel {
     public typealias Wire = Components.Schemas.StartCaptureRequest
     public var requestID: UUID
     public var device: DeviceIdentity
-    public var mode: GenerationMode
+    public var mode: CaptureMode
     public var source: AudioSourceIdentity
 
-    public init(requestID: UUID, device: DeviceIdentity, mode: GenerationMode, source: AudioSourceIdentity) {
+    public init(requestID: UUID, device: DeviceIdentity, mode: CaptureMode, source: AudioSourceIdentity) {
         self.requestID = requestID; self.device = device; self.mode = mode; self.source = source
     }
 }
