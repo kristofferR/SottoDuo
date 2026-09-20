@@ -617,10 +617,27 @@ components:
       required:
         - "id"
         - "name"
+    RecognitionMode:
+      type: "string"
+      enum: ["automatic", "cloud", "local"]
+    RecognitionState:
+      type: "object"
+      additionalProperties: false
+      properties:
+        provider:
+          type: "string"
+          enum: ["soniox", "whisper"]
+        fallbackReason:
+          type: "string"
+        partialText:
+          type: "string"
+      required: ["provider"]
     ServerPreferences:
       type: "object"
       additionalProperties: false
       properties:
+        recognitionMode:
+          "$ref": "#/components/schemas/RecognitionMode"
         language:
           type: "string"
           enum:
@@ -1166,6 +1183,8 @@ components:
           format: "date-time"
         settings:
           "$ref": "#/components/schemas/PreferencesSnapshot"
+        recognition:
+          "$ref": "#/components/schemas/RecognitionState"
         inferenceAudio:
           "$ref": "#/components/schemas/AudioArtifact"
         originalAudio:

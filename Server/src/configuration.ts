@@ -1,3 +1,5 @@
+import type { SonioxConfiguration } from "./inference/soniox.ts";
+import { readRegularFile } from "./storage.ts";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -13,6 +15,7 @@ export interface ServerConfiguration {
   dataDirectory: string;
   token?: string;
   development: boolean;
+  soniox?: SonioxConfiguration;
   inference: InferenceConfiguration;
 }
 
@@ -21,11 +24,14 @@ sotto-server --data-dir PATH --speech-helper PATH --speech-model PATH --vad-mode
   --proof-helper PATH --proof-model PATH [--host 127.0.0.1] [--port 8391] [--token-file PATH] [--dev]
 
 macOS uses Whisper/Metal and Qwen/MLX. Linux uses Whisper/CUDA or CPU and Qwen/llama.cpp.
+Soniox streaming is preferred when SONIOX_API_KEY or --soniox-key-file is configured.
+Whisper remains the automatic offline fallback.
 Models must already exist. The server never downloads or imports personal data automatically.
 Use persistent storage for --data-dir. Remote bindings require --token-file.
 `;
 
 const names = new Set([
+  "soniox-key-file",
   "host",
   "port",
   "data-dir",
@@ -105,7 +111,24 @@ export async function parseConfiguration(
       "Listening beyond localhost requires a token file containing at least 32 characters. Use HTTPS or a private encrypted network for remote connections.",
     );
   }
+  const keyFile = value("soniox-key-file", "SOTTO_SONIOX_KEY_FILE");
+  const apiKey = keyFile
+    ? new TextDecoder("utf-8", { fatal: true })
+        .decode(await readRegularFile(expandPath(keyFile), 4096))
+        .trim()
+    : environment.SONIOX_API_KEY?.trim();
+  if ((keyFile && !apiKey) || (apiKey && (/\s/u.test(apiKey) || Buffer.byteLength(apiKey) > 4096)))
+    throw new Error(
+      "The Soniox key must be nonempty, without whitespace, and fit within 4096 bytes.",
+    );
   return {
+    soniox: apiKey
+      ? {
+          apiKey,
+          model: "stt-rt-v5",
+          endpoint: "wss://stt-rt.soniox.com/transcribe-websocket",
+        }
+      : undefined,
     host,
     port,
     token,

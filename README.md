@@ -60,7 +60,7 @@ swift test
 ./scripts/test-corrections.sh            # Real Qwen helper checks
 ```
 
-Keep the model-path exports set when starting the server or running helper checks. After rebuilding an already-open client, quit and reopen it to load the new executable. Signing uses an available Apple Development identity or ad-hoc signing; ad-hoc rebuilds may require granting permissions again.
+Keep the model-path exports set when starting the server or running helper checks. After rebuilding an already-open client, quit and reopen it to load the new executable. Release builds prefer a unique Developer ID Application identity, then an Apple Development identity, with ad-hoc signing as the fallback. Set `SOTTO_SIGNING_IDENTITY` to select a certificate explicitly. Ad-hoc rebuilds may require granting permissions again.
 
 The dev runner stores shared history/settings in `.local/server`, device preferences in `.local/client`, and logs in `.local/server.log`. Keep experiment notes and generated artifacts under the ignored `.local/` directory too. Quitting the app leaves the server running. Recordings require an online, available server and have a three-minute limit.
 

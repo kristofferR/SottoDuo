@@ -244,8 +244,70 @@ extension Components {
                 ])
             }
         }
+        /// - Remark: Generated from `#/components/schemas/RecognitionMode`.
+        @frozen public enum RecognitionMode: String, Codable, Hashable, Sendable, CaseIterable {
+            case automatic = "automatic"
+            case cloud = "cloud"
+            case local = "local"
+        }
+        /// - Remark: Generated from `#/components/schemas/RecognitionState`.
+        public struct RecognitionState: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RecognitionState/provider`.
+            @frozen public enum ProviderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case soniox = "soniox"
+                case whisper = "whisper"
+            }
+            /// - Remark: Generated from `#/components/schemas/RecognitionState/provider`.
+            public var provider: Components.Schemas.RecognitionState.ProviderPayload
+            /// - Remark: Generated from `#/components/schemas/RecognitionState/fallbackReason`.
+            public var fallbackReason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RecognitionState/partialText`.
+            public var partialText: Swift.String?
+            /// Creates a new `RecognitionState`.
+            ///
+            /// - Parameters:
+            ///   - provider:
+            ///   - fallbackReason:
+            ///   - partialText:
+            public init(
+                provider: Components.Schemas.RecognitionState.ProviderPayload,
+                fallbackReason: Swift.String? = nil,
+                partialText: Swift.String? = nil
+            ) {
+                self.provider = provider
+                self.fallbackReason = fallbackReason
+                self.partialText = partialText
+            }
+            public enum CodingKeys: String, CodingKey {
+                case provider
+                case fallbackReason
+                case partialText
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.provider = try container.decode(
+                    Components.Schemas.RecognitionState.ProviderPayload.self,
+                    forKey: .provider
+                )
+                self.fallbackReason = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .fallbackReason
+                )
+                self.partialText = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .partialText
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "provider",
+                    "fallbackReason",
+                    "partialText"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ServerPreferences`.
         public struct ServerPreferences: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ServerPreferences/recognitionMode`.
+            public var recognitionMode: Components.Schemas.RecognitionMode?
             /// - Remark: Generated from `#/components/schemas/ServerPreferences/language`.
             @frozen public enum LanguagePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case en = "en"
@@ -285,6 +347,7 @@ extension Components {
             /// Creates a new `ServerPreferences`.
             ///
             /// - Parameters:
+            ///   - recognitionMode:
             ///   - language:
             ///   - proofreadingPrompt: Missing values use the built-in cleanup prompt; maximum UTF-8 size is 4096 bytes.
             ///   - vocabulary: Maximum UTF-8 size is 16384 bytes.
@@ -292,6 +355,7 @@ extension Components {
             ///   - textCorrectionEnabled:
             ///   - keepOriginalAudio:
             public init(
+                recognitionMode: Components.Schemas.RecognitionMode? = nil,
                 language: Components.Schemas.ServerPreferences.LanguagePayload,
                 proofreadingPrompt: Swift.String? = nil,
                 vocabulary: Swift.String,
@@ -299,6 +363,7 @@ extension Components {
                 textCorrectionEnabled: Swift.Bool,
                 keepOriginalAudio: Swift.Bool
             ) {
+                self.recognitionMode = recognitionMode
                 self.language = language
                 self.proofreadingPrompt = proofreadingPrompt
                 self.vocabulary = vocabulary
@@ -307,6 +372,7 @@ extension Components {
                 self.keepOriginalAudio = keepOriginalAudio
             }
             public enum CodingKeys: String, CodingKey {
+                case recognitionMode
                 case language
                 case proofreadingPrompt
                 case vocabulary
@@ -316,6 +382,10 @@ extension Components {
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.recognitionMode = try container.decodeIfPresent(
+                    Components.Schemas.RecognitionMode.self,
+                    forKey: .recognitionMode
+                )
                 self.language = try container.decode(
                     Components.Schemas.ServerPreferences.LanguagePayload.self,
                     forKey: .language
@@ -341,6 +411,7 @@ extension Components {
                     forKey: .keepOriginalAudio
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "recognitionMode",
                     "language",
                     "proofreadingPrompt",
                     "vocabulary",
@@ -1867,6 +1938,8 @@ extension Components {
             public var updatedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/GenerationRecord/settings`.
             public var settings: Components.Schemas.PreferencesSnapshot
+            /// - Remark: Generated from `#/components/schemas/GenerationRecord/recognition`.
+            public var recognition: Components.Schemas.RecognitionState?
             /// - Remark: Generated from `#/components/schemas/GenerationRecord/inferenceAudio`.
             public var inferenceAudio: Components.Schemas.AudioArtifact?
             /// - Remark: Generated from `#/components/schemas/GenerationRecord/originalAudio`.
@@ -1917,6 +1990,7 @@ extension Components {
             ///   - createdAt:
             ///   - updatedAt:
             ///   - settings:
+            ///   - recognition:
             ///   - inferenceAudio:
             ///   - originalAudio:
             ///   - rawText:
@@ -1946,6 +2020,7 @@ extension Components {
                 createdAt: Foundation.Date,
                 updatedAt: Foundation.Date,
                 settings: Components.Schemas.PreferencesSnapshot,
+                recognition: Components.Schemas.RecognitionState? = nil,
                 inferenceAudio: Components.Schemas.AudioArtifact? = nil,
                 originalAudio: Components.Schemas.AudioArtifact? = nil,
                 rawText: Swift.String,
@@ -1975,6 +2050,7 @@ extension Components {
                 self.createdAt = createdAt
                 self.updatedAt = updatedAt
                 self.settings = settings
+                self.recognition = recognition
                 self.inferenceAudio = inferenceAudio
                 self.originalAudio = originalAudio
                 self.rawText = rawText
@@ -2005,6 +2081,7 @@ extension Components {
                 case createdAt
                 case updatedAt
                 case settings
+                case recognition
                 case inferenceAudio
                 case originalAudio
                 case rawText
@@ -2062,6 +2139,10 @@ extension Components {
                 self.settings = try container.decode(
                     Components.Schemas.PreferencesSnapshot.self,
                     forKey: .settings
+                )
+                self.recognition = try container.decodeIfPresent(
+                    Components.Schemas.RecognitionState.self,
+                    forKey: .recognition
                 )
                 self.inferenceAudio = try container.decodeIfPresent(
                     Components.Schemas.AudioArtifact.self,
@@ -2149,6 +2230,7 @@ extension Components {
                     "createdAt",
                     "updatedAt",
                     "settings",
+                    "recognition",
                     "inferenceAudio",
                     "originalAudio",
                     "rawText",

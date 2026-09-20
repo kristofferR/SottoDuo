@@ -22,6 +22,8 @@ The server talks to helpers over bounded JSON-lines pipes. Models warm at startu
 
 Bun manages all JavaScript dependencies and compiles the coordinator plus its correction worker into standalone platform executables. Heavy correction alignment runs outside the HTTP event loop. Native inference helpers still require platform builds; the Mac proofreader remains Swift MLX. Linux server packages require neither Swift nor an installed JavaScript runtime.
 
+The TypeScript server also supports [Soniox streaming with automatic Whisper fallback](soniox-streaming.md). Inference runs during capture when cloud recognition is configured. The local pipeline described below remains the offline path.
+
 ## A recording
 
 1. The client asks the server to create a generation with its device identity. The server freezes shared settings and admits one active job at a time. Offline, busy, or unavailable speech recognition prevents capture.

@@ -7,6 +7,10 @@ The server is an independent TypeScript/Fastify HTTP process that owns models, s
 | Apple Silicon macOS | Whisper large-v3-turbo / whisper.cpp / Metal | Qwen3-4B-Instruct-2507 / Swift MLX / 4-bit |
 | Linux x86_64 or ARM64 | Whisper large-v3-turbo / whisper.cpp / CPU or CUDA | Qwen3-4B-Instruct-2507 / llama.cpp / Q4_K_M |
 
+## Cloud recognition
+
+Soniox real-time streaming is the default when `SONIOX_API_KEY` or `--soniox-key-file` is configured. Automatic mode falls back to the existing local Whisper pipeline when cloud recognition is unavailable. Choose Automatic, Cloud only, or Local only in shared server preferences. Audio, transcripts, history, and optional Qwen proofreading are preserved. See [streaming setup and behavior](../docs/soniox-streaming.md).
+
 ## Models
 
 Run these commands from the repository root. Weights use about 4 GB of disk; runtime memory also includes model state and inference buffers. The server verifies pinned files before loading and keeps models warm. It does not download large weights automatically.

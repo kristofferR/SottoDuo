@@ -81,6 +81,7 @@ final class SottoController: ObservableObject {
     let recordingFeedback = RecordingFeedback()
     @Published var recordingListHint: String?
     @Published private(set) var recordingInputName: String?
+    @Published var liveTranscript = ""
     @Published var lastTranscript = ""
     @Published var lastTranscriptionSeconds: Double?
     @Published var lastAudioSeconds: Double?
@@ -687,6 +688,7 @@ final class SottoController: ObservableObject {
     }
 
     private func resetSession() {
+        liveTranscript = ""
         recordingTrigger = nil
         sessionID = UUID()
         microphoneStartTask?.cancel(); microphoneStartTask = nil
@@ -831,6 +833,7 @@ final class SottoController: ObservableObject {
             showError("No microphone is available. Connect an input and try again."); onShowWindow?(); return
         }
         hudTask?.cancel(); errorMessage = nil
+        liveTranscript = ""
         sessionID = UUID()
         let current = sessionID
         isTestSession = isTest
@@ -876,7 +879,15 @@ final class SottoController: ObservableObject {
                 uploadPipe = pipe
                 recorder.onChunk = { pipe.append($0) }
                 uploadTask = Task { [weak self] in
-                    do { return try await connection.upload(pipe.stream, to: created.id, preserveOriginal: created.settings.preferences.keepOriginalAudio) }
+                    do {
+                        if created.recognition != nil {
+                            return try await connection.uploadStreaming(pipe.stream, to: created.id,
+                                preserveOriginal: created.settings.preferences.keepOriginalAudio) { [weak self] recognition in
+                                    await self?.applyRecognition(recognition, session: current)
+                                }
+                        }
+                        return try await connection.upload(pipe.stream, to: created.id, preserveOriginal: created.settings.preferences.keepOriginalAudio)
+                    }
                     catch {
                         if let self, sessionID == current, !Task.isCancelled {
                             failSession(Self.connectionMessage(error), cancelServer: true)
@@ -984,6 +995,14 @@ final class SottoController: ObservableObject {
         }
     }
 
+    private func applyRecognition(_ recognition: RecognitionState, session: UUID) {
+        guard sessionID == session, isCapturing else { return }
+        liveTranscript = recognition.partialText ?? ""
+        if recognition.provider == .whisper {
+            statusMessage = recognition.fallbackReason == nil ? "Listening locally" : "Listening locally (cloud unavailable)"
+        }
+    }
+
     private func applyProgress(_ generation: GenerationRecord, session: UUID) {
         guard sessionID == session, isBusy else { return }
         switch generation.status {
@@ -998,6 +1017,7 @@ final class SottoController: ObservableObject {
 
     private func deliver(_ record: GenerationRecord, to destination: InsertionDestination,
                          anchor: DictationDestination?, isTest: Bool, clipboardCount: Int, session: UUID) async {
+        liveTranscript = ""
         lastTranscript = record.previewText.isEmpty ? record.finalText : record.previewText
         lastAudioSeconds = record.audioSeconds
         lastTranscriptionSeconds = (record.speech?.processingSeconds ?? 0) + (record.proofreading?.processingSeconds ?? 0)

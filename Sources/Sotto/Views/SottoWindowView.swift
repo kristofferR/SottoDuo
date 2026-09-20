@@ -210,28 +210,40 @@ struct DictationPage: View {
 
     @ViewBuilder private var transcript: some View {
         if controller.isBusy {
-            HStack(spacing: 20) {
-                if controller.isRecording {
-                    RecordingWaveform(feedback: controller.recordingFeedback, height: 34)
-                } else {
-                    ProgressView().controlSize(.small).frame(width: 51)
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(controller.statusMessage).font(.headline)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 20) {
                     if controller.isRecording {
-                        HStack {
-                            RecordingElapsedTime(feedback: controller.recordingFeedback)
-                            Text(controller.recordingInputName ?? controller.selectedInputName)
-                                .lineLimit(1)
+                        RecordingWaveform(feedback: controller.recordingFeedback, height: 34)
+                    } else {
+                        ProgressView().controlSize(.small).frame(width: 51)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(controller.statusMessage).font(.headline)
+                        if controller.isRecording {
+                            HStack {
+                                RecordingElapsedTime(feedback: controller.recordingFeedback)
+                                Text(controller.recordingInputName ?? controller.selectedInputName)
+                                    .lineLimit(1)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(SottoPalette.muted)
                         }
-                        .font(.caption)
-                        .foregroundStyle(SottoPalette.muted)
+                    }
+                    Spacer()
+                    Button { controller.cancelDictation() } label: { Image(systemName: "xmark") }
+                        .help("Cancel dictation")
+                        .accessibilityLabel("Cancel dictation")
+                }
+                if !controller.liveTranscript.isEmpty {
+                    ScrollView {
+                        Text(controller.liveTranscript)
+                            .font(.body)
+                            .lineSpacing(4)
+                            .foregroundStyle(SottoPalette.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("dictation.live-transcript")
                     }
                 }
-                Spacer()
-                Button { controller.cancelDictation() } label: { Image(systemName: "xmark") }
-                    .help("Cancel dictation")
-                    .accessibilityLabel("Cancel dictation")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

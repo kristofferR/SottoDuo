@@ -200,6 +200,13 @@ struct ServerPreferencesPage: View {
                     } header: { Text("Server models").textCase(nil) }
                 }
                 Section {
+                    Picker("Speech recognition", selection: $draft.recognitionMode) {
+                        Text("Automatic (Soniox, with Whisper fallback)").tag(RecognitionMode.automatic)
+                        Text("Cloud only (Soniox)").tag(RecognitionMode.cloud)
+                        Text("Local only (Whisper)").tag(RecognitionMode.local)
+                    }
+                    .help("Automatic uses Soniox when configured on the server. Local only never sends audio to Soniox.")
+                    .accessibilityIdentifier("preferences.recognition-mode")
                     Picker("Language", selection: $draft.language) {
                         ForEach(languages, id: \.1) { name, code in Text(name).tag(code) }
                     }

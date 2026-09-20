@@ -31,7 +31,7 @@ enum ServerClientError: LocalizedError {
 struct ServerClient: Sendable {
     let endpoint: URL
     private let token: String
-    private let session: URLSession
+    let session: URLSession
 
     init(endpoint: String, token: String, session: URLSession? = nil) throws {
         self.endpoint = try ServerEndpoint(endpoint).url
@@ -61,6 +61,7 @@ struct ServerClient: Sendable {
         request.httpBody = body
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("streaming-v1", forHTTPHeaderField: "X-Sotto-Recognition")
         if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         return request
     }
@@ -315,7 +316,7 @@ extension ServerClient {
                                        originalFrames: preserveOriginal ? original.frames : nil)
     }
 
-    private func flush(_ buffer: inout UploadBuffer, to id: UUID) async throws {
+    func flush(_ buffer: inout UploadBuffer, to id: UUID) async throws {
         guard !buffer.data.isEmpty, let format = buffer.format else { return }
         let query = [URLQueryItem(name: "sequence", value: String(buffer.sequence)),
                      URLQueryItem(name: "sampleRate", value: String(format.sampleRate)),
@@ -333,7 +334,7 @@ extension ServerClient {
     }
 }
 
-private struct UploadBuffer {
+struct UploadBuffer {
     let kind: AudioKind
     var data = Data()
     var format: AudioStreamFormat?

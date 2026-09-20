@@ -43,7 +43,16 @@ iconutil -c icns .build/Sotto.iconset -o "$staged_app/Contents/Resources/Sotto.i
 
 signing_identity="${SOTTO_SIGNING_IDENTITY:-}"
 if [[ -z "$signing_identity" ]]; then
-    identities=$(security find-identity -v -p codesigning | awk '/"Apple Development:/ {print $2}')
+    available_identities=$(security find-identity -v -p codesigning)
+    identities=""
+    if [[ "$app_name" == Sotto ]]; then
+        developer_identities=$(printf '%s\n' "$available_identities" | awk '/"Developer ID Application:/ {print $2}')
+        developer_id_count=$(printf '%s\n' "$developer_identities" | awk 'NF {n++} END {print n+0}')
+        if [[ "$developer_id_count" == 1 ]]; then identities="$developer_identities"; fi
+    fi
+    if [[ -z "$identities" ]]; then
+        identities=$(printf '%s\n' "$available_identities" | awk '/"Apple Development:/ {print $2}')
+    fi
     identity_count=$(printf '%s\n' "$identities" | awk 'NF {n++} END {print n+0}')
     if [[ "$identity_count" == 1 ]]; then signing_identity="$identities"; else signing_identity=-; fi
 fi
