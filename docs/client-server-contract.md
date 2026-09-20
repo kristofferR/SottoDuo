@@ -7,6 +7,10 @@ API version 1, default port **8391**. [`Server/api/openapi.yaml`](../Server/api/
 | Route | Request / response |
 | --- | --- |
 | `GET /v1/health` | `ServerHealth`; server reachability differs from ready inference. Lightweight health contains no user data. |
+| `GET /v1/audio-sources` | `AudioSourceList`; up to 32 cached source observations, without starting capture. |
+| `POST /v1/captures` | `StartCaptureRequest` → 201 `GenerationRecord` after remote capture readiness; requires a capture owner secret. |
+| `POST /v1/generations/:id/capture/heartbeat` | Owner-authenticated lease renewal → 204; send every second, expires after five seconds. |
+| `POST /v1/generations/:id/capture/stop` | `StopCaptureRequest` → 202 `GenerationRecord` after provider audio drains and seals; requires the owner secret. |
 | `GET /v1/preferences` | `PreferencesSnapshot` |
 | `PUT /v1/preferences` | `PreferencesSnapshot` with expected revision; validates and returns incremented snapshot, 409 if stale. |
 | `POST /v1/generations` | `CreateGenerationRequest` → `GenerationRecord` with server UUID and frozen settings. Idempotent requestID scoped to device. Admission occurs before microphone capture. |
@@ -30,6 +34,8 @@ API version 1, default port **8391**. [`Server/api/openapi.yaml`](../Server/api/
 Errors are `APIErrorResponse`; relevant codes 400 invalid input, 401 auth, 404 missing, 409 stale/conflict/busy, 413 limits, 503 unavailable. Bearer authorization on data routes if token configured; nonloopback server binds require a token. Remote connections use HTTPS; localhost and explicit Tailscale endpoints can use HTTP. No credentials in URLs or diagnostics.
 
 ## Generation semantics
+
+Server-attached microphones use the additive [remote capture session contract](remote-capture.md): source discovery, owned start/heartbeat/stop controls, capture readiness and bounded cleanup. Existing local uploads remain unchanged. Send `X-Sotto-Capture: capture-v1` to receive the optional `capture` source/state object in existing generation and event responses. Remote recording control and delivery additionally require their session-specific `X-Sotto-Capture-Owner` secret; public audio upload/finish routes reject remote generations. Explicit deletion of terminal shared history retains existing authorization.
 
 - Server owns settings/dictionary, inference, formatting, proofreading, rewrite guards, composition, artifacts and history. Client owns only ephemeral capture/AX anchors and device preferences.
 - Inference audio is mono 16k float32. Original is input microphone format normalized to interleaved float32, retained/uploaded only if the accepted settings snapshot says keepOriginalAudio. Both audio intervals must match. Min take 0.25 s, max 180 s. Soniox recognition runs during upload; only sealed complete uploads can complete a generation or run Whisper fallback.

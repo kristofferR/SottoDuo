@@ -12,5 +12,20 @@ public import struct Foundation.Date
 public import Foundation
 extension Components {
     /// Types generated from the `#/components/parameters` section of the OpenAPI document.
-    public enum Parameters {}
+    public enum Parameters {
+        /// Opt in to remote capture source/state fields; omit for the legacy generation shape.
+        ///
+        /// - Remark: Generated from `#/components/parameters/CaptureView`.
+        @frozen public enum CaptureView: String, Codable, Hashable, Sendable, CaseIterable {
+            case captureV1 = "capture-v1"
+        }
+        /// Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients.
+        ///
+        /// - Remark: Generated from `#/components/parameters/CaptureMutationOwner`.
+        public typealias CaptureMutationOwner = Swift.String
+        /// Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+        ///
+        /// - Remark: Generated from `#/components/parameters/CaptureOwner`.
+        public typealias CaptureOwner = Swift.String
+    }
 }

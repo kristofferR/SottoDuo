@@ -1,7 +1,7 @@
 import { registerAudioStream } from "./audio-stream.ts";
 import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import {
   MAXIMUM_ARTIFACT_BYTES,
   MAXIMUM_CHUNK_BYTES,
@@ -58,10 +58,30 @@ const artifactName = (value: string) => {
 
 type IDParams = { id: string };
 // v1 clients generated before streaming reject unknown fields, even optional ones.
-const legacyJSON = (value: unknown) =>
-  JSON.stringify(value, (key, item) =>
-    key === "recognitionMode" || key === "recognition" ? undefined : item,
-  );
+const encodeFor = (request: FastifyRequest) => {
+  const path = request.url.split("?")[0]!;
+  return (value: unknown) =>
+    JSON.stringify(value, (key, item) => {
+      if (
+        (key === "recognitionMode" || key === "recognition") &&
+        request.headers["x-sotto-recognition"] !== "streaming-v1"
+      )
+        return undefined;
+      if (
+        key === "capture" &&
+        typeof item === "object" &&
+        request.headers["x-sotto-capture"] !== "capture-v1" &&
+        path !== "/v1/captures" &&
+        !path.includes("/capture/")
+      )
+        return undefined;
+      return item;
+    });
+};
+const captureOwner = (request: FastifyRequest) => {
+  const value = request.headers["x-sotto-capture-owner"];
+  return typeof value === "string" ? value : undefined;
+};
 export function createHTTPServer(service: GenerationService, token?: string) {
   const app = Fastify({ logger: false, bodyLimit: 262_144 });
   registerAudioStream(app, service);
@@ -102,7 +122,7 @@ export function createHTTPServer(service: GenerationService, token?: string) {
     reply.header("Cache-Control", "no-store");
   });
   app.addHook("preHandler", async (request, reply) => {
-    if (request.headers["x-sotto-recognition"] !== "streaming-v1") reply.serializer(legacyJSON);
+    reply.serializer(encodeFor(request));
   });
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ServiceError)
@@ -127,6 +147,35 @@ export function createHTTPServer(service: GenerationService, token?: string) {
   );
 
   app.get("/v1/health", () => service.health());
+  app.get("/v1/audio-sources", () => service.captures.sources());
+  app.post("/v1/captures", async (request, reply) =>
+    reply
+      .code(201)
+      .send(
+        await service.captures.start(
+          validateBody("StartCaptureRequest", request.body),
+          captureOwner(request),
+        ),
+      ),
+  );
+  app.post<{ Params: IDParams }>(
+    "/v1/generations/:id/capture/heartbeat",
+    async (request, reply) => {
+      await service.captures.heartbeat(identifier(request.params.id), captureOwner(request));
+      return reply.code(204).send();
+    },
+  );
+  app.post<{ Params: IDParams }>("/v1/generations/:id/capture/stop", async (request, reply) =>
+    reply
+      .code(202)
+      .send(
+        await service.captures.stop(
+          identifier(request.params.id),
+          validateBody("StopCaptureRequest", request.body),
+          captureOwner(request),
+        ),
+      ),
+  );
   app.get("/v1/preferences", () => service.getPreferences());
   app.put("/v1/preferences", (request) =>
     service.updatePreferences(validateBody("PreferencesSnapshot", request.body)),
@@ -150,7 +199,8 @@ export function createHTTPServer(service: GenerationService, token?: string) {
   app.post<{
     Params: IDParams & { kind: string };
     Querystring: { sequence?: string; sampleRate?: string; channels?: string };
-  }>("/v1/generations/:id/audio/:kind", { bodyLimit: MAXIMUM_CHUNK_BYTES }, (request) => {
+  }>("/v1/generations/:id/audio/:kind", { bodyLimit: MAXIMUM_CHUNK_BYTES }, async (request) => {
+    await service.requireClientUpload(identifier(request.params.id));
     const kind = request.params.kind;
     const sequence = integer(request.query.sequence),
       sampleRate = integer(request.query.sampleRate),
@@ -175,33 +225,35 @@ export function createHTTPServer(service: GenerationService, token?: string) {
       bytes(request.body),
     );
   });
-  app.post<{ Params: IDParams }>("/v1/generations/:id/finish", async (request, reply) =>
-    reply
+  app.post<{ Params: IDParams }>("/v1/generations/:id/finish", async (request, reply) => {
+    await service.requireClientUpload(identifier(request.params.id));
+    return reply
       .code(202)
       .send(
         await service.finish(
           identifier(request.params.id),
           validateBody("FinishGenerationRequest", request.body),
         ),
-      ),
-  );
-  app.post<{ Params: IDParams }>("/v1/generations/:id/cancel", (request) =>
-    service.cancel(identifier(request.params.id)),
-  );
-  app.post<{ Params: IDParams }>("/v1/generations/:id/delivery", (request) =>
-    service.recordDelivery(
+      );
+  });
+  app.post<{ Params: IDParams }>("/v1/generations/:id/cancel", async (request) => {
+    await service.authorizeCapture(identifier(request.params.id), captureOwner(request));
+    return service.cancel(identifier(request.params.id));
+  });
+  app.post<{ Params: IDParams }>("/v1/generations/:id/delivery", async (request) => {
+    await service.authorizeCapture(identifier(request.params.id), captureOwner(request));
+    return service.recordDelivery(
       identifier(request.params.id),
       validateBody("DeliveryReceipt", request.body),
-    ),
-  );
+    );
+  });
   app.delete<{ Params: IDParams }>("/v1/generations/:id", async (request, reply) => {
     await service.delete(identifier(request.params.id));
     return reply.code(204).send();
   });
   app.get<{ Params: IDParams }>("/v1/generations/:id/events", async (request, reply) => {
     const events = await service.events(identifier(request.params.id));
-    const encode =
-      request.headers["x-sotto-recognition"] === "streaming-v1" ? JSON.stringify : legacyJSON;
+    const encode = encodeFor(request);
     const source = Readable.from(
       (async function* () {
         for await (const record of events) yield `${encode(record)}\n`;

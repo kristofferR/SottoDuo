@@ -12,6 +12,581 @@ public import struct Foundation.Date
 public import Foundation
 /// API operations, with input and output types, generated from `#/paths` in the OpenAPI document.
 public enum Operations {
+    /// - Remark: HTTP `GET /v1/audio-sources`.
+    /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)`.
+    public enum ListAudioSources {
+        public static let id: Swift.String = "listAudioSources"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/audio-sources/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListAudioSources.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListAudioSources.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListAudioSources.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListAudioSources.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/audio-sources/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/audio-sources/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AudioSourceList)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AudioSourceList {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListAudioSources.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListAudioSources.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Bounded snapshot; discovery never starts audio or connects Bluetooth.
+            ///
+            /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListAudioSources.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListAudioSources.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/captures`.
+    /// - Remark: Generated from `#/paths//v1/captures/post(startCapture)`.
+    public enum StartCapture {
+        public static let id: Swift.String = "startCapture"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/captures/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+                ///
+                /// - Remark: Generated from `#/paths/v1/captures/POST/header/X-Sotto-Capture-Owner`.
+                public var xSottoCaptureOwner: Components.Parameters.CaptureOwner
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.StartCapture.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoCaptureOwner: Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+                ///   - accept:
+                public init(
+                    xSottoCaptureOwner: Components.Parameters.CaptureOwner,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.StartCapture.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCaptureOwner = xSottoCaptureOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.StartCapture.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/captures/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/captures/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.StartCaptureRequest)
+            }
+            public var body: Operations.StartCapture.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.StartCapture.Input.Headers,
+                body: Operations.StartCapture.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/captures/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/captures/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.GenerationRecord)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.GenerationRecord {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.StartCapture.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.StartCapture.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Admitted generation with acknowledged recording readiness.
+            ///
+            /// - Remark: Generated from `#/paths//v1/captures/post(startCapture)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.StartCapture.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.StartCapture.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/captures/post(startCapture)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/generations/{id}/capture/heartbeat`.
+    /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)`.
+    public enum HeartbeatCapture {
+        public static let id: Swift.String = "heartbeatCapture"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/heartbeat/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/heartbeat/POST/path/id`.
+                public var id: Components.Schemas.Uuid
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Components.Schemas.Uuid) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.HeartbeatCapture.Input.Path
+            /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/heartbeat/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/heartbeat/POST/header/X-Sotto-Capture-Owner`.
+                public var xSottoCaptureOwner: Components.Parameters.CaptureOwner
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.HeartbeatCapture.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoCaptureOwner: Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+                ///   - accept:
+                public init(
+                    xSottoCaptureOwner: Components.Parameters.CaptureOwner,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.HeartbeatCapture.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCaptureOwner = xSottoCaptureOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.HeartbeatCapture.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.HeartbeatCapture.Input.Path,
+                headers: Operations.HeartbeatCapture.Input.Headers
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Owner lease renewed. Send every second; expiry is five seconds.
+            ///
+            /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.HeartbeatCapture.Output.NoContent)
+            /// Owner lease renewed. Send every second; expiry is five seconds.
+            ///
+            /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.HeartbeatCapture.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/generations/{id}/capture/stop`.
+    /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/stop/post(stopCapture)`.
+    public enum StopCapture {
+        public static let id: Swift.String = "stopCapture"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/path/id`.
+                public var id: Components.Schemas.Uuid
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Components.Schemas.Uuid) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.StopCapture.Input.Path
+            /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/header/X-Sotto-Capture-Owner`.
+                public var xSottoCaptureOwner: Components.Parameters.CaptureOwner
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.StopCapture.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoCaptureOwner: Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history.
+                ///   - accept:
+                public init(
+                    xSottoCaptureOwner: Components.Parameters.CaptureOwner,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.StopCapture.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCaptureOwner = xSottoCaptureOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.StopCapture.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.StopCaptureRequest)
+            }
+            public var body: Operations.StopCapture.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.StopCapture.Input.Path,
+                headers: Operations.StopCapture.Input.Headers,
+                body: Operations.StopCapture.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/responses/202/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/generations/{id}/capture/stop/POST/responses/202/content/application\/json`.
+                    case json(Components.Schemas.GenerationRecord)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.GenerationRecord {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.StopCapture.Output.Accepted.Body
+                /// Creates a new `Accepted`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.StopCapture.Output.Accepted.Body) {
+                    self.body = body
+                }
+            }
+            /// Capture stopped, audio drained and sealed for processing.
+            ///
+            /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/stop/post(stopCapture)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.StopCapture.Output.Accepted)
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.StopCapture.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/stop/post(stopCapture)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// - Remark: HTTP `GET /v1/health`.
     /// - Remark: Generated from `#/paths//v1/health/get(getHealth)`.
     public enum GetHealth {
@@ -441,12 +1016,25 @@ public enum Operations {
             public var query: Operations.ListGenerations.Input.Query
             /// - Remark: Generated from `#/paths/v1/generations/GET/header`.
             public struct Headers: Sendable, Hashable {
+                /// - Remark: Generated from `#/components/parameters/CaptureView`.
+                @frozen public enum CaptureView: String, Codable, Hashable, Sendable, CaseIterable {
+                    case captureV1 = "capture-v1"
+                }
+                /// Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/GET/header/X-Sotto-Capture`.
+                public var xSottoCapture: Components.Parameters.CaptureView?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListGenerations.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - xSottoCapture: Opt in to remote capture source/state fields; omit for the legacy generation shape.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListGenerations.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    xSottoCapture: Components.Parameters.CaptureView? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListGenerations.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCapture = xSottoCapture
                     self.accept = accept
                 }
             }
@@ -724,12 +1312,25 @@ public enum Operations {
             public var path: Operations.GetGeneration.Input.Path
             /// - Remark: Generated from `#/paths/v1/generations/{id}/GET/header`.
             public struct Headers: Sendable, Hashable {
+                /// - Remark: Generated from `#/components/parameters/CaptureView`.
+                @frozen public enum CaptureView: String, Codable, Hashable, Sendable, CaseIterable {
+                    case captureV1 = "capture-v1"
+                }
+                /// Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/GET/header/X-Sotto-Capture`.
+                public var xSottoCapture: Components.Parameters.CaptureView?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetGeneration.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - xSottoCapture: Opt in to remote capture source/state fields; omit for the legacy generation shape.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetGeneration.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    xSottoCapture: Components.Parameters.CaptureView? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetGeneration.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCapture = xSottoCapture
                     self.accept = accept
                 }
             }
@@ -1341,12 +1942,32 @@ public enum Operations {
             public var path: Operations.CancelGeneration.Input.Path
             /// - Remark: Generated from `#/paths/v1/generations/{id}/cancel/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// - Remark: Generated from `#/components/parameters/CaptureView`.
+                @frozen public enum CaptureView: String, Codable, Hashable, Sendable, CaseIterable {
+                    case captureV1 = "capture-v1"
+                }
+                /// Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/cancel/POST/header/X-Sotto-Capture`.
+                public var xSottoCapture: Components.Parameters.CaptureView?
+                /// Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/cancel/POST/header/X-Sotto-Capture-Owner`.
+                public var xSottoCaptureOwner: Components.Parameters.CaptureMutationOwner?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CancelGeneration.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - xSottoCapture: Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///   - xSottoCaptureOwner: Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CancelGeneration.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    xSottoCapture: Components.Parameters.CaptureView? = nil,
+                    xSottoCaptureOwner: Components.Parameters.CaptureMutationOwner? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CancelGeneration.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCapture = xSottoCapture
+                    self.xSottoCaptureOwner = xSottoCaptureOwner
                     self.accept = accept
                 }
             }
@@ -1486,12 +2107,32 @@ public enum Operations {
             public var path: Operations.RecordDelivery.Input.Path
             /// - Remark: Generated from `#/paths/v1/generations/{id}/delivery/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// - Remark: Generated from `#/components/parameters/CaptureView`.
+                @frozen public enum CaptureView: String, Codable, Hashable, Sendable, CaseIterable {
+                    case captureV1 = "capture-v1"
+                }
+                /// Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/delivery/POST/header/X-Sotto-Capture`.
+                public var xSottoCapture: Components.Parameters.CaptureView?
+                /// Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/delivery/POST/header/X-Sotto-Capture-Owner`.
+                public var xSottoCaptureOwner: Components.Parameters.CaptureMutationOwner?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordDelivery.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - xSottoCapture: Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///   - xSottoCaptureOwner: Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordDelivery.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    xSottoCapture: Components.Parameters.CaptureView? = nil,
+                    xSottoCaptureOwner: Components.Parameters.CaptureMutationOwner? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordDelivery.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCapture = xSottoCapture
+                    self.xSottoCaptureOwner = xSottoCaptureOwner
                     self.accept = accept
                 }
             }
@@ -1642,12 +2283,25 @@ public enum Operations {
             public var path: Operations.GenerationEvents.Input.Path
             /// - Remark: Generated from `#/paths/v1/generations/{id}/events/GET/header`.
             public struct Headers: Sendable, Hashable {
+                /// - Remark: Generated from `#/components/parameters/CaptureView`.
+                @frozen public enum CaptureView: String, Codable, Hashable, Sendable, CaseIterable {
+                    case captureV1 = "capture-v1"
+                }
+                /// Opt in to remote capture source/state fields; omit for the legacy generation shape.
+                ///
+                /// - Remark: Generated from `#/paths/v1/generations/{id}/events/GET/header/X-Sotto-Capture`.
+                public var xSottoCapture: Components.Parameters.CaptureView?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerationEvents.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - xSottoCapture: Opt in to remote capture source/state fields; omit for the legacy generation shape.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerationEvents.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    xSottoCapture: Components.Parameters.CaptureView? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerationEvents.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoCapture = xSottoCapture
                     self.accept = accept
                 }
             }

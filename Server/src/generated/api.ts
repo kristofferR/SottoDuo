@@ -1,4 +1,68 @@
 export interface paths {
+  "/v1/audio-sources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listAudioSources"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/captures": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["startCapture"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/generations/{id}/capture/heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["heartbeatCapture"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/generations/{id}/capture/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["stopCapture"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/health": {
     parameters: {
       query?: never;
@@ -364,6 +428,46 @@ export interface components {
       proofreading: components["schemas"]["ModelRuntimeInfo"];
       message?: string;
     };
+    AudioSourceIdentity: {
+      hostID: string;
+      id: string;
+    };
+    AudioSource: {
+      identity: components["schemas"]["AudioSourceIdentity"];
+      name: string;
+      /** @enum {string} */
+      transport: "usb" | "bluetooth" | "builtIn" | "other";
+      present: boolean;
+      /** @enum {string} */
+      link: "connected" | "disconnected" | "unknown" | "notApplicable";
+      /** @enum {string} */
+      capture: "available" | "unavailable" | "unknown";
+      /** @enum {string} */
+      audioHealth: "unknown" | "healthy" | "degraded";
+      /** Format: date-time */
+      observedAt: string;
+      reason?: string;
+    };
+    AudioSourceList: {
+      sources: components["schemas"]["AudioSource"][];
+    };
+    RemoteCapture: {
+      continuationID?: components["schemas"]["UUID"];
+      source: components["schemas"]["AudioSourceIdentity"];
+      /** @enum {string} */
+      state: "preparing" | "recording" | "stopping" | "sealed" | "stopped";
+      peak?: number;
+    };
+    StartCaptureRequest: {
+      requestID: components["schemas"]["UUID"];
+      device: components["schemas"]["DeviceIdentity"];
+      /** @enum {string} */
+      mode: "dictation" | "test";
+      source: components["schemas"]["AudioSourceIdentity"];
+    };
+    StopCaptureRequest: {
+      continuationID?: components["schemas"]["UUID"];
+    };
     CreateGenerationRequest: {
       requestID: components["schemas"]["UUID"];
       device: components["schemas"]["DeviceIdentity"];
@@ -505,6 +609,7 @@ export interface components {
       };
     };
     GenerationRecord: {
+      capture?: components["schemas"]["RemoteCapture"];
       schemaVersion: number;
       id: components["schemas"]["UUID"];
       requestID: components["schemas"]["UUID"];
@@ -562,13 +667,123 @@ export interface components {
       };
     };
   };
-  parameters: never;
+  parameters: {
+    /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
+    CaptureView: "capture-v1";
+    /** @description Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients. */
+    CaptureMutationOwner: string;
+    /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
+    CaptureOwner: string;
+  };
   requestBodies: never;
   headers: never;
   pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  listAudioSources: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bounded snapshot; discovery never starts audio or connects Bluetooth. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AudioSourceList"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  startCapture: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
+        "X-Sotto-Capture-Owner": components["parameters"]["CaptureOwner"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["StartCaptureRequest"];
+      };
+    };
+    responses: {
+      /** @description Admitted generation with acknowledged recording readiness. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GenerationRecord"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  heartbeatCapture: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
+        "X-Sotto-Capture-Owner": components["parameters"]["CaptureOwner"];
+      };
+      path: {
+        id: components["schemas"]["UUID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Owner lease renewed. Send every second; expiry is five seconds. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  stopCapture: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
+        "X-Sotto-Capture-Owner": components["parameters"]["CaptureOwner"];
+      };
+      path: {
+        id: components["schemas"]["UUID"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["StopCaptureRequest"];
+      };
+    };
+    responses: {
+      /** @description Capture stopped, audio drained and sealed for processing. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GenerationRecord"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
   getHealth: {
     parameters: {
       query?: never;
@@ -643,7 +858,10 @@ export interface operations {
         before?: string;
         source?: "sotto" | "wispr-flow";
       };
-      header?: never;
+      header?: {
+        /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
+        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -689,7 +907,10 @@ export interface operations {
   getGeneration: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
+        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+      };
       path: {
         id: components["schemas"]["UUID"];
       };
@@ -793,7 +1014,12 @@ export interface operations {
   cancelGeneration: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
+        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        /** @description Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients. */
+        "X-Sotto-Capture-Owner"?: components["parameters"]["CaptureMutationOwner"];
+      };
       path: {
         id: components["schemas"]["UUID"];
       };
@@ -816,7 +1042,12 @@ export interface operations {
   recordDelivery: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
+        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        /** @description Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients. */
+        "X-Sotto-Capture-Owner"?: components["parameters"]["CaptureMutationOwner"];
+      };
       path: {
         id: components["schemas"]["UUID"];
       };
@@ -843,7 +1074,10 @@ export interface operations {
   generationEvents: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
+        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+      };
       path: {
         id: components["schemas"]["UUID"];
       };
