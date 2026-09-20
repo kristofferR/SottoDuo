@@ -1,3 +1,4 @@
+import { registerAudioStream } from "./audio-stream.ts";
 import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import Fastify from "fastify";
@@ -58,6 +59,7 @@ const artifactName = (value: string) => {
 type IDParams = { id: string };
 export function createHTTPServer(service: GenerationService, token?: string) {
   const app = Fastify({ logger: false, bodyLimit: 262_144 });
+  registerAudioStream(app, service);
   const parseJSON = app.getDefaultJsonParser("error", "error");
   app.removeContentTypeParser("application/json");
   app.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {

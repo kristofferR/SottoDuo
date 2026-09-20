@@ -1,3 +1,5 @@
+import { RecognitionSession } from "./inference/recognition.ts";
+import type { SonioxConfiguration, StartSpeechStream } from "./inference/soniox.ts";
 import { constants } from "node:fs";
 import { access, mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -78,6 +80,7 @@ Return only the cleaned transcript field from the user JSON as plain text, witho
 export const defaultPreferences = (): PreferencesSnapshot => ({
   revision: 0,
   preferences: {
+    recognitionMode: "automatic",
     language: "en",
     proofreadingPrompt: defaultProofreadingPrompt,
     vocabulary: "",
@@ -87,6 +90,8 @@ export const defaultPreferences = (): PreferencesSnapshot => ({
   },
 });
 export function preferencesValidationError(preferences: ServerPreferences) {
+  if (!["automatic", "cloud", "local"].includes(preferences.recognitionMode ?? "automatic"))
+    return "Choose a supported recognition mode.";
   if (
     ![
       "en",
@@ -138,12 +143,15 @@ function normalizePreferences(
   if (dictionary.error) throw new ServiceError(400, "invalid_preferences", dictionary.error);
   return {
     ...value,
+    recognitionMode: value.recognitionMode ?? "automatic",
     dictionary: dictionary.value!,
     proofreadingPrompt: value.proofreadingPrompt ?? defaultProofreadingPrompt,
   };
 }
 
 interface ServiceConfiguration {
+  soniox?: SonioxConfiguration;
+  startSpeechStream?: StartSpeechStream;
   dataDirectory: string;
   development: boolean;
 }
@@ -163,6 +171,8 @@ export class GenerationService {
   private preferences: PreferencesSnapshot = defaultPreferences();
   private records = new Map<string, GenerationRecord>();
   private uploads = new Map<string, Partial<Record<AudioKind, Upload>>>();
+  private recognition = new Map<string, RecognitionSession>();
+  private endedInference = new Map<string, number>();
   private activeID?: string;
   private activeController?: AbortController;
   private processingTasks = new Set<Promise<void>>();
@@ -270,6 +280,7 @@ export class GenerationService {
       if (!terminal(record)) {
         record.status = "failed";
         record.error = "Server restarted before this generation completed.";
+        if (record.recognition) delete record.recognition.partialText;
         record.updatedAt = now();
         delete record.progress;
         await this.cleanPartial(id);
@@ -341,16 +352,24 @@ export class GenerationService {
       writable = false;
     }
     return this.mutate(() => {
-      const ready = state.available && state.speechLoaded && writable;
+      const cloud = this.prefersCloud;
+      const ready =
+        (cloud ||
+          (this.preferences.preferences.recognitionMode !== "cloud" &&
+            state.available &&
+            state.speechLoaded)) &&
+        writable;
       const message = !writable
         ? "Server storage is unavailable or full."
         : this.activeID
           ? "Server is handling a recording."
           : ready
             ? "Server ready."
-            : this.warming
-              ? "Loading server models…"
-              : "Server models are unavailable.";
+            : this.preferences.preferences.recognitionMode === "cloud" && !this.configuration.soniox
+              ? "Soniox API key is not configured."
+              : this.warming
+                ? "Loading server models…"
+                : "Server models are unavailable.";
       if (!state.speechLoaded && !this.warming && !this.activeID) this.beginWarmup();
       return {
         apiVersion: 1,
@@ -358,9 +377,10 @@ export class GenerationService {
         isDev: this.configuration.development,
         ready: ready && !this.activeID,
         speech: {
-          modelID: "whisper-large-v3-turbo",
-          backend: this.speechBackend,
-          ready: state.speechLoaded,
+          modelID: cloud ? this.configuration.soniox!.model : "whisper-large-v3-turbo",
+          backend: cloud ? "soniox/websocket" : this.speechBackend,
+          ready: cloud || state.speechLoaded,
+          message: cloud ? "Cloud configured; connection checked per recording." : undefined,
         },
         proofreading: {
           modelID: "Qwen3-4B-Instruct-2507",
@@ -387,7 +407,11 @@ export class GenerationService {
           "stale_preferences",
           "Preferences changed on another device. Reload and try again.",
         );
-      const normalized = normalizePreferences(update.preferences);
+      const normalized = normalizePreferences({
+        ...update.preferences,
+        recognitionMode:
+          update.preferences.recognitionMode ?? this.preferences.preferences.recognitionMode,
+      });
       const error = preferencesValidationError(normalized);
       if (error) throw new ServiceError(400, "invalid_preferences", error);
       const next = { revision: this.preferences.revision + 1, preferences: normalized };
@@ -432,11 +456,17 @@ export class GenerationService {
           "server_busy",
           "The server is handling another recording. Try again when it finishes.",
         );
-      if (!state.available) {
+      if (this.preferences.preferences.recognitionMode === "cloud" && !this.configuration.soniox)
+        throw new ServiceError(
+          503,
+          "cloud_unavailable",
+          "Configure a Soniox API key on the server, or choose automatic/local recognition.",
+        );
+      if (!this.prefersCloud && !state.available) {
         this.beginWarmup();
         throw new ServiceError(503, "server_unavailable", state.message);
       }
-      if (!state.speechLoaded) {
+      if (!this.prefersCloud && !state.speechLoaded) {
         this.beginWarmup();
         throw new ServiceError(
           503,
@@ -456,6 +486,29 @@ export class GenerationService {
       await this.save(record);
       this.activeID = record.id;
       this.uploads.set(record.id, {});
+      const session = new RecognitionSession(
+        this.inference,
+        record.settings.preferences,
+        recognitionVocabularyTerms(
+          record.settings.preferences.dictionary,
+          record.settings.preferences.vocabulary,
+        ),
+        this.configuration.soniox,
+        record.id,
+        (recognition) => {
+          void this.mutate(() => {
+            const current = this.records.get(record.id);
+            if (!current || terminal(current)) return;
+            // Preview activity must not refresh the upload expiry timestamp.
+            current.recognition = recognition;
+            this.publish(current);
+          });
+        },
+        this.configuration.startSpeechStream,
+      );
+      this.recognition.set(record.id, session);
+      record.recognition = { ...session.state };
+      this.publish(record);
       return copy(record);
     });
   }
@@ -583,6 +636,8 @@ export class GenerationService {
       }
       if (sequence !== upload.chunks.length)
         throw new ServiceError(409, "missing_chunk", "Audio chunks must arrive in sequence.");
+      if (kind === "inference" && this.endedInference.has(id))
+        throw new ServiceError(409, "audio_ended", "Inference audio has already ended.");
       const nextBytes = upload.bytes + bytes.length;
       if (nextBytes / (format.sampleRate * format.channels * 4) > 180.1 || nextBytes > 268_435_456)
         throw new ServiceError(
@@ -624,10 +679,36 @@ export class GenerationService {
       this.uploads.set(id, streams);
       record.updatedAt = now();
       this.records.set(id, record);
+      if (kind === "inference") this.recognition.get(id)?.send(bytes);
       return {
         nextSequence: upload.chunks.length,
         frameCount: upload.bytes / (format.channels * 4),
       };
+    });
+  }
+  endInference(id: string, frames: number) {
+    return this.mutate(() => {
+      const record = this.getInternal(id);
+      id = record.id;
+      const uploaded = this.uploads.get(id)?.inference;
+      if (
+        record.status !== "receiving" ||
+        !uploaded ||
+        !Number.isSafeInteger(frames) ||
+        frames <= 0 ||
+        uploaded.bytes / 4 !== frames
+      )
+        throw new ServiceError(
+          409,
+          "incomplete_audio",
+          "Inference audio has not been completely uploaded.",
+        );
+      if (!this.endedInference.has(id)) {
+        record.updatedAt = now();
+        this.records.set(id, record);
+        this.endedInference.set(id, frames);
+        this.recognition.get(id)?.end();
+      }
     });
   }
   finish(id: string, request: FinishGenerationRequest) {
@@ -685,6 +766,8 @@ export class GenerationService {
           "unexpected_original",
           "This recording does not retain original audio.",
         );
+      this.endedInference.set(id, request.inferenceFrames);
+      this.recognition.get(id)?.end();
       const previous = this.continuation(request.continuationID, record);
       try {
         record.inferenceAudio = await this.seal(id, "inference", speech);
@@ -811,6 +894,7 @@ export class GenerationService {
       id = record.id;
       if (terminal(record)) return { record, active: false };
       record.status = "cancelled";
+      if (record.recognition) delete record.recognition.partialText;
       record.error = "Recording cancelled.";
       delete record.progress;
       record.updatedAt = now();
@@ -1052,23 +1136,25 @@ export class GenerationService {
       });
       if (!record) return;
       const settings = record.settings.preferences;
-      const speech = await this.inference.transcribe(
+      const recognition = this.recognition.get(id);
+      if (!recognition) throw new Error("Recognition session is unavailable.");
+      const speech = await recognition.transcribe(
         join(this.directory(id), "inference.wav"),
-        settings.language,
-        recognitionVocabularyTerms(settings.dictionary, settings.vocabulary),
         (value) => {
           void this.mutate(() => this.progress(id, value));
         },
         signal,
       );
       signal.throwIfAborted();
+      record.recognition = { ...recognition.state };
+      delete record.recognition.partialText;
       record.rawText = speech.text;
       record.detectedLanguage = speech.language;
       record.recognitionHints = speech.hints;
       record.speech = {
-        modelID: "whisper-large-v3-turbo",
+        modelID: speech.modelID,
         modelSHA256: speech.modelSHA256,
-        backend: this.speechBackend,
+        backend: speech.backend,
         engineVersion: speech.engineVersion,
         processingSeconds: speech.processingSeconds,
       };
@@ -1133,6 +1219,7 @@ export class GenerationService {
         const record = this.records.get(id);
         if (!record || terminal(record)) return;
         const failed = copy(record);
+        if (failed.recognition) delete failed.recognition.partialText;
         failed.status = signal.aborted ? "cancelled" : "failed";
         failed.error = signal.aborted
           ? "Recording cancelled."
@@ -1145,6 +1232,9 @@ export class GenerationService {
       });
     } finally {
       await this.mutate(() => {
+        this.recognition.get(id)?.cancel();
+        this.recognition.delete(id);
+        this.endedInference.delete(id);
         if (this.activeID === id && this.records.get(id)?.status !== "cancelled") {
           this.activeID = undefined;
           this.activeController = undefined;
@@ -1246,6 +1336,9 @@ export class GenerationService {
     for (const watcher of this.subscribers.get(id) ?? []) this.yieldTo(watcher, record);
   }
   private async cleanPartial(id: string) {
+    this.recognition.get(id)?.cancel();
+    this.recognition.delete(id);
+    this.endedInference.delete(id);
     this.uploads.delete(id);
     for (const name of [
       "inference.raw",
@@ -1268,6 +1361,9 @@ export class GenerationService {
         this.warmController = undefined;
         this.warmTask = undefined;
       });
+  }
+  private get prefersCloud() {
+    return this.preferences.preferences.recognitionMode !== "local" && !!this.configuration.soniox;
   }
   private get speechBackend() {
     return process.platform === "darwin" ? "whisper.cpp/Metal" : "whisper.cpp";

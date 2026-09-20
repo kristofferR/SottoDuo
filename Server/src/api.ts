@@ -2,6 +2,7 @@ import type { components } from "./generated/api";
 
 type Schemas = components["schemas"];
 
+export type RecognitionState = Schemas["RecognitionState"];
 export type UUID = Schemas["UUID"];
 export type GenerationMode = Schemas["GenerationMode"];
 export type GenerationStatus = Schemas["GenerationStatus"];

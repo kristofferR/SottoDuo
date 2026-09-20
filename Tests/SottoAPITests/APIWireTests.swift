@@ -13,6 +13,7 @@ final class APIWireTests: XCTestCase {
             """.utf8)
         let snapshot = try SottoAPI.decodeWire(PreferencesSnapshot.self, from: json)
         XCTAssertEqual(snapshot.revision, 7)
+        XCTAssertEqual(snapshot.preferences.recognitionMode, .automatic)
         XCTAssertEqual(snapshot.preferences.proofreadingPrompt, ServerPreferences.defaultProofreadingPrompt)
         XCTAssertEqual(snapshot.preferences.dictionary.lists[0].entries[0].aliases, [])
         XCTAssertFalse(snapshot.preferences.dictionary.lists[0].entries[0].isPriority)
@@ -26,6 +27,8 @@ final class APIWireTests: XCTestCase {
         let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
         var record = GenerationRecord(requestID: UUID(), device: .init(id: "test", name: "Test Mac"),
             status: .completed, createdAt: timestamp, settings: .init(revision: 3))
+        record.settings.preferences.recognitionMode = .automatic
+        record.recognition = .init(provider: .whisper, fallbackReason: "Cloud disconnected.")
         record.rawText = "codex, sorry, MiniMax"
         record.finalText = "MiniMax."
         record.insertionText = "MiniMax."
