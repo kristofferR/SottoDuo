@@ -1312,7 +1312,7 @@ final class SottoController: ObservableObject {
                 case .stop:
                     if recordingTrigger == .remoteButton(ticket) { finishDictation() }
                 case .cancel:
-                    if recordingTrigger == .remoteButton(ticket) { cancelDictation() }
+                    if recordingTrigger == .remoteButton(ticket), !serverSealed { cancelDictation() }
                 }
                 return true
             }, cancelled: { [weak self] in

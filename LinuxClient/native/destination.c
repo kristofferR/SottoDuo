@@ -97,7 +97,6 @@ static void changed(AtspiEvent *event, void *unused) {
   if (target && (event->source == target ||
       (g_str_has_prefix(event->type, "object:state-changed:focused") && event->detail1)))
     invalidated = TRUE;
-  g_boxed_free(ATSPI_TYPE_EVENT, event);
 }
 
 static gboolean input(GIOChannel *channel, GIOCondition condition, gpointer unused) {
