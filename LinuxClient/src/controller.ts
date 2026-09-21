@@ -123,7 +123,7 @@ export class Controller {
   private async cancelTake(take: Take) {
     take.cancelled = true;
     take.destination?.close();
-    if (take.id) await this.api.cancel(take.id, take.owner).catch(() => {});
+    if (take.id && !take.sealed) await this.api.cancel(take.id, take.owner).catch(() => {});
     // An admission with an unknown ID loses its server lease within five seconds.
   }
   private async watch(take: Take) {

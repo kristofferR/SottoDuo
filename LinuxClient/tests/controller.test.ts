@@ -13,9 +13,9 @@ const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
-async function until(predicate: () => boolean) {
+async function until(predicate: () => boolean | Promise<boolean>) {
   const deadline = Date.now() + 5000;
-  while (!predicate()) {
+  while (!(await predicate())) {
     if (Date.now() > deadline) throw new Error("Timed out");
     await Bun.sleep(5);
   }
@@ -257,6 +257,34 @@ test("owner heartbeats continue through a slow drain and stop after sealing", as
   await f.controller.settled();
   expect(heartbeats).toBeGreaterThanOrEqual(2);
   expect(f.deliveries()).toBe(1);
+});
+
+test("a polling failure after sealing preserves the completed take in history", async () => {
+  const f = await fixture();
+  const stop = f.api.stop.bind(f.api),
+    get = f.api.get.bind(f.api),
+    cancel = f.api.cancel.bind(f.api);
+  let sealedID: string | undefined,
+    cancellations = 0;
+  f.api.stop = async (...args) => {
+    const record = await stop(...args);
+    sealedID = record.id;
+    return { ...record, status: "transcribing" };
+  };
+  f.api.get = async () => {
+    throw new Error("Polling connection lost");
+  };
+  f.api.cancel = async (...args) => {
+    cancellations++;
+    return cancel(...args);
+  };
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  f.controller.stop();
+  await f.controller.settled();
+  expect(cancellations).toBe(0);
+  expect(sealedID).toBeDefined();
+  await until(async () => (await get(sealedID!)).status === "completed");
 });
 
 test("button take pins DJI, ignores keyboard release, and reports a supported preview receipt", async () => {

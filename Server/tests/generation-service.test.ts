@@ -109,6 +109,15 @@ test("serializes admission; repeated requests return same frozen generation", as
     code: "stale_preferences",
   });
 });
+test("generation timestamps retain milliseconds for cross-device ordering", async () => {
+  const { service } = await setup();
+  try {
+    setSystemTime(new Date("2026-01-01T00:00:00.678Z"));
+    expect((await service.create(request())).createdAt).toBe("2026-01-01T00:00:00.678Z");
+  } finally {
+    setSystemTime();
+  }
+});
 test("concurrent competing creates have one winner", async () => {
   const { service } = await setup(),
     result = await Promise.allSettled([service.create(request()), service.create(request())]);

@@ -56,7 +56,7 @@ const MAX_PREFERENCES_BYTES = 262_144;
 const MAX_CHUNK_BYTES = 1_048_576;
 const terminal = (record: GenerationRecord) =>
   ["completed", "failed", "cancelled"].includes(record.status);
-const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+const now = () => new Date().toISOString();
 const uuid = () => randomUUID().toUpperCase();
 const isUUID = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
