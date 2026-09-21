@@ -65,7 +65,8 @@ final class RemoteButtonDestination {
     }
     func tick() async throws {
         let now = Date()
-        let gap = now.timeIntervalSince(lastTick); lastTick = now
+        let gap = now.timeIntervalSince(lastTick)
+        defer { lastTick = Date() }
         guard gap >= 0, gap < 3, available(), !closed else { disarm(); return }
         let current = epoch
         if registration == nil {

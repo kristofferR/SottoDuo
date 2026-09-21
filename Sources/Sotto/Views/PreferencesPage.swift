@@ -87,7 +87,8 @@ private struct DevicePreferencesForm: View {
                         Button("Use this Mac", action: controller.selectRemoteButtonDestination)
                             .disabled(controller.remoteButtonState?.available != true || controller.isBusy)
                         Button("Deselect this Mac", action: controller.disarmRemoteButtonDestination)
-                            .disabled(controller.remoteButtonState?.selected?.device.id != preferences.deviceID)
+                            .disabled(controller.isBusy
+                                || controller.remoteButtonState?.selected?.device.id != preferences.deviceID)
                     }
                     Text("A successful shortcut take selects this Mac too. Tap the DJI button to start, then tap to stop. Button takes use only the server's DJI receiver; shortcut takes keep microphone fallback. Locking or disconnecting clears selection.")
                         .font(.caption).foregroundStyle(SottoPalette.muted)

@@ -76,6 +76,7 @@ export class ButtonDestinationClient {
       } catch {
         await this.disarm();
       }
+      this.lastTick = Date.now();
       if (!this.closed) await Bun.sleep(1000);
     }
   }
@@ -83,7 +84,6 @@ export class ButtonDestinationClient {
     const epoch = this.epoch;
     const now = Date.now();
     const slept = now - this.lastTick > 3000 || now < this.lastTick;
-    this.lastTick = now;
     if (slept || !(await this.desktop.unlocked())) {
       await this.disarm();
       return;
