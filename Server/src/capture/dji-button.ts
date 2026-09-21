@@ -1,10 +1,17 @@
 import { readdir, readFile, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { hrtime } from "node:process";
 import type { ButtonDestinations } from "../button-destinations.ts";
 import type { PipeWireInput } from "./pipewire-discovery.ts";
 import { captureHelper } from "./helper.ts";
+
+/** Native helper timestamps are Unix milliseconds, shared across process runtimes. */
+export function buttonPress(line: string, now = Date.now()): number | undefined {
+  if (!/^press [1-9]\d* \d+$/.test(line)) return;
+  const [, sequence, timestamp] = line.split(" ");
+  const age = now - Number(timestamp);
+  if (Number.isSafeInteger(Number(sequence)) && age >= 0 && age <= 250) return Number(sequence);
+}
 
 export class DJIButtonInput {
   private running?: { key: string; process: ReturnType<typeof captureHelper> };
@@ -77,9 +84,8 @@ export class DJIButtonInput {
           clearTimeout(startup);
           this.router.input(input.source.identity, epoch);
         } else if (ready && /^press [1-9]\d* \d+$/.test(line)) {
-          const [, sequence, timestamp] = line.split(" ");
-          const age = Number(hrtime.bigint() / 1_000_000n) - Number(timestamp);
-          if (age >= 0 && age <= 250) this.router.press(epoch, Number(sequence));
+          const sequence = buttonPress(line);
+          if (sequence !== undefined) this.router.press(epoch, sequence);
         } else {
           void this.stop();
           return;

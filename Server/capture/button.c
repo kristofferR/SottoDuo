@@ -16,6 +16,16 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Kernel event age uses monotonic time; IPC uses the wall clock shared with Bun.
+ * Bun's process.hrtime epoch is process-local, not Linux CLOCK_MONOTONIC. */
+static int64_t event_timestamp(const struct input_event *event) {
+  struct timespec monotonic, wall;
+  if (clock_gettime(CLOCK_MONOTONIC, &monotonic) || clock_gettime(CLOCK_REALTIME, &wall)) return -1;
+  int64_t age = (monotonic.tv_sec - event->time.tv_sec) * 1000000LL + monotonic.tv_nsec / 1000 - event->time.tv_usec;
+  if (age < 0 || age > 250000) return -1;
+  return (wall.tv_sec * 1000000LL + wall.tv_nsec / 1000 - age) / 1000;
+}
+
 /* Only the observed receiver Consumer Control interface. Never open or grab a general keyboard. */
 int main(int argc, char **argv) {
   if (argc != 3) return 2;
@@ -53,12 +63,9 @@ int main(int argc, char **argv) {
       struct input_event *event = &events[i];
       if (event->type == EV_SYN && event->code == SYN_DROPPED) goto done;
       if (event->type != EV_KEY || event->code != KEY_VOLUMEUP || event->value != 1) continue;
-      struct timespec now;
-      clock_gettime(CLOCK_MONOTONIC, &now);
-      int64_t age = (now.tv_sec - event->time.tv_sec) * 1000000LL + now.tv_nsec / 1000 - event->time.tv_usec;
-      if (age < 0 || age > 250000) continue;
-      printf("press %llu %lld\n", (unsigned long long)++sequence,
-        (long long)event->time.tv_sec * 1000 + event->time.tv_usec / 1000); fflush(stdout);
+      int64_t timestamp = event_timestamp(event);
+      if (timestamp < 0) continue;
+      printf("press %llu %lld\n", (unsigned long long)++sequence, (long long)timestamp); fflush(stdout);
     }
   }
 done:
