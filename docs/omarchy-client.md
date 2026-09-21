@@ -57,7 +57,7 @@ Preferences are independent of the Mac's. Unknown remote hosts are not implicitl
 
 Readiness matches the Mac: fresh observations (0–3.5 seconds), present, capture available, connected/notApplicable link, and no known degraded audio. A definitive pre-ready 503 permits one fallback with a fresh owner and request ID inside the original three-second activation budget. Ambiguous admission/network timeouts never start a second microphone. After readiness, loss cancels rather than splicing sources.
 
-Bluetooth remains a distinct source and is not paired or connected by discovery. The current server provider marks unsupported Bluetooth inputs unavailable; Linux direct-Bluetooth testing remains #4. A connected DJI status still cannot detect the confirmed living-room radio gaps. This client makes no new range or seamless radio handoff claim.
+Bluetooth remains a distinct source and is not paired or connected by discovery. The server supports already-connected Bluetooth mono/stereo microphones, including WirePlumber's headset auto-switch source; missing connection state and unsupported inputs remain unavailable. Add that source after DJI in the automatic priority list to use it for new takes when DJI is unavailable. Direct DJI Bluetooth testing remains #4. A connected DJI status still cannot detect the confirmed living-room radio gaps. This client makes no new range or seamless radio handoff claim.
 
 ## Destination safety and limits
 
