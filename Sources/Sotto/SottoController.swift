@@ -172,6 +172,7 @@ final class SottoController: ObservableObject {
     private var remoteCapture: RemoteCaptureSession?
     private var sourceMonitorTask: Task<Void, Never>?
     private var activationTimeoutTask: Task<Void, Never>?
+    private static let activationTimeoutSeconds: TimeInterval = 6
     private var refreshTask: Task<Void, Never>?
     private var monitorTask: Task<Void, Never>?
     private var hudTask: Task<Void, Never>?
@@ -882,9 +883,9 @@ final class SottoController: ObservableObject {
                 prepareContinuation(for: destination.target.map(DictationDestination.field))
             }
         } else { prepareContinuation(for: .test) }
-        let deadline = ProcessInfo.processInfo.systemUptime + 3
+        let deadline = ProcessInfo.processInfo.systemUptime + Self.activationTimeoutSeconds
         activationTimeoutTask = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            do { try await Task.sleep(for: .seconds(Self.activationTimeoutSeconds)) } catch { return }
             guard let self, sessionID == current, activity == .starting else { return }
             failSession("The microphone did not start in time. Try another take.", cancelServer: true)
         }

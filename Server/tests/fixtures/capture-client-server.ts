@@ -32,7 +32,7 @@ const provider: CaptureProvider = {
   async start(options) {
     const id = options.generation.capture?.source.id;
     if (id === "reject") throw new Error("Fixture source failed before readiness");
-    if (id === "slow") await Bun.sleep(2_000);
+    if (id === "slow") await Bun.sleep(4_000);
     options.signal.throwIfAborted();
     const levels = setInterval(() => options.level(0.25), 120);
     const lost = id === "lost" ? setTimeout(() => options.lost(), 700) : undefined;

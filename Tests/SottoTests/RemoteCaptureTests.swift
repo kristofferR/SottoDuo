@@ -64,6 +64,16 @@ final class RemoteCaptureTests: XCTestCase {
         }
     }
 
+    func testRemoteStartupAllowsServerReadinessBudget() async throws {
+        try await withController(sources: ["slow"]) { controller, _ in
+            controller.toggleTestRecording()
+            try await until { controller.isRecording || controller.activity == .failed }
+            XCTAssertTrue(controller.isRecording, controller.errorMessage ?? "Remote startup failed")
+            controller.cancelDictation()
+            XCTAssertEqual(controller.activity, .idle)
+        }
+    }
+
     func testUnavailableRemoteSelectsLocalFallbackAndExplainsMissingLocalPermission() async throws {
         try await withController(sources: ["unknown"]) { controller, _ in
             let local = AudioInputDevice(uid: "local-test-input", name: "Mac fallback", transport: .builtIn)
