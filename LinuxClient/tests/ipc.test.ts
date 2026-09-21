@@ -31,3 +31,41 @@ test("private IPC serializes commands, rejects a second daemon and releases its 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("GUI IPC accepts a newline without a half-close and rejects malformed JSON", async () => {
+  const { connect } = await import("node:net");
+  const dir = await mkdtemp(join(tmpdir(), "sotto-gui-ipc-"));
+  const previous = process.env.XDG_RUNTIME_DIR;
+  process.env.XDG_RUNTIME_DIR = dir;
+  let close: (() => Promise<void>) | undefined;
+  const request = (input: string): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const socket = connect(join(dir, "sotto-client", "control.sock"));
+      let data = "";
+      socket.setTimeout(3000, () => socket.destroy(new Error("timeout")));
+      socket.on("connect", () => socket.write(input));
+      socket.on("data", (bytes) => {
+        data += bytes.toString();
+      });
+      socket.on("end", () => resolve(data));
+      socket.on("error", reject);
+    });
+  try {
+    close = await serve(
+      async () => "ok",
+      () => {},
+      async (value) => ({ received: value }),
+    );
+    expect(JSON.parse(await request('{"version":1,"action":"snapshot"}\n'))).toEqual({
+      ok: true,
+      data: { received: { version: 1, action: "snapshot" } },
+    });
+    expect(JSON.parse(await request("{invalid}\n")).ok).toBe(false);
+    expect(await send("status")).toBe("ok\n");
+  } finally {
+    await close?.();
+    if (previous === undefined) delete process.env.XDG_RUNTIME_DIR;
+    else process.env.XDG_RUNTIME_DIR = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -1,0 +1,49 @@
+#pragma once
+#include <QObject>
+#include <QSet>
+#include <QSettings>
+#include <QTimer>
+#include <QVariantMap>
+
+class Bridge : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(QVariantMap snapshot READ snapshot NOTIFY snapshotChanged)
+  Q_PROPERTY(bool connected READ connected NOTIFY snapshotChanged)
+  Q_PROPERTY(bool preview READ preview CONSTANT)
+  Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
+  Q_PROPERTY(QVariantMap colors READ colors NOTIFY themeChanged)
+  Q_PROPERTY(QString themeNote READ themeNote NOTIFY themeChanged)
+public:
+  explicit Bridge(bool preview, QObject *parent = nullptr);
+  QVariantMap snapshot() const { return m_snapshot; }
+  bool connected() const { return m_connected; }
+  bool preview() const { return m_preview; }
+  QString theme() const { return m_theme; }
+  QVariantMap colors() const { return m_colors; }
+  QString themeNote() const { return m_themeNote; }
+  void setTheme(const QString &theme);
+  Q_INVOKABLE void request(const QString &action,
+                           const QVariantMap &arguments = {});
+  Q_INVOKABLE void copy(const QString &text);
+  Q_INVOKABLE void previewPhase(const QString &phase);
+signals:
+  void snapshotChanged();
+  void themeChanged();
+  void reply(const QString &action, const QVariant &data);
+  void failed(const QString &action, const QString &message);
+
+private:
+  void updateColors();
+  void receive(const QString &action, const QByteArray &bytes);
+  bool m_preview = false;
+  bool m_connected = false;
+  QString m_theme;
+  QString m_themeNote;
+  QVariantMap m_snapshot;
+  QVariantMap m_colors;
+  QVariantMap m_fixture;
+  QSet<QString> m_pending;
+  QTimer m_poll;
+  QTimer m_themePoll;
+  QSettings m_settings;
+};

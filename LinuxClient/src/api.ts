@@ -61,6 +61,26 @@ export class API {
       await this.request(`/v1/button-destinations${path}`, method, body, undefined, 1500, owner),
     );
   }
+  async health() {
+    return validateBody("ServerHealth", await this.request("/v1/health"));
+  }
+  async history(before?: string) {
+    return validateBody(
+      "GenerationPage",
+      await this.request(
+        `/v1/generations?limit=30${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+      ),
+    );
+  }
+  async preferences() {
+    return validateBody("PreferencesSnapshot", await this.request("/v1/preferences"));
+  }
+  async savePreferences(value: unknown) {
+    return validateBody(
+      "PreferencesSnapshot",
+      await this.request("/v1/preferences", "PUT", validateBody("PreferencesSnapshot", value)),
+    );
+  }
   async sources() {
     return validateBody("AudioSourceList", await this.request("/v1/audio-sources")).sources;
   }

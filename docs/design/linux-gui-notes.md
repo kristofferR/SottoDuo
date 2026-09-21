@@ -4,13 +4,17 @@ Ref #10. Published gallery: https://plans.kristofferr.com/d/fo12u4el8h2x
 
 ## Brief
 
-Keep the Mac app recognizable, especially settings arrangement and live dictation feedback. The Linux app should look comfortable across distributions, not like an Omarchy theme. Eight visual directions are proposed for selection; no product UI direction or framework is finalized by this document.
+Keep the Mac app recognizable, especially settings arrangement and live dictation feedback. The Linux app should look comfortable across distributions, not like an Omarchy theme. Eight visual directions were explored. Kris selected direction A on 2026-09-21. Implementation uses Qt/QML with the existing Bun controller.
 
 The gallery contains 16 direction screens, six full reference screens, three overlay designs with eight states, six recovery states, and three setup screens. The window mockups support warm/light and dark appearances. The compact setup examples deliberately show warm light. Gallery controls provide a browser-local shortlist and filtering; the app controls themselves are static illustrations.
 
-Recommendation: direction A with the H1 capsule. A preserves the sidebar order Dictation, History, Microphone, Server preferences, This computer. H1 stays close to the Mac feedback capsule. Use the explicit recovery copy shown in the gallery regardless of the chosen visual direction.
+Approved: direction A. The H1 capsule remains the Mac-style live feedback direction. A preserves the sidebar order Dictation, History, Microphone, Server preferences, This computer. H1 stays close to the Mac feedback capsule. Use the explicit recovery copy shown in the gallery regardless of the chosen visual direction.
 
 The palette and ribbon mark come from the existing Sotto sources, not from Omarchy. Window-control position is illustrative; native decorations and compositor capabilities are independent of product styling. No decorative continuous animation is proposed.
+
+## Selected appearance behavior
+
+Keep A’s layout for all themes. Offer Sotto warm light, Glacier dark, follow-system, and an optional Omarchy appearance. Kris explicitly selected following the active Omarchy palette. Read its colors without modifying desktop configuration; fall back to Glacier if the palette is missing or invalid.
 
 ## Cotto assessment
 
@@ -27,7 +31,7 @@ Inspected [JessePomeroy/cotto](https://github.com/JessePomeroy/cotto) at commit 
 | Scope | [KDE/Wayland development software](https://github.com/JessePomeroy/cotto/blob/7b7dd80daf6e76cbc21b41cd3ddd623841409c0c/docs/linux/STATUS.md); other compositors and packaging not claimed complete | Useful starting evidence, not a substitute for platform integration. The fork removed its macOS app; Sotto must retain ours. |
 | License | [MIT license](https://github.com/JessePomeroy/cotto/blob/7b7dd80daf6e76cbc21b41cd3ddd623841409c0c/LICENSE) and third-party notices | Preserve applicable copyright/license notices with any future copied code. |
 
-## Proposed implementation boundary
+## Implementation boundary
 
 Keep the Bun client/controller as the single owner of a Linux dictation and its text destination. Add the GUI as a presentation/control client, rather than running a second capture controller inside the window.
 
@@ -40,9 +44,9 @@ flowchart LR
   Client --> Desktop[Desktop insertion and focus adapter]
 ```
 
-The existing IPC supplies CLI commands and strings. A GUI needs a small structured snapshot/event API for activity, source, destination, text, delivery outcome and errors, plus validated commands. It should not parse human-readable CLI status strings or create a general-purpose unauthenticated server proxy. Prefer extending existing ownership/lifetime rules over adding another service.
+The CLI commands remain compatible. The GUI now uses versioned JSON requests and structured snapshots over the same private socket, with explicit controller phases and scoped commands. It does not parse human-readable CLI status or expose arbitrary server paths. Local snapshots are polled every 500 ms; server health and sources refresh every five seconds while the window is visible.
 
-Qt/QML is the first framework candidate because it matches the useful Cotto work and supports custom Sotto styling without a browser shell. This is a candidate, not a completed framework selection. Before product implementation, resolve the bridge to the existing Bun controller, non-activating overlay behavior, packaging, accessibility and practical idle cost. GTK and a webview shell remain alternatives; no speculative framework rewrite is authorized by this design exploration.
+The first implementation uses Qt 6.8+ and QML with a small C++ socket/theme bridge. The Mac app and Bun capture architecture remain intact. Cotto informed the framework assessment, but no fork code was copied. Qt flags keep the capsule passive; compositor-specific placement and portal adapters remain separate acceptance work.
 
 Linux visual consistency and Linux desktop integration are separate tasks. Keep platform differences behind capability-driven adapters: global shortcuts, text insertion, session lock/sleep, tray, autostart and overlay placement. Preserve the existing Hyprland adapter initially; investigate portal-based adapters without embedding compositor-specific labels or assumptions throughout the interface.
 
@@ -57,15 +61,13 @@ Linux visual consistency and Linux desktop integration are separate tasks. Keep 
 - Avoid platform-wide shortcuts, tray availability or built-in microphones as universal defaults. Show only actual capabilities/inputs.
 - Theme, text scale, reduced motion and contrast should not require changing the desktop's global theme.
 
-## Next work after a visual choice
+## First implementation and remaining work
 
-1. Build the chosen window shell with Dictation and the familiar settings navigation, backed by representative state fixtures.
-2. Extend private IPC with typed snapshots/events and validated GUI commands; keep the existing controller as the only session owner.
-3. Add main-window state and a non-activating overlay. Keep transcript recovery visible before adding more desktop-specific styling.
-4. Bring in history and shared settings through existing contracts, then local preferences and microphone priorities.
-5. Add desktop capability reporting and packaging. Use targeted automated/UI checks; schedule physical tests only for a concrete unresolved integration.
+All five pages are implemented in `LinuxClient/gui`, including real shared history/preferences, local source priorities, pairing-button destination selection, transcript recovery and a passive capsule. A dedicated microphone-test path cannot insert text or select a destination. See [the GUI README](../../LinuxClient/gui/README.md) for build/run commands, automated checks and exact scope.
 
-The foundation is [PR #13](https://github.com/kristofferR/sottoniox/pull/13), stacked on #12, with autofix enabled. Design selection precedes product UI implementation; the working Mac app and server remain separate deployment targets.
+Next work: initial setup and shortcut/autostart editing, named microphone profiles, full dictionary-list editing, audio playback, unsaved-edit recovery, packaging and portal-based desktop adapters. Physical tests are reserved for concrete unresolved compositor/device behavior.
+
+The foundation is [PR #13](https://github.com/kristofferR/sottoniox/pull/13), stacked on #12, with autofix enabled. Direction A is now selected; the working Mac app and server remain separate deployment targets.
 
 ## Rebuild and review
 

@@ -1,0 +1,243 @@
+#include "Bridge.h"
+#include <QApplication>
+#include <QClipboard>
+#include <QColor>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLocalSocket>
+#include <QRegularExpression>
+#include <QStandardPaths>
+#include <QStyleHints>
+#include <cmath>
+
+namespace {
+QColor blend(const QColor &a, const QColor &b, double fraction) {
+  return QColor::fromRgbF(a.redF() * (1 - fraction) + b.redF() * fraction,
+                          a.greenF() * (1 - fraction) + b.greenF() * fraction,
+                          a.blueF() * (1 - fraction) + b.blueF() * fraction);
+}
+double luminance(const QColor &color) {
+  auto linear = [](double c) {
+    return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+  };
+  return .2126 * linear(color.redF()) + .7152 * linear(color.greenF()) +
+         .0722 * linear(color.blueF());
+}
+double contrast(const QColor &a, const QColor &b) {
+  const double x = luminance(a), y = luminance(b);
+  return (std::max(x, y) + .05) / (std::min(x, y) + .05);
+}
+} // namespace
+Bridge::Bridge(bool preview, QObject *parent)
+    : QObject(parent), m_preview(preview) {
+  m_theme = m_settings.value("appearance", "system").toString();
+  if (!QStringList{"system", "light", "dark", "omarchy"}.contains(m_theme))
+    m_theme = "system";
+  updateColors();
+  connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this,
+          [this] { updateColors(); });
+  if (m_preview) {
+    QFile fixture(":/qt/qml/Sotto/preview.json");
+    if (!fixture.open(QIODevice::ReadOnly))
+      qFatal("Missing preview fixture.");
+    m_fixture =
+        QJsonDocument::fromJson(fixture.readAll()).object().toVariantMap();
+    m_snapshot = m_fixture.value("snapshot").toMap();
+    m_connected = true;
+  } else {
+    connect(&m_poll, &QTimer::timeout, this, [this] { request("snapshot"); });
+    m_poll.start(500);
+    request("snapshot");
+  }
+  connect(&m_themePoll, &QTimer::timeout, this, [this] {
+    if (m_theme == "omarchy")
+      updateColors();
+  });
+  m_themePoll.start(3000);
+}
+void Bridge::setTheme(const QString &theme) {
+  if (!QStringList{"system", "light", "dark", "omarchy"}.contains(theme))
+    return;
+  const bool changed = m_theme != theme;
+  m_theme = theme;
+  if (!m_preview)
+    m_settings.setValue("appearance", theme);
+  updateColors();
+  if (changed)
+    emit themeChanged();
+}
+void Bridge::updateColors() {
+  const bool dark = m_theme == "dark" || m_theme == "omarchy" ||
+                    (m_theme == "system" && qApp->styleHints()->colorScheme() ==
+                                                Qt::ColorScheme::Dark);
+  QVariantMap colors =
+      dark ? QVariantMap{{"ink", "#edf5fa"},     {"muted", "#a4b8c7"},
+                         {"canvas", "#1b252e"},  {"surface", "#222c35"},
+                         {"sidebar", "#2b3e4d"}, {"line", "#485b6b"},
+                         {"accent", "#a7d6f5"},  {"onAccent", "#192c3a"},
+                         {"tint", "#304452"}}
+           : QVariantMap{{"ink", "#352d3a"},     {"muted", "#766d78"},
+                         {"canvas", "#f8f6f2"},  {"surface", "#fffdf9"},
+                         {"sidebar", "#ede8e4"}, {"line", "#d5cdd1"},
+                         {"accent", "#b44634"},  {"onAccent", "#ffffff"},
+                         {"tint", "#eee2de"}};
+  QString note;
+  if (m_theme == "omarchy") {
+    const QString state = qEnvironmentVariable(
+        "XDG_STATE_HOME", QDir::homePath() + "/.local/state");
+    const QString config =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    QFile file(state + "/omarchy/current/theme/colors.toml");
+    if (!file.exists())
+      file.setFileName(config + "/omarchy/current/theme/colors.toml");
+    QMap<QString, QColor> palette;
+    if (file.open(QIODevice::ReadOnly) && file.size() <= 65536) {
+      const auto lines = QString::fromUtf8(file.readAll()).split('\n');
+      const QRegularExpression colorLine(
+          R"re(^\s*([a-zA-Z0-9_]+)\s*=\s*["'](#[a-fA-F0-9]{6})["']\s*(?:#.*)?$)re");
+      for (const auto &line : lines) {
+        const auto match = colorLine.match(line);
+        if (match.hasMatch())
+          palette.insert(match.captured(1), QColor(match.captured(2)));
+      }
+    }
+    if (palette.contains("background") && palette.contains("foreground")) {
+      const QColor bg = palette["background"];
+      QColor fg = palette["foreground"];
+      const QColor high =
+          luminance(bg) < .18 ? QColor("white") : QColor("black");
+      if (contrast(bg, fg) < 4.5)
+        fg = high;
+      QColor accent = palette.value("accent", palette.value("color4", fg));
+      if (contrast(bg, accent) < 4.5)
+        accent = fg;
+      colors = {{"canvas", bg.name()},
+                {"ink", fg.name()},
+                {"muted", blend(fg, bg, .25).name()},
+                {"surface", blend(bg, fg, .025).name()},
+                {"sidebar", blend(bg, fg, .05).name()},
+                {"line", blend(bg, fg, .25).name()},
+                {"accent", accent.name()},
+                {"onAccent", contrast(accent, QColor("black")) >
+                                     contrast(accent, QColor("white"))
+                                 ? "#000000"
+                                 : "#ffffff"},
+                {"tint", blend(bg, accent, .13).name()}};
+      note = "Following the active Omarchy palette.";
+    } else
+      note = "Omarchy colors unavailable. Using Glacier until a palette is "
+             "available.";
+  }
+  if (colors != m_colors || note != m_themeNote) {
+    m_colors = colors;
+    m_themeNote = note;
+    emit themeChanged();
+  }
+}
+void Bridge::request(const QString &action, const QVariantMap &arguments) {
+  if (m_preview) {
+    QTimer::singleShot(0, this, [this, action] {
+      if (m_fixture.contains(action))
+        emit reply(action, m_fixture.value(action));
+      else
+        emit failed(action,
+                    "Preview mode uses sample data. No changes were made.");
+    });
+    return;
+  }
+  if (m_pending.contains(action))
+    return;
+  m_pending.insert(action);
+  auto *socket = new QLocalSocket(this);
+  auto *timer = new QTimer(socket);
+  timer->setSingleShot(true);
+  auto bytes = std::make_shared<QByteArray>();
+  auto finished = std::make_shared<bool>(false);
+  auto finish = [this, socket, timer, action, bytes, finished](bool valid) {
+    if (*finished)
+      return;
+    *finished = true;
+    timer->stop();
+    m_pending.remove(action);
+    if (valid)
+      receive(action, *bytes);
+    else if (action == "snapshot") {
+      m_connected = false;
+      m_snapshot.clear();
+      emit snapshotChanged();
+    } else
+      emit failed(
+          action,
+          "The desktop client is unavailable. Start it, then reconnect.");
+    socket->abort();
+    socket->deleteLater();
+  };
+  connect(socket, &QLocalSocket::connected, socket,
+          [socket, action, arguments] {
+            auto request = QJsonObject::fromVariantMap(arguments);
+            request.insert("version", 1);
+            request.insert("action", action);
+            socket->write(
+                QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
+          });
+  connect(socket, &QLocalSocket::readyRead, socket, [socket, bytes, finish] {
+    bytes->append(socket->readAll());
+    if (bytes->size() > 8 * 1024 * 1024)
+      finish(false);
+    else if (bytes->endsWith('\n'))
+      finish(true);
+  });
+  connect(socket, &QLocalSocket::errorOccurred, socket,
+          [finish](QLocalSocket::LocalSocketError) { finish(false); });
+  connect(timer, &QTimer::timeout, socket, [finish] { finish(false); });
+  timer->start(action == "snapshot" ? 2000 : 12000);
+  const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
+  if (runtime.isEmpty()) {
+    finish(false);
+    return;
+  }
+  socket->connectToServer(runtime + "/sotto-client/control.sock");
+}
+void Bridge::receive(const QString &action, const QByteArray &bytes) {
+  QJsonParseError error;
+  const auto document = QJsonDocument::fromJson(bytes, &error);
+  const auto object = document.object();
+  if (error.error != QJsonParseError::NoError || !object.value("ok").toBool()) {
+    if (action == "snapshot") {
+      m_connected = false;
+      m_snapshot.clear();
+      emit snapshotChanged();
+    } else
+      emit failed(action,
+                  object.value("error").toString("Invalid client response."));
+    return;
+  }
+  if (action == "snapshot") {
+    const auto next = object.value("data").toObject().toVariantMap();
+    if (next.value("version").toInt() != 1) {
+      m_connected = false;
+      emit snapshotChanged();
+      return;
+    }
+    if (next != m_snapshot || !m_connected) {
+      m_snapshot = next;
+      m_connected = true;
+      emit snapshotChanged();
+    }
+  } else
+    emit reply(action, object.value("data").toVariant());
+}
+void Bridge::copy(const QString &text) {
+  if (!text.isEmpty())
+    QApplication::clipboard()->setText(text);
+}
+void Bridge::previewPhase(const QString &phase) {
+  if (!m_preview)
+    return;
+  auto activity = m_snapshot.value("activity").toMap();
+  activity["phase"] = phase;
+  m_snapshot["activity"] = activity;
+  emit snapshotChanged();
+}

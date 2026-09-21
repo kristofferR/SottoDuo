@@ -1,4 +1,5 @@
 import { resolve, dirname } from "node:path";
+import { createGUIHandler } from "./gui.ts";
 import { API } from "./api.ts";
 import { configPath, initialize, readConfig, token } from "./config.ts";
 import { ButtonDestinationClient } from "./buttons.ts";
@@ -102,9 +103,13 @@ try {
           }
           return controller.state;
         };
-        close = await serve(handle, () => {
-          void shutdown(1);
-        });
+        close = await serve(
+          handle,
+          () => {
+            void shutdown(1);
+          },
+          createGUIHandler(api, controller, desktop, config, buttons),
+        );
         await desktop.monitorSession(
           () => {
             void buttons?.disarm();

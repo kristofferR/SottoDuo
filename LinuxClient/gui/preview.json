@@ -1,0 +1,17 @@
+{
+  "snapshot": {
+    "version": 1,
+    "activity": {"phase": "completed", "source": "DJI Mic Mini", "trigger": "shortcut"},
+    "busy": false,
+    "result": {"id": "preview", "text": "Let’s keep the settings familiar, and make dictation feel at home on any Linux desktop.", "delivery": "inserted"},
+    "device": {"id": "preview", "name": "This computer"},
+    "server": "https://speech.example.com",
+    "sources": {"server": "https://speech.example.com", "hostID": "desktop", "mode": "automatic", "priority": [{"hostID": "desktop", "id": "dji"}, {"hostID": "desktop", "id": "airpods"}]},
+    "buttonEnabled": true,
+    "button": null
+  },
+  "connection": {"ready": true},
+  "sources": {"items": [{"identity": {"hostID": "desktop", "id": "dji"}, "name": "DJI Mic Mini", "transport": "usb", "eligible": true}, {"identity": {"hostID": "desktop", "id": "airpods"}, "name": "AirPods Pro 3", "transport": "bluetooth", "eligible": true}], "next": {"name": "DJI Mic Mini"}},
+  "preferences": {"revision": 1, "preferences": {"recognitionMode": "automatic", "language": "auto", "vocabulary": "Sotto\nPipeWire\nKubernetes\nFjord", "dictionary": {"lists": []}, "keepOriginalAudio": false, "textCorrectionEnabled": true}},
+  "history": {"items": [{"id": "preview", "createdAt": "2026-09-21T10:42:00Z", "device": {"name": "This computer"}, "status": "completed", "insertionText": "Let’s keep the settings familiar, and make dictation feel at home on any Linux desktop.", "delivery": {"status": "inserted"}}, {"id": "preview-2", "createdAt": "2026-09-21T09:18:00Z", "device": {"name": "MacBook"}, "status": "completed", "insertionText": "I’ll send the updated design later today.", "delivery": {"status": "inserted"}}]}
+}

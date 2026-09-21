@@ -57,6 +57,7 @@ export async function send(command: Command): Promise<string> {
 export async function serve(
   handler: (command: Command) => Promise<string>,
   onFailure: () => void = () => {},
+  gui?: (request: unknown) => Promise<unknown>,
 ): Promise<() => Promise<void>> {
   const socketPath = await path();
   const lock = acquireDataDirectoryLock(dirname(socketPath));
@@ -72,11 +73,28 @@ export async function serve(
     let input = "";
     socket.setTimeout(2000, () => socket.destroy());
     socket.on("error", () => {});
-    socket.on("data", (data: Buffer) => {
-      input += data.toString();
-      if (input.length > 32) socket.destroy();
-    });
-    socket.on("end", () => {
+    let handled = false;
+    const dispatch = () => {
+      if (handled || socket.destroyed) return;
+      handled = true;
+      socket.setTimeout(15000, () => socket.destroy());
+      if (input.trimStart().startsWith("{")) {
+        void (async () => {
+          try {
+            if (!gui) throw new Error();
+            const data = await gui(JSON.parse(input));
+            socket.end(JSON.stringify({ ok: true, data }) + "\n");
+          } catch {
+            socket.end(
+              JSON.stringify({
+                ok: false,
+                error: "Request failed. Check the connection and reload before trying again.",
+              }) + "\n",
+            );
+          }
+        })();
+        return;
+      }
       const command = input.trim();
       if (!isCommand(command)) {
         socket.end("Unknown command.\n");
@@ -86,7 +104,17 @@ export async function serve(
         (value) => socket.end(value + "\n"),
         () => socket.end("Command failed.\n"),
       );
+    };
+    socket.on("data", (data: Buffer) => {
+      if (handled) {
+        socket.destroy();
+        return;
+      }
+      input += data.toString();
+      if (Buffer.byteLength(input) > 65536) socket.destroy();
+      else if (input.includes("\n")) dispatch();
     });
+    socket.on("end", dispatch);
   });
   try {
     await new Promise<void>((resolve, reject) => {

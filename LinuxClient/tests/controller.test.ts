@@ -368,3 +368,21 @@ test("a shortcut take begun before disarm cannot reselect a replacement registra
   await Bun.sleep(40);
   expect(f.service.buttons.state().selected).toBeUndefined();
 });
+
+test("GUI microphone tests retain a preview without attempting desktop insertion or selecting a button destination", async () => {
+  const f = await fixture();
+  let selected = false;
+  f.controller.onComplete = (_id, _ticket, succeeded) => {
+    selected = succeeded;
+  };
+  f.controller.start(undefined, true);
+  await until(() => f.controller.activity.phase === "recording");
+  expect(f.controller.activity.trigger).toBe("test");
+  expect(f.controller.activity.source).toBe("dji");
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.controller.activity.phase).toBe("completed");
+  expect(f.controller.result?.delivery).toBe("preview");
+  expect(f.deliveries()).toBe(0);
+  expect(selected).toBe(false);
+});

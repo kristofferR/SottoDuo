@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.24)
+project(SottoLinuxGUI VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Widgets Network Svg)
+qt_standard_project_setup(REQUIRES 6.8)
+qt_add_executable(sotto-gui main.cpp Bridge.cpp Bridge.h)
+qt_add_qml_module(sotto-gui URI Sotto VERSION 1.0 QML_FILES
+  qml/Main.qml qml/SButton.qml qml/SLabel.qml qml/Group.qml qml/Setting.qml qml/Dictation.qml
+  qml/History.qml qml/Microphone.qml qml/Preferences.qml qml/Computer.qml qml/Hud.qml
+  RESOURCES mark.svg preview.json)
+target_link_libraries(sotto-gui PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Widgets Qt6::Network Qt6::Svg)
+target_compile_options(sotto-gui PRIVATE -Wall -Wextra -Werror)
+install(TARGETS sotto-gui RUNTIME DESTINATION bin)
+install(FILES sotto.desktop DESTINATION share/applications)
+install(FILES mark.svg DESTINATION share/icons/hicolor/scalable/apps RENAME sotto.svg)
+
+include(CTest)
+if(BUILD_TESTING)
+  find_package(Qt6 REQUIRED COMPONENTS Test)
+  qt_add_executable(sotto-gui-tests tests/BridgeTest.cpp Bridge.cpp Bridge.h)
+  qt_add_resources(sotto-gui-tests "fixtures" PREFIX "/qt/qml/Sotto" FILES preview.json)
+  target_link_libraries(sotto-gui-tests PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Widgets Qt6::Network Qt6::Svg Qt6::Test)
+  target_compile_definitions(sotto-gui-tests PRIVATE SOTTO_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+  target_compile_options(sotto-gui-tests PRIVATE -Wall -Wextra -Werror)
+  add_test(NAME linux-gui COMMAND sotto-gui-tests)
+  set_tests_properties(linux-gui PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+endif()

@@ -22,6 +22,7 @@ type Take = {
   sealed: boolean;
   button?: { ticket: string; source: SourceID };
   completed?: boolean;
+  preview: boolean;
 };
 export interface Result {
   id: string;
@@ -37,6 +38,19 @@ export class Controller {
   private lastTick = Date.now();
   onStart?: (ticket?: string) => void;
   onComplete?: (id: string | undefined, ticket: string | undefined, succeeded: boolean) => void;
+  activity: {
+    phase: "idle" | "preparing" | "recording" | "processing" | "completed" | "cancelled" | "failed";
+    source?: string;
+    startedAt?: number;
+    trigger?: "shortcut" | "pairing" | "test";
+  } = { phase: "idle" };
+  get busy() {
+    return this.take !== undefined;
+  }
+  updatePreferences(preferences: SourcePreferences) {
+    if (this.busy) throw new Error("Finish dictation before changing microphones.");
+    this.preferences = preferences;
+  }
   state = "idle";
   result?: Result;
   constructor(
@@ -48,7 +62,7 @@ export class Controller {
     private device: Device,
     private preferences: SourcePreferences,
   ) {}
-  start(button?: Take["button"]): void {
+  start(button?: Take["button"], preview = false): void {
     if (this.take) return;
     this.result = undefined;
     const take: Take = {
@@ -59,11 +73,17 @@ export class Controller {
       startedAt: Date.now(),
       sealed: false,
       button,
+      preview,
     };
     this.take = take;
+    this.activity = {
+      phase: "preparing",
+      startedAt: take.startedAt,
+      trigger: preview ? "test" : button ? "pairing" : "shortcut",
+    };
     this.onStart?.(button?.ticket);
     this.lastTick = Date.now();
-    this.setState("preparing");
+    this.setState("preparing", "preparing");
     this.watchdog = setInterval(() => {
       void this.watch(take);
     }, 1000);
@@ -107,7 +127,7 @@ export class Controller {
   async cancel(): Promise<void> {
     const take = this.take;
     this.result = undefined;
-    this.setState("cancelled");
+    this.setState("cancelled", "cancelled");
     if (take) await this.cancelTake(take);
   }
   async settled(): Promise<void> {
@@ -116,7 +136,8 @@ export class Controller {
   private live(take: Take) {
     return this.take === take && !take.cancelled;
   }
-  private setState(state: string) {
+  private setState(state: string, phase: Controller["activity"]["phase"] = "failed") {
+    this.activity = { ...this.activity, phase };
     this.state = state;
     this.desktop.notify(state);
   }
@@ -167,7 +188,9 @@ export class Controller {
   }
   private async run(take: Take) {
     // Establish the focus-change guard immediately, before slower lock/discovery checks.
-    take.destination = await this.desktop.capture();
+    take.destination = take.preview
+      ? { deliver: async () => "preview", close() {} }
+      : await this.desktop.capture();
     if (!this.live(take)) return;
     if (!(await this.desktop.unlocked(take.startedAt)))
       throw new Error("Desktop is locked or unavailable.");
@@ -181,7 +204,7 @@ export class Controller {
     for (const source of options.slice(0, 2)) {
       if (!this.live(take)) return;
       if (take.released) {
-        this.setState("idle");
+        this.setState("idle", "idle");
         return;
       }
       const remaining = 3000 - (Date.now() - take.startedAt);
@@ -207,7 +230,8 @@ export class Controller {
           record.requestID !== take.requestID
         )
           throw new Error("Invalid capture admission.");
-        this.setState(`recording · ${source.name}`);
+        this.activity = { ...this.activity, source: source.name };
+        this.setState(`recording · ${source.name}`, "recording");
         break;
       } catch (error) {
         if (take.button || !(error instanceof APIError && error.allowsFallback)) throw error;
@@ -218,7 +242,7 @@ export class Controller {
     if (!take.id) throw new Error("No available microphone.");
     while (this.live(take) && !take.released) await Bun.sleep(40);
     if (!this.live(take)) return;
-    this.setState("processing");
+    this.setState("processing", "processing");
     let record = await this.api.stop(take.id, take.owner);
     this.verify(record, take);
     if (record.capture?.state !== "sealed") throw new Error("Capture was not sealed.");
@@ -247,8 +271,10 @@ export class Controller {
         : delivery === "uncertain"
           ? "Insertion uncertain. Check the field before copying."
           : "Text ready. Use sotto result or sotto copy.",
+      "completed",
     );
-    take.completed = Boolean(record.insertionText.trim()) && delivery !== "uncertain";
+    take.completed =
+      !take.preview && Boolean(record.insertionText.trim()) && delivery !== "uncertain";
     await this.api
       .delivery(
         take.id,

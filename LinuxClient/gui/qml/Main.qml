@@ -1,0 +1,281 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+ApplicationWindow {
+    id: app
+    width: 1040
+    height: 740
+    minimumWidth: 880
+    minimumHeight: 620
+    onClosing: close => {
+        if (busy && activity.trigger === "test") {
+            close.accepted = false;
+            page = 0;
+            notice = "Finish or cancel the microphone test before closing Sotto.";
+        }
+    }
+    visible: true
+    title: bridge.preview ? "Sotto · Preview" : "Sotto"
+    color: c.canvas
+    property var c: bridge.colors
+    objectName: "mainWindow"
+    property int page: 0
+    property var snapshot: bridge.snapshot
+    property var activity: snapshot.activity || ({
+            phase: "idle"
+        })
+    property var result: snapshot.result || null
+    property bool busy: snapshot.busy || false
+    property var sources: ({
+            items: [],
+            next: null
+        })
+    property string connection: "Checking connection"
+    property string notice: ""
+    property bool serverReady: false
+    property var pages: ["Dictation", "History", "Microphone", "Server preferences", "This computer"]
+    palette.window: c.canvas
+    palette.windowText: c.ink
+    palette.base: c.surface
+    palette.text: c.ink
+    palette.button: c.surface
+    palette.buttonText: c.ink
+    palette.highlight: c.accent
+    palette.highlightedText: c.onAccent
+    palette.mid: c.line
+    palette.dark: c.line
+    font.family: "Sans Serif"
+    font.pixelSize: 15
+    function refresh() {
+        if (!bridge.connected)
+            return;
+        bridge.request("connection");
+        bridge.request("sources");
+    }
+    function messageFor(phase) {
+        if (phase === "preparing")
+            return "Starting microphone…";
+        if (phase === "recording")
+            return "Listening.";
+        if (phase === "processing")
+            return "Transcribing…";
+        if (phase === "failed")
+            return "Dictation interrupted";
+        if (phase === "cancelled")
+            return "Dictation cancelled";
+        if (phase === "completed")
+            return result && result.delivery === "inserted" ? "Inserted at your cursor" : result && result.delivery === "uncertain" ? "Check your text field" : "Text ready to copy";
+        return "Hold to dictate.";
+    }
+    Component.onCompleted: refresh()
+    Connections {
+        target: bridge
+        function onSnapshotChanged() {
+            if (!bridge.connected) {
+                app.connection = "Desktop client offline";
+                app.serverReady = false;
+                app.sources = {
+                    items: [],
+                    next: null
+                };
+            }
+        }
+        function onReply(action, data) {
+            if (action === "connection") {
+                app.connection = data.ready ? "Server online" : "Server not ready";
+                app.serverReady = data.ready;
+            }
+            if (action === "sources")
+                app.sources = data;
+            if (["arm", "disarm", "saveSources", "savePreferences"].includes(action))
+                app.notice = action.startsWith("save") ? "Changes saved." : "Destination updated.";
+        }
+        function onFailed(action, message) {
+            if (action === "connection") {
+                app.connection = "Server unavailable";
+                app.serverReady = false;
+            } else if (action === "sources")
+                app.sources = {
+                    items: [],
+                    next: null
+                };
+            else
+                app.notice = message;
+        }
+    }
+    Timer {
+        interval: 5000
+        running: app.visible && bridge.connected
+        repeat: true
+        onTriggered: app.refresh()
+    }
+    RowLayout {
+        anchors.fill: parent
+        spacing: 0
+        Rectangle {
+            Layout.preferredWidth: 234
+            Layout.fillHeight: true
+            color: app.c.sidebar
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 8
+                RowLayout {
+                    Layout.topMargin: 14
+                    Layout.bottomMargin: 34
+                    spacing: 12
+                    Image {
+                        source: "../mark.svg"
+                        Layout.preferredWidth: 44
+                        Layout.preferredHeight: 44
+                    }
+                    SLabel {
+                        ui: app
+                        text: "Sotto"
+                        font.family: "Serif"
+                        font.pixelSize: 37
+                        font.weight: Font.DemiBold
+                    }
+                }
+                Repeater {
+                    model: app.pages
+                    Button {
+                        required property int index
+                        required property string modelData
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        text: modelData
+                        Accessible.name: text
+                        onClicked: app.page = index
+                        contentItem: RowLayout {
+                            spacing: 12
+                            Image {
+                                Layout.preferredWidth: 24
+                                Layout.preferredHeight: 24
+                                Accessible.ignored: true
+                                source: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="' + app.c.accent + '" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="' + ["M3 10v4m4-8v12m5-16v20m5-16v12m4-8v4", "M3 11a9 9 0 1 1 2 7M3 4v7h7m2-5v6l4 2", "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5Zm-3 6v1a6 6 0 0 0 12 0v-1m-6 7v4m-4 0h8", "M4 3h16v7H4zM4 14h16v7H4zM7 6h1m-1 11h1m4-11h6m-6 11h6", "M3 3h18v13H3zM8 21h8m-4-5v5"][index] + '"/></svg>')
+                            }
+                            SLabel {
+                                ui: app
+                                text: modelData
+                                font.pixelSize: 15
+                                font.weight: app.page === index ? Font.DemiBold : Font.Normal
+                                color: app.page === index ? app.c.ink : app.c.muted
+                                Layout.fillWidth: true
+                            }
+                        }
+                        background: Rectangle {
+                            radius: 9
+                            color: app.page === index ? app.c.tint : "transparent"
+                            border.width: parent.activeFocus ? 2 : 0
+                            border.color: app.c.accent
+                        }
+                    }
+                }
+                Item {
+                    Layout.fillHeight: true
+                }
+                SLabel {
+                    ui: app
+                    text: bridge.preview ? "Preview · sample data" : app.connection
+                    font.pixelSize: 12
+                    color: app.c.muted
+                    Layout.fillWidth: true
+                }
+                SLabel {
+                    ui: app
+                    text: "Sotto for Linux"
+                    font.pixelSize: 11
+                    color: app.c.muted
+                }
+            }
+        }
+        Rectangle {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+            color: app.c.line
+        }
+        ColumnLayout {
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+            Layout.margins: 32
+            spacing: 16
+            Rectangle {
+                visible: !bridge.connected
+                Layout.fillWidth: true
+                implicitHeight: offline.implicitHeight + 24
+                radius: 10
+                color: app.c.tint
+                SLabel {
+                    id: offline
+                    ui: app
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    text: "The desktop client is not running. Start your configured Sotto client to dictate, then reconnect. Appearance settings are still available."
+                }
+            }
+            Rectangle {
+                visible: app.notice.length > 0
+                Layout.fillWidth: true
+                implicitHeight: noticeRow.implicitHeight + 16
+                radius: 10
+                color: app.c.tint
+                RowLayout {
+                    id: noticeRow
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    SLabel {
+                        ui: app
+                        text: app.notice
+                        Layout.fillWidth: true
+                        Accessible.role: Accessible.AlertMessage
+                    }
+                    SButton {
+                        ui: app
+                        text: "Dismiss"
+                        onClicked: app.notice = ""
+                    }
+                }
+            }
+            Loader {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                sourceComponent: [dictation, history, microphone, preferences, computer][app.page]
+            }
+        }
+    }
+    Component {
+        id: dictation
+        Dictation {
+            ui: app
+        }
+    }
+    Component {
+        id: history
+        History {
+            ui: app
+        }
+    }
+    Component {
+        id: microphone
+        Microphone {
+            ui: app
+        }
+    }
+    Component {
+        id: preferences
+        Preferences {
+            ui: app
+        }
+    }
+    Component {
+        id: computer
+        Computer {
+            ui: app
+        }
+    }
+    Hud {
+        ui: app
+    }
+}
