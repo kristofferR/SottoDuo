@@ -1316,7 +1316,7 @@ final class SottoController: ObservableObject {
                 }
                 return true
             }, cancelled: { [weak self] in
-                guard let self, recordingTrigger?.buttonTicket != nil else { return }
+                guard let self, recordingTrigger?.buttonTicket != nil, !serverSealed else { return }
                 cancelDictation()
             }, changed: { [weak self] in self?.remoteButtonState = $0 })
         remoteButtons?.start()
