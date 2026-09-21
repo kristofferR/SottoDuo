@@ -22,6 +22,18 @@ final class APIWireTests: XCTestCase {
         XCTAssertEqual(capture.state.rawValue, "recording")
         XCTAssertEqual(capture.peak, 0.25)
     }
+    func testGenerationTimestampsDecodeFractionalSeconds() throws {
+        let record = GenerationRecord(requestID: UUID(), device: .init(id: "test", name: "Test Mac"), settings: .init())
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: SottoAPI.encodeWire(record)) as? [String: Any])
+        object["createdAt"] = "2026-01-01T00:00:00.678Z"
+        object["updatedAt"] = "2026-01-01T00:00:00.678Z"
+
+        let decoded = try SottoAPI.decodeWire(GenerationRecord.self,
+            from: JSONSerialization.data(withJSONObject: object))
+
+        XCTAssertEqual(decoded.createdAt.timeIntervalSince1970, 1_767_225_600.678, accuracy: 0.001)
+        XCTAssertEqual(decoded.updatedAt, decoded.createdAt)
+    }
     func testHistoricalPreferencesDefaultsSurviveGeneratedTransport() throws {
         let json = Data("""
             {"revision":7,"preferences":{"language":"en","vocabulary":"",
