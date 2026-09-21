@@ -51,7 +51,15 @@ export class DJIStatus {
         now - this.lastFrameAt < 2_500
       )
         this.observation = { mask: frame[44]!, at: now };
-      else this.observation = undefined;
+      else if (
+        this.snapshot(now)?.mask !== frame[44] ||
+        this.lastFrameAt === undefined ||
+        now < this.lastFrameAt ||
+        now - this.lastFrameAt >= 500
+      )
+        this.observation = undefined;
+      // Rapid matching reports preserve established status without extending its lifetime.
+      // A changed mask still invalidates immediately until a naturally spaced report arrives.
       this.lastFrameAt = now;
     }
   }
