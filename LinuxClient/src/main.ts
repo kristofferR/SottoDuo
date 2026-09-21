@@ -1,6 +1,7 @@
 import { resolve, dirname } from "node:path";
 import { API } from "./api.ts";
 import { configPath, initialize, readConfig, token } from "./config.ts";
+import { ButtonDestinationClient } from "./buttons.ts";
 import { Controller } from "./controller.ts";
 import { command, HyprlandDesktop } from "./desktop.ts";
 import { isCommand, send, serve, type Command } from "./ipc.ts";
@@ -12,6 +13,8 @@ const help = `Sotto for Hyprland
   sotto start|stop        Hold-to-talk press/release commands
   sotto toggle|cancel    Toggle recording or cancel this desktop's take
   sotto status|result    Show state or the current process's last result
+  sotto arm|disarm       Select or clear this computer for the DJI button
+  sotto button-status    Show button destination and receiver availability
   sotto copy             Explicitly copy that result; never inject paste keys
 
 Config: ${configPath()}
@@ -40,8 +43,12 @@ try {
     else if (action === "daemon") {
       const desktop = new HyprlandDesktop(config.destinationHelper);
       const controller = new Controller(api, desktop, config.device, config.sources);
+      const buttons = config.buttonEnabled
+        ? new ButtonDestinationClient(api, desktop, controller, config.device)
+        : undefined;
       let close: (() => Promise<void>) | undefined;
       const shutdown = async (exitCode = 0) => {
+        await buttons?.close();
         await controller.cancel();
         desktop.close();
         await close?.();
@@ -56,6 +63,16 @@ try {
       try {
         const handle = async (action: Command): Promise<string> => {
           switch (action) {
+            case "arm":
+              if (!buttons) return "Enable buttonEnabled in the client configuration first.";
+              await buttons.select();
+              return "DJI button destination selected: this computer.";
+            case "disarm":
+              if (!buttons) return "Enable buttonEnabled in the client configuration first.";
+              await buttons.disarm();
+              return "This computer is no longer selected.";
+            case "button-status":
+              return JSON.stringify(buttons?.state ?? { enabled: false });
             case "start":
               controller.start();
               break;
@@ -90,6 +107,7 @@ try {
         });
         await desktop.monitorSession(
           () => {
+            void buttons?.disarm();
             if (
               ["preparing", "processing"].includes(controller.state) ||
               controller.state.startsWith("recording")
@@ -100,8 +118,10 @@ try {
             void handle(action).catch(() => desktop.notify("Shortcut failed."));
           },
         );
+        buttons?.start();
         console.log("Sotto is ready. Waiting for a shortcut.");
       } catch (error) {
+        await buttons?.close();
         desktop.close();
         await close?.();
         throw error;

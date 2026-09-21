@@ -6,6 +6,8 @@ import { NativeInference, type InferenceBackend } from "./inference/native-infer
 import { PipeWireCaptureProvider } from "./capture/pipewire-provider.ts";
 
 export async function startServer(configuration: ServerConfiguration, backend?: InferenceBackend) {
+  if (configuration.button && !configuration.capture)
+    throw new Error("Button routing requires a configured capture provider.");
   const lock = acquireDataDirectoryLock(configuration.dataDirectory);
   let service: GenerationService | undefined;
   let capture: PipeWireCaptureProvider | undefined;
@@ -17,6 +19,12 @@ export async function startServer(configuration: ServerConfiguration, backend?: 
       { ...configuration, captureProvider: capture },
       backend ?? new NativeInference(configuration.inference),
     );
+    if (configuration.button)
+      capture?.attachButtons(
+        configuration.button.helper,
+        configuration.button.sourceID,
+        service.buttons,
+      );
     const app = createHTTPServer(service, configuration.token);
     await service.start();
     const address = await app.listen({ host: configuration.host, port: configuration.port });

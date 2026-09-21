@@ -5,6 +5,7 @@ import { access, mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { CaptureSessions, type CaptureProvider } from "./capture-sessions.ts";
+import { ButtonDestinations } from "./button-destinations.ts";
 import type {
   AudioArtifact,
   AudioChunkReceipt,
@@ -171,6 +172,7 @@ interface Watcher {
 /** All durable mutations share one queue. Model work proceeds outside it. */
 export class GenerationService {
   readonly captures: CaptureSessions;
+  readonly buttons: ButtonDestinations;
   private preferences: PreferencesSnapshot = defaultPreferences();
   private records = new Map<string, GenerationRecord>();
   private uploads = new Map<string, Partial<Record<AudioKind, Upload>>>();
@@ -192,6 +194,7 @@ export class GenerationService {
     private readonly inference: InferenceBackend,
   ) {
     this.captures = new CaptureSessions(this, configuration.captureProvider);
+    this.buttons = new ButtonDestinations(this);
     this.imports = new WisprFlowImports({
       dataDirectory: configuration.dataDirectory,
       getPreferences: () => copy(this.preferences),
@@ -326,6 +329,7 @@ export class GenerationService {
     if (stale) await this.cancel(stale);
   }
   async shutdown() {
+    this.buttons.shutdown();
     this.stopping = true;
     await this.captures.shutdown();
     if (this.timer) clearInterval(this.timer);

@@ -20,6 +20,8 @@ type Take = {
   cancelled: boolean;
   startedAt: number;
   sealed: boolean;
+  button?: { ticket: string; source: SourceID };
+  completed?: boolean;
 };
 export interface Result {
   id: string;
@@ -33,6 +35,8 @@ export class Controller {
   private watchdog?: ReturnType<typeof setInterval>;
   private watching = false;
   private lastTick = Date.now();
+  onStart?: (ticket?: string) => void;
+  onComplete?: (id: string | undefined, ticket: string | undefined, succeeded: boolean) => void;
   state = "idle";
   result?: Result;
   constructor(
@@ -44,7 +48,7 @@ export class Controller {
     private device: Device,
     private preferences: SourcePreferences,
   ) {}
-  start(): void {
+  start(button?: Take["button"]): void {
     if (this.take) return;
     this.result = undefined;
     const take: Take = {
@@ -54,8 +58,10 @@ export class Controller {
       cancelled: false,
       startedAt: Date.now(),
       sealed: false,
+      button,
     };
     this.take = take;
+    this.onStart?.(button?.ticket);
     this.lastTick = Date.now();
     this.setState("preparing");
     this.watchdog = setInterval(() => {
@@ -72,11 +78,27 @@ export class Controller {
         if (this.take === take) {
           clearInterval(this.watchdog);
           this.take = undefined;
+          this.onComplete?.(
+            take.id,
+            take.button?.ticket,
+            take.completed === true && !take.cancelled,
+          );
         }
       });
   }
   stop(): void {
-    if (this.take) this.take.released = true;
+    if (this.take && !this.take.button) this.take.released = true;
+  }
+  startButton(ticket: string, source: SourceID): boolean {
+    if (this.take) return false;
+    this.start({ ticket, source });
+    return true;
+  }
+  stopButton(ticket: string): void {
+    if (this.take?.button?.ticket === ticket) this.take.released = true;
+  }
+  async cancelButton(ticket?: string): Promise<void> {
+    if (this.take?.button && (!ticket || this.take.button.ticket === ticket)) await this.cancel();
   }
   toggle(): void {
     if (this.take) this.stop();
@@ -153,7 +175,9 @@ export class Controller {
       this.api.sources(),
       this.desktop.defaultInput(this.preferences.hostID),
     ]);
-    const options = candidates(sources, this.preferences, defaultID);
+    const options = take.button
+      ? sources.filter((source) => sourceKey(source.identity) === sourceKey(take.button!.source))
+      : candidates(sources, this.preferences, defaultID);
     for (const source of options.slice(0, 2)) {
       if (!this.live(take)) return;
       if (take.released) {
@@ -169,6 +193,7 @@ export class Controller {
           source.identity,
           take.owner,
           remaining,
+          take.button?.ticket,
         );
         take.id = record.id;
         if (!this.live(take)) {
@@ -185,7 +210,7 @@ export class Controller {
         this.setState(`recording · ${source.name}`);
         break;
       } catch (error) {
-        if (!(error instanceof APIError && error.allowsFallback)) throw error;
+        if (take.button || !(error instanceof APIError && error.allowsFallback)) throw error;
         take.requestID = randomUUID().toUpperCase();
         take.owner = randomBytes(32).toString("hex");
       }
@@ -223,9 +248,16 @@ export class Controller {
           ? "Insertion uncertain. Check the field before copying."
           : "Text ready. Use sotto result or sotto copy.",
     );
-    await this.api.delivery(take.id, take.owner, delivery).catch(() => {
-      this.desktop.notify("Delivery receipt could not be saved; insertion will not be retried.");
-    });
+    take.completed = Boolean(record.insertionText.trim()) && delivery !== "uncertain";
+    await this.api
+      .delivery(
+        take.id,
+        take.owner,
+        delivery === "preview" ? "none" : delivery === "uncertain" ? "unconfirmed" : "inserted",
+      )
+      .catch(() => {
+        this.desktop.notify("Delivery receipt could not be saved; insertion will not be retried.");
+      });
   }
   private verify(record: Generation, take: Take) {
     if (

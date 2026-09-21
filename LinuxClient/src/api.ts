@@ -28,6 +28,7 @@ export class API {
     body?: unknown,
     owner?: string,
     timeout = 3000,
+    destinationOwner?: string,
   ): Promise<unknown> {
     const response = await fetch(`${this.endpoint}${path}`, {
       method,
@@ -35,6 +36,7 @@ export class API {
       signal: AbortSignal.timeout(timeout),
       headers: {
         Authorization: `Bearer ${this.token}`,
+        ...(destinationOwner ? { "X-Sotto-Destination-Owner": destinationOwner } : {}),
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         "X-Sotto-Capture": "capture-v1",
         ...(owner ? { "X-Sotto-Capture-Owner": owner } : {}),
@@ -53,16 +55,29 @@ export class API {
     if (response.status === 204) return undefined;
     return response.json();
   }
+  async buttonRequest(path: string, owner: string, body?: unknown, method = "POST") {
+    return validateBody(
+      "ButtonDestinationState",
+      await this.request(`/v1/button-destinations${path}`, method, body, undefined, 1500, owner),
+    );
+  }
   async sources() {
     return validateBody("AudioSourceList", await this.request("/v1/audio-sources")).sources;
   }
-  async start(requestID: string, device: Device, source: SourceID, owner: string, timeout: number) {
+  async start(
+    requestID: string,
+    device: Device,
+    source: SourceID,
+    owner: string,
+    timeout: number,
+    buttonTicket?: string,
+  ) {
     return validateBody(
       "GenerationRecord",
       await this.request(
         "/v1/captures",
         "POST",
-        { requestID, device, mode: "dictation", source },
+        { requestID, device, mode: "dictation", source, buttonTicket },
         owner,
         timeout,
       ),

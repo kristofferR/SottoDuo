@@ -484,3 +484,73 @@ test("provider loss during drain aborts the pending stop without sealing partial
   expect(record.inferenceAudio).toBeUndefined();
   expect(f.provider.options!.signal.aborted).toBe(true);
 });
+
+test("DJI destination owner gates capture, pins its source, and disarming aborts hardware", async () => {
+  const f = await fixture();
+  const id = randomUUID().toUpperCase();
+  const destinationOwner = randomBytes(32).toString("hex");
+  const headers = { ...f.headers, "x-sotto-destination-owner": destinationOwner };
+  f.service.buttons.input(f.request.source, "input-epoch");
+  const call = (suffix: string, payload: Record<string, unknown> = {}) =>
+    f.app.inject({ method: "POST", url: `/v1/button-destinations${suffix}`, headers, payload });
+  expect((await call("", { id, device: f.request.device })).statusCode).toBe(200);
+  expect((await call(`/${id}/select`)).statusCode).toBe(200);
+  f.service.buttons.press("wrong-epoch", 1);
+  expect(f.service.buttons.state(id).command).toBeUndefined();
+  f.service.buttons.press("input-epoch", 1);
+  const command = validateBody(
+    "ButtonDestinationState",
+    (await call(`/${id}/heartbeat`)).json(),
+  ).command!;
+  expect(command.action).toBe("start");
+  expect(f.provider.calls).toBe(0);
+  expect(f.service.buttons.state().command).toBeUndefined();
+  expect(
+    (
+      await f.app.inject({
+        method: "POST",
+        url: `/v1/button-destinations/${id}/heartbeat`,
+        payload: {},
+        headers: f.headers,
+      })
+    ).statusCode,
+  ).toBe(403);
+  f.request.buttonTicket = command.takeID;
+  const wrong = await f.app.inject({
+    method: "POST",
+    url: "/v1/captures",
+    headers,
+    payload: { ...f.request, source: { ...f.request.source, id: "different" } },
+  });
+  expect(wrong.statusCode).toBe(409);
+  expect(f.provider.calls).toBe(0);
+  expect((await f.start()).statusCode).toBe(201);
+  expect((await f.start()).statusCode).toBe(201);
+  expect(f.provider.calls).toBe(1);
+  expect(
+    (await f.app.inject({ method: "DELETE", url: `/v1/button-destinations/${id}`, headers }))
+      .statusCode,
+  ).toBe(200);
+  await until(() => f.provider.options?.signal.aborted === true);
+  expect((await f.start()).statusCode).toBe(409);
+});
+
+test("disarming while button capture prepares stops it before readiness", async () => {
+  const f = await fixture();
+  let release!: () => void;
+  f.provider.gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const id = randomUUID();
+  f.service.buttons.input(f.request.source, "epoch");
+  f.service.buttons.register({ id, device: f.request.device }, f.owner);
+  await f.service.buttons.select(id, {}, f.owner);
+  f.service.buttons.press("epoch", 1);
+  f.request.buttonTicket = f.service.buttons.state(id).command!.takeID;
+  const pending = f.start();
+  await until(() => f.provider.calls === 1);
+  f.service.buttons.unregister(id, f.owner);
+  release();
+  expect((await pending).statusCode).not.toBe(201);
+  expect(f.provider.options?.signal.aborted).toBe(true);
+});

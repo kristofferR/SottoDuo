@@ -258,3 +258,85 @@ test("owner heartbeats continue through a slow drain and stop after sealing", as
   expect(heartbeats).toBeGreaterThanOrEqual(2);
   expect(f.deliveries()).toBe(1);
 });
+
+test("button take pins DJI, ignores keyboard release, and reports a supported preview receipt", async () => {
+  const f = await fixture();
+  const owner = "a".repeat(64),
+    registration = crypto.randomUUID();
+  const source = { hostID: "desktop", id: "dji" };
+  f.service.buttons.input(source, "test-monitor");
+  await f.api.buttonRequest("", owner, {
+    id: registration,
+    device: { id: "desktop-client", name: "Omarchy" },
+  });
+  await f.api.buttonRequest(`/${registration}/select`, owner, {});
+  f.service.buttons.press("test-monitor", 1);
+  const ticket = f.service.buttons.state(registration).command!.takeID;
+  f.delivery("preview");
+  expect(f.controller.startButton(ticket, source)).toBe(true);
+  await until(() => f.controller.state.startsWith("recording"));
+  f.controller.stop();
+  await Bun.sleep(80);
+  expect(f.controller.state.startsWith("recording")).toBe(true);
+  f.controller.stopButton(ticket);
+  await f.controller.settled();
+  expect(f.starts).toEqual(["dji"]);
+  expect(f.deliveries()).toBe(1);
+  expect(f.notices.some((n) => n.includes("receipt could not"))).toBe(false);
+  expect((await f.api.get(f.controller.result!.id)).delivery?.status).toBe("none");
+});
+
+test("button admission failure never tries the fallback microphone", async () => {
+  const f = await fixture();
+  let calls = 0;
+  f.api.start = async () => {
+    calls++;
+    throw new APIError(503, "source_unavailable");
+  };
+  f.controller.startButton(crypto.randomUUID(), { hostID: "desktop", id: "dji" });
+  await f.controller.settled();
+  expect(calls).toBe(1);
+  expect(f.starts).toEqual([]);
+  expect(f.deliveries()).toBe(0);
+});
+
+test("successful shortcut take selects this connected destination, without a button selecting it first", async () => {
+  const { ButtonDestinationClient } = await import("../src/buttons.ts");
+  const f = await fixture();
+  f.service.buttons.input({ hostID: "desktop", id: "dji" }, "input");
+  const buttons = new ButtonDestinationClient(f.api, f.desktop, f.controller, {
+    id: "desktop-client",
+    name: "Omarchy",
+  });
+  cleanup.push(() => buttons.close());
+  buttons.start();
+  await until(() => (buttons.state?.destinations.length ?? 0) === 1);
+  expect(buttons.state?.selected).toBeUndefined();
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  f.controller.stop();
+  await f.controller.settled();
+  await until(() => f.service.buttons.state().selected?.device.id === "desktop-client");
+  expect(f.service.buttons.state().selected?.device.id).toBe("desktop-client");
+});
+
+test("a shortcut take begun before disarm cannot reselect a replacement registration", async () => {
+  const { ButtonDestinationClient } = await import("../src/buttons.ts");
+  const f = await fixture();
+  f.service.buttons.input({ hostID: "desktop", id: "dji" }, "input");
+  const buttons = new ButtonDestinationClient(f.api, f.desktop, f.controller, {
+    id: "desktop-client",
+    name: "Omarchy",
+  });
+  cleanup.push(() => buttons.close());
+  buttons.start();
+  await until(() => (buttons.state?.destinations.length ?? 0) === 1);
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  await buttons.disarm();
+  await until(() => (buttons.state?.destinations.length ?? 0) === 1);
+  f.controller.stop();
+  await f.controller.settled();
+  await Bun.sleep(40);
+  expect(f.service.buttons.state().selected).toBeUndefined();
+});

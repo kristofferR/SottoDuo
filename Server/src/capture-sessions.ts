@@ -55,6 +55,8 @@ interface Session {
   timer?: ReturnType<typeof setInterval>;
   lastLevelAt: number;
   failure?: ServiceError;
+  detachButton?: () => void;
+  buttonReady?: () => void;
 }
 const sameSource = (a: StartRequest["source"], b: StartRequest["source"]) =>
   a.hostID === b.hostID && a.id === b.id;
@@ -108,8 +110,15 @@ export class CaptureSessions {
           "Supply a unique 256-bit capture owner secret.",
         ),
       );
+    let button: ReturnType<GenerationService["buttons"]["claim"]> | undefined;
+    try {
+      if (request.buttonTicket) button = this.service.buttons.claim(request, owner);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     // Serialize reservation, not hardware startup; cancel/heartbeat remain responsive while preparing.
     const admitted = this.admission.then(async () => {
+      button?.signal.throwIfAborted();
       if (this.stopping)
         throw new ServiceError(503, "server_stopping", "The server is shutting down.");
       const existing = await this.service.findRequest(request.requestID, request.device.id);
@@ -126,6 +135,11 @@ export class CaptureSessions {
           "The selected microphone is not available. Resolve another input before recording.",
         );
       const record = await this.service.create(request, { source: request.source, owner });
+      if (button?.signal.aborted) {
+        await this.service.cancel(record.id, "The button destination is no longer available.");
+        throw closed();
+      }
+      button?.admitted(record.id);
       if (this.active?.id === record.id) return { ready: this.active.ready };
       if (record.capture?.state !== "preparing" || record.status !== "receiving")
         return { ready: Promise.resolve(record) };
@@ -138,8 +152,16 @@ export class CaptureSessions {
         state: "preparing",
         ready: Promise.resolve(record),
         lastLevelAt: 0,
+        buttonReady: button?.ready,
       };
       this.active = session;
+      if (button) {
+        const aborted = () => {
+          void this.fail(session, "The button destination was disarmed or disconnected.");
+        };
+        button.signal.addEventListener("abort", aborted, { once: true });
+        session.detachButton = () => button?.signal.removeEventListener("abort", aborted);
+      }
       session.timer = setInterval(() => {
         if (Date.now() >= session.leaseUntil)
           void this.fail(session, "The destination stopped renewing its recording lease.");
@@ -217,7 +239,10 @@ export class CaptureSessions {
           "The microphone became unavailable before recording was ready.",
         );
       session.state = "recording";
-      return await this.service.updateCapture(session.id, "recording");
+      const record = await this.service.updateCapture(session.id, "recording");
+      this.requireActive(session);
+      session.buttonReady?.();
+      return record;
     } catch (error) {
       await this.fail(session, "The microphone could not start recording.");
       throw error instanceof ServiceError
@@ -339,6 +364,7 @@ export class CaptureSessions {
     if (!session || session.id !== id.toUpperCase()) return;
     this.active = undefined;
     clearInterval(session.timer);
+    session.detachButton?.();
     session.controller.abort();
   }
   private async fail(session: Session, message: string) {

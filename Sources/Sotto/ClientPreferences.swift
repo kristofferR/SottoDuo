@@ -12,8 +12,10 @@ final class ClientPreferencesStore: ObservableObject {
         var endpoint: String
         var deviceID: String
         var deviceName: String
+        var remoteButtonEnabled: Bool?
     }
 
+    @Published var remoteButtonEnabled = false { didSet { if remoteButtonEnabled != oldValue { persist() } } }
     @Published private(set) var endpoint: String
     @Published private(set) var deviceID: String
     @Published private(set) var deviceName: String
@@ -32,6 +34,7 @@ final class ClientPreferencesStore: ObservableObject {
         deviceID = saved?.deviceID ?? UUID().uuidString.lowercased()
         deviceName = saved?.deviceName ?? Host.current().localizedName ?? "My Mac"
         token = ""
+        remoteButtonEnabled = saved?.remoteButtonEnabled ?? false
         do {
             let validated = try ServerEndpoint(resolvedEndpoint)
             endpoint = validated.address
@@ -85,7 +88,7 @@ final class ClientPreferencesStore: ObservableObject {
                                                     attributes: [.posixPermissions: 0o700])
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(Settings(endpoint: endpoint, deviceID: deviceID, deviceName: deviceName))
+            let data = try encoder.encode(Settings(endpoint: endpoint, deviceID: deviceID, deviceName: deviceName, remoteButtonEnabled: remoteButtonEnabled))
             try data.write(to: url, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
             errorMessage = nil

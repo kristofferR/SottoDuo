@@ -17,6 +17,135 @@ x-sotto-maximumChunkBytes: 1048576
 x-sotto-maximumArtifactBytes: 8388608
 x-sotto-maximumDictionaryBytes: 8388608
 paths:
+  /v1/button-destinations:
+    get:
+      operationId: getButtonDestinations
+      parameters: []
+      responses:
+        "200":
+          description: Live button-destination state. Selection and commands never survive
+            expiry or restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ButtonDestinationState"
+        default:
+          $ref: "#/components/responses/APIError"
+    post:
+      operationId: registerButtonDestination
+      parameters:
+        - &a1
+          name: X-Sotto-Destination-Owner
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[0-9a-f]{64}$
+          description: Fresh 256-bit secret for this in-memory destination registration.
+            Never persist or log it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterButtonDestination"
+      responses:
+        "200":
+          description: Live button-destination state. Selection and commands never survive
+            expiry or restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ButtonDestinationState"
+        default:
+          $ref: "#/components/responses/APIError"
+  /v1/button-destinations/{id}/heartbeat:
+    post:
+      operationId: heartbeatButtonDestination
+      parameters:
+        - &a2
+          name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/UUID"
+        - *a1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeartbeatButtonDestination"
+      responses:
+        "200":
+          description: Live button-destination state. Selection and commands never survive
+            expiry or restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ButtonDestinationState"
+        default:
+          $ref: "#/components/responses/APIError"
+  /v1/button-destinations/{id}/select:
+    post:
+      operationId: selectButtonDestination
+      parameters:
+        - *a2
+        - *a1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectButtonDestination"
+      responses:
+        "200":
+          description: Live button-destination state. Selection and commands never survive
+            expiry or restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ButtonDestinationState"
+        default:
+          $ref: "#/components/responses/APIError"
+  /v1/button-destinations/{id}/complete:
+    post:
+      operationId: completeButtonTake
+      parameters:
+        - *a2
+        - *a1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteButtonTake"
+      responses:
+        "200":
+          description: Live button-destination state. Selection and commands never survive
+            expiry or restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ButtonDestinationState"
+        default:
+          $ref: "#/components/responses/APIError"
+  /v1/button-destinations/{id}:
+    delete:
+      operationId: unregisterButtonDestination
+      parameters:
+        - *a2
+        - *a1
+      responses:
+        "200":
+          description: Live button-destination state. Selection and commands never survive
+            expiry or restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ButtonDestinationState"
+        default:
+          $ref: "#/components/responses/APIError"
   "/v1/audio-sources":
     get:
       operationId: "listAudioSources"
@@ -812,6 +941,95 @@ components:
         - "ready"
         - "speech"
         - "proofreading"
+    ButtonDestination:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        device:
+          $ref: "#/components/schemas/DeviceIdentity"
+      required:
+        - id
+        - device
+    RegisterButtonDestination:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        device:
+          $ref: "#/components/schemas/DeviceIdentity"
+      required:
+        - id
+        - device
+    ButtonCommand:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        takeID:
+          $ref: "#/components/schemas/UUID"
+        action:
+          type: string
+          enum:
+            - start
+            - stop
+            - cancel
+        source:
+          $ref: "#/components/schemas/AudioSourceIdentity"
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - takeID
+        - action
+        - source
+        - expiresAt
+    ButtonDestinationState:
+      type: object
+      additionalProperties: false
+      properties:
+        selected:
+          $ref: "#/components/schemas/ButtonDestination"
+        destinations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ButtonDestination"
+          maxItems: 8
+        source:
+          $ref: "#/components/schemas/AudioSourceIdentity"
+        available:
+          type: boolean
+        command:
+          $ref: "#/components/schemas/ButtonCommand"
+      required:
+        - destinations
+        - available
+    HeartbeatButtonDestination:
+      type: object
+      additionalProperties: false
+      properties:
+        acknowledgement:
+          $ref: "#/components/schemas/UUID"
+      required: []
+    SelectButtonDestination:
+      type: object
+      additionalProperties: false
+      properties:
+        generationID:
+          $ref: "#/components/schemas/UUID"
+      required: []
+    CompleteButtonTake:
+      type: object
+      additionalProperties: false
+      properties:
+        takeID:
+          $ref: "#/components/schemas/UUID"
+      required:
+        - takeID
     AudioSourceIdentity:
       type: "object"
       additionalProperties: false
@@ -886,6 +1104,8 @@ components:
       type: "object"
       additionalProperties: false
       properties:
+        buttonTicket:
+          "$ref": "#/components/schemas/UUID"
         requestID:
           "$ref": "#/components/schemas/UUID"
         device:

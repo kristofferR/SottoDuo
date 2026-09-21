@@ -2,7 +2,17 @@ import { connect, createServer } from "node:net";
 import { chmod, lstat, mkdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireDataDirectoryLock } from "../../Server/src/data-lock.ts";
-export type Command = "start" | "stop" | "toggle" | "cancel" | "status" | "result" | "copy";
+export type Command =
+  | "start"
+  | "stop"
+  | "toggle"
+  | "cancel"
+  | "status"
+  | "result"
+  | "copy"
+  | "arm"
+  | "disarm"
+  | "button-status";
 export const commands: readonly string[] = [
   "start",
   "stop",
@@ -11,6 +21,9 @@ export const commands: readonly string[] = [
   "status",
   "result",
   "copy",
+  "arm",
+  "disarm",
+  "button-status",
 ];
 export function isCommand(value: string): value is Command {
   return commands.includes(value);

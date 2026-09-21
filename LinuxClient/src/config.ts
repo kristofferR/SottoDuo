@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { validateBody } from "../../Server/src/validation.ts";
 import type { SourcePreferences } from "./sources.ts";
 export interface Config {
+  buttonEnabled: boolean;
   server: string;
   tokenFile: string;
   device: { id: string; name: string };
@@ -57,6 +58,7 @@ export function parseConfig(value: unknown): Config {
   const fixed = s.fixed === undefined ? undefined : validateBody("AudioSourceIdentity", s.fixed);
   if (s.mode === "fixed" && !fixed) throw new Error("Fixed selection needs a source identity.");
   return {
+    buttonEnabled: value.buttonEnabled === true,
     server: endpoint(value.server),
     tokenFile: value.tokenFile,
     device: validateBody("DeviceIdentity", value.device),

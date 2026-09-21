@@ -153,6 +153,41 @@ export function createHTTPServer(
 
   app.get("/v1/health", () => service.health());
   app.get("/v1/audio-sources", () => service.captures.sources());
+  const destinationOwner = (request: FastifyRequest) => {
+    const value = request.headers["x-sotto-destination-owner"];
+    return typeof value === "string" ? value : undefined;
+  };
+  app.get("/v1/button-destinations", () => service.buttons.state());
+  app.post("/v1/button-destinations", (request) =>
+    service.buttons.register(
+      validateBody("RegisterButtonDestination", request.body),
+      destinationOwner(request),
+    ),
+  );
+  app.post<{ Params: IDParams }>("/v1/button-destinations/:id/heartbeat", (request) =>
+    service.buttons.heartbeat(
+      identifier(request.params.id),
+      validateBody("HeartbeatButtonDestination", request.body),
+      destinationOwner(request),
+    ),
+  );
+  app.post<{ Params: IDParams }>("/v1/button-destinations/:id/select", (request) =>
+    service.buttons.select(
+      identifier(request.params.id),
+      validateBody("SelectButtonDestination", request.body),
+      destinationOwner(request),
+    ),
+  );
+  app.post<{ Params: IDParams }>("/v1/button-destinations/:id/complete", (request) =>
+    service.buttons.complete(
+      identifier(request.params.id),
+      validateBody("CompleteButtonTake", request.body).takeID,
+      destinationOwner(request),
+    ),
+  );
+  app.delete<{ Params: IDParams }>("/v1/button-destinations/:id", (request) =>
+    service.buttons.unregister(identifier(request.params.id), destinationOwner(request)),
+  );
   app.post("/v1/captures", async (request, reply) =>
     reply
       .code(201)
