@@ -73,6 +73,10 @@ export class API {
       "GenerationPage",
       await this.request(
         `/v1/generations?limit=30${before ? `&before=${encodeURIComponent(before)}` : ""}${source ? `&source=${encodeURIComponent(source)}` : ""}`,
+        "GET",
+        undefined,
+        undefined,
+        60_000,
       ),
     );
   }

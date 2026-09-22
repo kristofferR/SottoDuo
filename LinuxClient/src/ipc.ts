@@ -86,13 +86,14 @@ export async function serve(
           try {
             if (!gui) throw new Error();
             const request: unknown = JSON.parse(input);
-            if (
-              request !== null &&
-              typeof request === "object" &&
-              "action" in request &&
-              request.action === "historyAudio"
-            )
-              socket.setTimeout(305_000, () => socket.destroy());
+            if (request !== null && typeof request === "object" && "action" in request) {
+              if (request.action === "historyAudio")
+                socket.setTimeout(305_000, () => socket.destroy());
+              else if (request.action === "history")
+                socket.setTimeout(65_000, () => socket.destroy());
+              else if (request.action === "saveShortcut")
+                socket.setTimeout(30_000, () => socket.destroy());
+            }
             const data = await gui(request);
             socket.end(JSON.stringify({ ok: true, data }) + "\n");
           } catch (error) {

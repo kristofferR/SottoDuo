@@ -220,6 +220,10 @@ void Bridge::request(const QString &action, const QVariantMap &arguments) {
   int timeout = 12000;
   if (action == "snapshot")
     timeout = 2000;
+  else if (action == "saveShortcut")
+    timeout = 35000;
+  else if (action == "history")
+    timeout = 70000;
   else if (action == "historyAudio")
     timeout = 300000;
   timer->start(timeout);
