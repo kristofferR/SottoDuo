@@ -502,6 +502,39 @@ private slots:
     QVERIFY(!save->isEnabled());
     auto *page = window->findChild<QQuickItem *>("microphonePage");
     QVERIFY(page);
+    auto findItem = [&](auto &&self, QQuickItem *parent,
+                        const QString &name) -> QQuickItem * {
+      for (auto *child : parent->childItems()) {
+        if (child->objectName() == name)
+          return child;
+        if (auto *found = self(self, child, name))
+          return found;
+      }
+      return nullptr;
+    };
+    auto *firstHandle = findItem(findItem, window->contentItem(),
+                                 "microphoneReorderHandle0");
+    auto *secondHandle = findItem(findItem, window->contentItem(),
+                                  "microphoneReorderHandle1");
+    QVERIFY(firstHandle && secondHandle);
+    const auto start = firstHandle->mapToScene(QPointF(firstHandle->width() / 2,
+                                                       firstHandle->height() / 2)).toPoint();
+    const auto end = secondHandle->mapToScene(QPointF(secondHandle->width() / 2,
+                                                      secondHandle->height() / 2)).toPoint();
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+    for (int step = 1; step <= 6; ++step)
+      QTest::mouseMove(window, start + (end - start) * step / 6, 20);
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+    QTRY_VERIFY(page->property("dirty").toBool());
+    auto reordered = page->property("draft").value<QJSValue>().toVariant().toMap();
+    if (reordered.isEmpty())
+      reordered = page->property("draft").toMap();
+    QCOMPARE(reordered["priority"].toList().first().toMap()["id"].toString(),
+             QString("airpods"));
+    QCOMPARE(reordered["profiles"].toList().first().toMap()["priority"].toList()
+                 .first().toMap()["id"].toString(), QString("airpods"));
+    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
+    QVERIFY(!save->isEnabled());
     auto draft = page->property("draft").value<QJSValue>().toVariant().toMap();
     if (draft.isEmpty())
       draft = page->property("draft").toMap();

@@ -87,6 +87,19 @@ ScrollView {
         next.profiles.find(p => p.id === next.activeProfileID).priority = clone(next.priority);
         edited(next);
     }
+    function movePriority(id, targetID) {
+        if (!editable)
+            return;
+        let next = clone(draft);
+        const from = next.priority.findIndex(x => key(x) === key(id));
+        const to = next.priority.findIndex(x => key(x) === key(targetID));
+        if (from < 0 || to < 0 || from === to)
+            return;
+        const moved = next.priority.splice(from, 1)[0];
+        next.priority.splice(to, 0, moved);
+        next.profiles.find(p => p.id === next.activeProfileID).priority = clone(next.priority);
+        edited(next);
+    }
     function nameFor(id) {
         const live = ui.sources.items.find(s => key(s.identity) === key(id));
         const saved = seenInputs.concat(draft.knownInputs || []).find(s => key(s.identity) === key(id));
@@ -247,33 +260,95 @@ ScrollView {
             }
             Repeater {
                 model: root.draft.priority
-                Setting {
+                Item {
+                    id: priorityRow
                     required property var modelData
                     required property int index
-                    ui: root.ui
-                    title: (index + 1) + ". " + root.nameFor(modelData)
-                    detail: root.detailFor(modelData)
-                    SButton {
+                    readonly property var identity: modelData
+                    Layout.fillWidth: true
+                    implicitHeight: prioritySetting.implicitHeight
+                    Setting {
+                        id: prioritySetting
+                        anchors.fill: parent
                         ui: root.ui
-                        text: "↑"
-                        Accessible.name: "Move " + root.nameFor(modelData) + " up"
-                        enabled: root.editable && index > 0
-                        onClicked: root.changePriority(modelData, "up")
+                        title: (priorityRow.index + 1) + ". " + root.nameFor(priorityRow.identity)
+                        detail: root.detailFor(priorityRow.identity)
+                        Rectangle {
+                            id: reorderHandle
+                            objectName: "microphoneReorderHandle" + priorityRow.index
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 38
+                            color: "transparent"
+                            Accessible.role: Accessible.Button
+                            Accessible.name: "Drag to reorder " + root.nameFor(priorityRow.identity)
+                            Text {
+                                anchors.centerIn: parent
+                                text: "⠿"
+                                font.pixelSize: 23
+                                color: root.editable ? root.ui.c.muted : root.ui.c.line
+                            }
+                            HoverHandler {
+                                cursorShape: root.editable ? reorderDrag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor : Qt.ArrowCursor
+                            }
+                            DragHandler {
+                                id: reorderDrag
+                                enabled: root.editable && root.draft.priority.length > 1
+                                xAxis.enabled: false
+                                onActiveChanged: if (!active) {
+                                    reorderHandle.Drag.drop();
+                                    reorderHandle.y = 0;
+                                }
+                            }
+                            Drag.active: reorderDrag.active
+                            Drag.source: priorityRow
+                            Drag.keys: ["sotto/microphone-priority"]
+                            Drag.hotSpot.x: width / 2
+                            Drag.hotSpot.y: height / 2
+                        }
+                        SButton {
+                            ui: root.ui
+                            text: "↑"
+                            Accessible.name: "Move " + root.nameFor(priorityRow.identity) + " up"
+                            enabled: root.editable && priorityRow.index > 0
+                            onClicked: root.changePriority(priorityRow.identity, "up")
+                        }
+                        SButton {
+                            ui: root.ui
+                            text: "↓"
+                            Accessible.name: "Move " + root.nameFor(priorityRow.identity) + " down"
+                            enabled: root.editable && priorityRow.index < root.draft.priority.length - 1
+                            onClicked: root.changePriority(priorityRow.identity, "down")
+                        }
+                        SButton {
+                            ui: root.ui
+                            text: "Remove"
+                            enabled: root.editable
+                            onClicked: root.changePriority(priorityRow.identity, "remove")
+                        }
                     }
-                    SButton {
-                        ui: root.ui
-                        text: "↓"
-                        Accessible.name: "Move " + root.nameFor(modelData) + " down"
-                        enabled: root.editable && index < root.draft.priority.length - 1
-                        onClicked: root.changePriority(modelData, "down")
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "transparent"
+                        radius: 8
+                        border.width: dropArea.containsDrag && dropArea.drag.source !== priorityRow ? 2 : 0
+                        border.color: root.ui.c.accent
                     }
-                    SButton {
-                        ui: root.ui
-                        text: "Remove"
-                        enabled: root.editable
-                        onClicked: root.changePriority(modelData, "remove")
+                    DropArea {
+                        id: dropArea
+                        anchors.fill: parent
+                        keys: ["sotto/microphone-priority"]
+                        onDropped: drop => {
+                            if (root.editable && drop.source && drop.source !== priorityRow) {
+                                root.movePriority(drop.source.identity, priorityRow.identity);
+                                drop.acceptProposedAction();
+                            }
+                        }
                     }
                 }
+            }
+            Setting {
+                ui: root.ui
+                title: "Drag a handle to reorder. Disconnected microphones keep their place."
             }
             Setting {
                 ui: root.ui
