@@ -3,6 +3,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { send, serve } from "../src/ipc.ts";
+import { ClientNotice } from "../src/errors.ts";
 
 test("private IPC serializes commands, rejects a second daemon and releases its lock", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sotto-ipc-"));
@@ -54,13 +55,27 @@ test("GUI IPC accepts a newline without a half-close and rejects malformed JSON"
     close = await serve(
       async () => "ok",
       () => {},
-      async (value) => ({ received: value }),
+      async (value) => {
+        if (value !== null && typeof value === "object" && "notice" in value)
+          throw new ClientNotice("Finish dictation before changing settings.");
+        if (value !== null && typeof value === "object" && "privateError" in value)
+          throw new Error("private-token-and-path");
+        return { received: value };
+      },
     );
     expect(JSON.parse(await request('{"version":1,"action":"snapshot"}\n'))).toEqual({
       ok: true,
       data: { received: { version: 1, action: "snapshot" } },
     });
     expect(JSON.parse(await request("{invalid}\n")).ok).toBe(false);
+    expect(JSON.parse(await request('{"notice":true}\n'))).toEqual({
+      ok: false,
+      error: "Finish dictation before changing settings.",
+    });
+    expect(JSON.parse(await request('{"privateError":true}\n'))).toEqual({
+      ok: false,
+      error: "Request failed. Check the connection and reload before trying again.",
+    });
     expect(await send("status")).toBe("ok\n");
   } finally {
     await close?.();

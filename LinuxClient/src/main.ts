@@ -14,7 +14,7 @@ const help = `Sotto for Hyprland
   sotto start|stop        Hold-to-talk press/release commands
   sotto toggle|cancel    Toggle recording or cancel this desktop's take
   sotto status|result    Show state or the current process's last result
-  sotto arm|disarm       Select or clear this computer for the DJI button
+  sotto arm|disarm       Select or clear this computer for the DJI pairing button
   sotto button-status    Show button destination and receiver availability
   sotto copy             Explicitly copy that result; never inject paste keys
 
@@ -44,12 +44,16 @@ try {
     else if (action === "daemon") {
       const desktop = new HyprlandDesktop(config.destinationHelper);
       const controller = new Controller(api, desktop, config.device, config.sources);
-      const buttons = config.buttonEnabled
-        ? new ButtonDestinationClient(api, desktop, controller, config.device)
-        : undefined;
+      const buttons = new ButtonDestinationClient(
+        api,
+        desktop,
+        controller,
+        config.device,
+        config.buttonEnabled,
+      );
       let close: (() => Promise<void>) | undefined;
       const shutdown = async (exitCode = 0) => {
-        await buttons?.close();
+        await buttons.close();
         await controller.cancel();
         desktop.close();
         await close?.();
@@ -65,15 +69,16 @@ try {
         const handle = async (action: Command): Promise<string> => {
           switch (action) {
             case "arm":
-              if (!buttons) return "Enable buttonEnabled in the client configuration first.";
+              if (!buttons.enabled)
+                return "Enable pairing-button dictation in Sotto → This computer first.";
               await buttons.select();
-              return "DJI button destination selected: this computer.";
+              return "DJI pairing button destination selected: this computer.";
             case "disarm":
-              if (!buttons) return "Enable buttonEnabled in the client configuration first.";
+              if (!buttons.enabled) return "Pairing-button dictation is disabled on this computer.";
               await buttons.disarm();
               return "This computer is no longer selected.";
             case "button-status":
-              return JSON.stringify(buttons?.state ?? { enabled: false });
+              return JSON.stringify({ ...buttons.state, enabled: buttons.enabled });
             case "start":
               controller.start();
               break;
@@ -112,7 +117,7 @@ try {
         );
         await desktop.monitorSession(
           () => {
-            void buttons?.disarm();
+            void buttons.disarm();
             if (
               ["preparing", "processing"].includes(controller.state) ||
               controller.state.startsWith("recording")
@@ -123,10 +128,10 @@ try {
             void handle(action).catch(() => desktop.notify("Shortcut failed."));
           },
         );
-        buttons?.start();
+        buttons.start();
         console.log("Sotto is ready. Waiting for a shortcut.");
       } catch (error) {
-        await buttons?.close();
+        await buttons.close();
         desktop.close();
         await close?.();
         throw error;

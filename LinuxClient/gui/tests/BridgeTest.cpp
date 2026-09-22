@@ -166,6 +166,72 @@ private slots:
     QCOMPARE(warnings.count(), 0);
     qunsetenv("SOTTO_CLIENT_CONFIG");
   }
+  void djiSettingsGuardDestinationAndRetainSaveErrors() {
+    QTemporaryDir directory;
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [socket] {
+        if (!socket->canReadLine())
+          return;
+        socket->readLine();
+        socket->write("{\"ok\":true,\"data\":{\"version\":1}}\n");
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    QQmlComponent model(&engine);
+    model.setData(R"(
+      import QtQml
+      QtObject {
+        property var snapshot: ({ buttonEnabled: true, buttonSettingsSupported: true,
+          button: { available: true, selectedHere: false } })
+        property bool busy: false
+        property var c: bridge.colors
+      }
+    )",
+                  QUrl());
+    QScopedPointer<QObject> ui(model.create());
+    QVERIFY2(ui, qPrintable(model.errorString()));
+    QQmlComponent component(
+        &engine,
+        QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/DjiSettings.qml"));
+    QScopedPointer<QObject> settings(component.createWithInitialProperties(
+        {{"ui", QVariant::fromValue(ui.data())}}));
+    QVERIFY2(settings, qPrintable(component.errorString()));
+    auto *select = settings->findChild<QQuickItem *>("djiSelectButton");
+    auto *deselect = settings->findChild<QQuickItem *>("djiDeselectButton");
+    auto *receiving = settings->findChild<QQuickItem *>("djiEnabledSwitch");
+    QVERIFY(select && deselect && receiving);
+    QVERIFY(select->isEnabled());
+    QVERIFY(!deselect->isEnabled());
+    QVERIFY(receiving->isEnabled());
+    ui->setProperty("busy", true);
+    QVERIFY(!select->isEnabled());
+    QVERIFY(!deselect->isEnabled());
+    QVERIFY(!receiving->isEnabled());
+    ui->setProperty("busy", false);
+    auto state = ui->property("snapshot").value<QJSValue>().toVariant().toMap();
+    state["button"] = QVariantMap{{"available", false}, {"selectedHere", true}};
+    ui->setProperty("snapshot", state);
+    QVERIFY(!select->isEnabled());
+    QVERIFY(deselect->isEnabled());
+    state["buttonEnabled"] = false;
+    ui->setProperty("snapshot", state);
+    QVERIFY(!deselect->isEnabled());
+    emit bridge.failed("saveButton", "Cannot save settings");
+    emit bridge.reply("receiver", QVariantMap{{"available", true}});
+    auto *error = settings->findChild<QQuickItem *>("djiSettingsError");
+    QVERIFY(error);
+    QCOMPARE(error->property("text").toString(), "Cannot save settings");
+    QCOMPARE(warnings.count(), 0);
+  }
   void pagesRenderAndOverlayCannotTakeFocus() {
     Bridge bridge(true);
     bridge.setTheme("dark");
@@ -185,6 +251,22 @@ private slots:
       QVERIFY(window->setProperty("page", page));
       QTest::qWait(50);
       QVERIFY(!window->grabWindow().isNull());
+    }
+    const QString djiCapture = qEnvironmentVariable("SOTTO_GUI_DJI_CAPTURE");
+    if (!djiCapture.isEmpty()) {
+      auto *dji = window->findChild<QQuickItem *>("djiSettings");
+      QVERIFY(dji);
+      for (auto *parent = dji->parentItem(); parent;
+           parent = parent->parentItem()) {
+        if (parent->property("contentY").isValid()) {
+          parent->setProperty("contentY",
+                              dji->mapToItem(parent, QPointF()).y() +
+                                  parent->property("contentY").toReal());
+          break;
+        }
+      }
+      QTest::qWait(50);
+      QVERIFY(window->grabWindow().save(djiCapture));
     }
     auto *login = window->findChild<QQuickItem *>("launchAtLoginSwitch");
     QVERIFY(login);

@@ -114,6 +114,9 @@ ApplicationWindow {
         function onFailed(action, message) {
             if (!bridge.connected)
                 return;
+            // Receiver controls display their errors beside the affected settings.
+            if (["receiver", "saveButton", "arm", "disarm"].includes(action))
+                return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";
                 app.serverReady = false;

@@ -2,6 +2,7 @@ import { connect, createServer } from "node:net";
 import { chmod, lstat, mkdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireDataDirectoryLock } from "../../Server/src/data-lock.ts";
+import { ClientNotice } from "./errors.ts";
 export type Command =
   | "start"
   | "stop"
@@ -84,11 +85,14 @@ export async function serve(
             if (!gui) throw new Error();
             const data = await gui(JSON.parse(input));
             socket.end(JSON.stringify({ ok: true, data }) + "\n");
-          } catch {
+          } catch (error) {
             socket.end(
               JSON.stringify({
                 ok: false,
-                error: "Request failed. Check the connection and reload before trying again.",
+                error:
+                  error instanceof ClientNotice
+                    ? error.message
+                    : "Request failed. Check the connection and reload before trying again.",
               }) + "\n",
             );
           }

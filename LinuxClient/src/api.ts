@@ -64,6 +64,9 @@ export class API {
   async health() {
     return validateBody("ServerHealth", await this.request("/v1/health"));
   }
+  async buttonStatus() {
+    return validateBody("ButtonDestinationState", await this.request("/v1/button-destinations"));
+  }
   async history(before?: string) {
     return validateBody(
       "GenerationPage",

@@ -71,31 +71,8 @@ ScrollView {
                 detail: bridge.themeNote
             }
         }
-        Group {
+        DjiSettings {
             ui: root.ui
-            title: "DJI RECEIVER ON SERVER"
-            Setting {
-                ui: root.ui
-                title: "Pairing-button destination"
-                detail: root.ui.snapshot.button && root.ui.snapshot.button.selected ? root.ui.snapshot.button.selected.device.name : "No destination selected"
-                SButton {
-                    ui: root.ui
-                    text: "Use this computer"
-                    enabled: bridge.connected && root.ui.snapshot.buttonEnabled
-                    onClicked: bridge.request("arm")
-                }
-                SButton {
-                    ui: root.ui
-                    text: "Release"
-                    enabled: bridge.connected && root.ui.snapshot.buttonEnabled
-                    onClicked: bridge.request("disarm")
-                }
-            }
-            Setting {
-                ui: root.ui
-                title: "Receiver dictation"
-                detail: root.ui.snapshot.buttonEnabled ? "Select this computer, focus your text field, then tap the transmitter’s pairing button." : !bridge.connected ? "Connect dictation to check receiver availability." : "Pairing-button dictation hasn’t been enabled on this computer."
-            }
         }
         Group {
             ui: root.ui
