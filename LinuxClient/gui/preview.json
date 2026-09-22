@@ -215,24 +215,70 @@
         "id": "preview",
         "createdAt": "2026-09-21T10:42:00Z",
         "device": {
+          "id": "desktop",
           "name": "This computer"
         },
         "status": "completed",
         "insertionText": "Let’s keep the settings familiar, and make dictation feel at home on any Linux desktop.",
         "delivery": {
           "status": "inserted"
+        },
+        "rawText": "lets keep the settings familiar and make dictation feel at home on any linux desktop",
+        "finalText": "Let’s keep the settings familiar, and make dictation feel at home on any Linux desktop.",
+        "inferenceAudio": {
+          "filename": "inference.wav",
+          "frameCount": 128000,
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteCount": 512044,
+          "encoding": "float32"
+        },
+        "originalAudio": {
+          "filename": "original.wav",
+          "frameCount": 384000,
+          "sampleRate": 48000,
+          "channels": 1,
+          "byteCount": 1536044,
+          "encoding": "float32"
+        },
+        "speech": {
+          "modelID": "Whisper large v3",
+          "backend": "faster-whisper"
+        },
+        "proofreading": {
+          "modelID": "Qwen 3",
+          "backend": "llama.cpp"
+        },
+        "textProcessing": {
+          "status": "applied"
         }
       },
       {
         "id": "preview-2",
         "createdAt": "2026-09-21T09:18:00Z",
         "device": {
+          "id": "macbook",
           "name": "MacBook"
         },
         "status": "completed",
         "insertionText": "I’ll send the updated design later today.",
         "delivery": {
           "status": "inserted"
+        },
+        "importedSource": {
+          "provider": "wispr-flow",
+          "sourceID": "00000000-0000-0000-0000-000000000002",
+          "importedAt": "2026-09-21T10:00:00Z",
+          "variantNames": [
+            "ASR",
+            "formatted"
+          ],
+          "artifactNames": [
+            "source.wav"
+          ],
+          "durationSeconds": 4,
+          "sourceSHA256": "preview",
+          "artifactSHA256": {}
         }
       }
     ]

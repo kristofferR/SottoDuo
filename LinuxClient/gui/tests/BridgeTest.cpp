@@ -525,6 +525,113 @@ private slots:
                  QString("external-change"));
     QCOMPARE(warnings.count(), 0);
   }
+  void historyKeepsSelectionAndScopesConfirmedActions() {
+    QTemporaryDir directory;
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QVERIFY(fixture.open(QIODevice::ReadOnly));
+    auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
+    auto items = sample["history"].toObject()["items"].toArray();
+    QJsonObject deleted, audio;
+    QString requestedSource;
+    int reads = 0;
+    bool correlate = true;
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
+        if (!socket->canReadLine()) return;
+        const auto request = QJsonDocument::fromJson(socket->readLine()).object();
+        const auto action = request["action"].toString();
+        auto data = sample.value(action);
+        if (action == "history") {
+          ++reads;
+          requestedSource = request["source"].toString();
+          data = QJsonObject{{"items", items}, {"nextCursor", "older"}, {"queryID",correlate ? request["queryID"] : QJsonValue()}, {"server",sample["snapshot"].toObject()["server"]}};
+        } else if (action == "deleteHistory") {
+          deleted = request;
+          items.removeAt(0);
+          data = QJsonObject{{"id",request["id"]},{"server",request["server"]}};
+        } else if (action == "historyAudio") {
+          audio = request;
+          socket->write(QJsonDocument(QJsonObject{{"ok",false},{"error","Recording no longer available. Refresh history."}}).toJson(QJsonDocument::Compact) + '\n');
+          return;
+        }
+        socket->write(QJsonDocument(QJsonObject{{"ok",true},{"data",data}}).toJson(QJsonDocument::Compact) + '\n');
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("page",1);
+    auto *page = window->findChild<QQuickItem *>("historyPage");
+    QVERIFY(page);
+    QTRY_COMPARE(page->property("selectedID").toString(), "preview");
+    auto *older = page->findChild<QQuickItem *>("olderHistory");
+    auto *remove = page->findChild<QQuickItem *>("deleteHistory");
+    auto *open = page->findChild<QQuickItem *>("openHistoryAudio");
+    auto *transcript = page->findChild<QQuickItem *>("historyTranscript");
+    QVERIFY(older && remove && open && transcript);
+    QVERIFY(open->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(open,"clicked"));
+    QTRY_VERIFY(!audio.isEmpty());
+    QCOMPARE(audio["id"].toString(),"preview");
+    QCOMPARE(audio["kind"].toString(),"inference");
+    QTRY_VERIFY(page->property("message").toString().contains("no longer available"));
+    page->setProperty("selectedID","preview-2");
+    QVERIFY(QMetaObject::invokeMethod(older,"clicked"));
+    QTRY_VERIFY(!page->property("loading").toBool());
+    QCOMPARE(page->property("selectedID").toString(),"preview-2");
+    auto *list = page->findChild<QQuickItem *>("historyList");
+    QVERIFY(list);
+    QCOMPARE(list->property("count").toInt(),2);
+    page->setProperty("deviceID","desktop");
+    QCOMPARE(list->property("count").toInt(),1);
+    QCOMPARE(page->property("selectedID").toString(),"preview");
+    page->setProperty("deviceID","");
+    QVERIFY(QMetaObject::invokeMethod(remove,"clicked"));
+    auto *dialog = window->findChild<QObject *>("deleteHistoryDialog");
+    QVERIFY(dialog);
+    QVERIFY(dialog->property("visible").toBool());
+    QVERIFY(deleted.isEmpty());
+    page->setProperty("selectedID","preview-2");
+    auto *confirm = window->findChild<QQuickItem *>("confirmHistoryDelete");
+    QVERIFY(confirm);
+    QVERIFY(QMetaObject::invokeMethod(confirm,"clicked"));
+    QTRY_VERIFY(!deleted.isEmpty());
+    QCOMPARE(deleted["id"].toString(),"preview");
+    QTRY_VERIFY(!page->property("loading").toBool());
+    QCOMPARE(page->property("selectedID").toString(),"preview-2");
+    QCOMPARE(list->property("count").toInt(),1);
+    QVERIFY(QMetaObject::invokeMethod(page,"filterSource",Q_ARG(QVariant,"wispr-flow")));
+    QTRY_COMPARE(requestedSource, "wispr-flow");
+    QTRY_VERIFY(!page->property("loading").toBool());
+    auto snapshot = sample["snapshot"].toObject();
+    snapshot["server"] = "https://another.example.com";
+    sample["snapshot"] = snapshot;
+    const int previousReads = reads;
+    bridge.request("snapshot");
+    QTRY_VERIFY(reads > previousReads);
+    QCOMPARE(page->property("server").toString(),"https://another.example.com");
+    QTRY_VERIFY(!page->property("loading").toBool());
+    correlate = false;
+    const int beforeLegacy = reads;
+    auto *refresh = page->findChild<QQuickItem *>("refreshHistory");
+    QVERIFY(refresh);
+    QVERIFY(QMetaObject::invokeMethod(refresh,"clicked"));
+    QTRY_VERIFY(page->property("message").toString().contains("Update Sotto"));
+    QVERIFY(!page->property("loading").toBool());
+    QCOMPARE(reads, beforeLegacy + 2);
+    QCOMPARE(warnings.count(),0);
+  }
   void processingDraftsSurviveConflictsAndNavigation() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());

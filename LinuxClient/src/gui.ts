@@ -1,4 +1,5 @@
 import { defaultProofreadingPrompt, saveSharedPreferences } from "./processing.ts";
+import { HistoryTools } from "./history.ts";
 import { legacySourceEdit, microphoneSnapshot } from "./microphones.ts";
 import { ClientNotice } from "./errors.ts";
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
@@ -24,6 +25,7 @@ export function createGUIHandler(
   file = configPath(),
 ) {
   let config = initial;
+  const history = new HistoryTools(api);
   const saveConfig = (next: Config) => {
     // Synchronous compare-and-replace keeps new takes and settings writes ordered.
     const disk = parseConfig(JSON.parse(readFileSync(file, "utf8")));
@@ -150,12 +152,10 @@ export function createGUIHandler(
         };
       }
       case "history":
-        if (
-          request.before !== undefined &&
-          (typeof request.before !== "string" || request.before.length > 512)
-        )
-          throw new ClientNotice("Invalid cursor.");
-        return api.history(request.before);
+        return history.list(request.before, request.source, request.queryID);
+      case "historyAudio":
+      case "deleteHistory":
+        return history.action(request.action, request);
       case "processingDefaults":
         return { proofreadingPrompt: defaultProofreadingPrompt };
       case "preferences":

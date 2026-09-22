@@ -67,13 +67,31 @@ export class API {
   async buttonStatus() {
     return validateBody("ButtonDestinationState", await this.request("/v1/button-destinations"));
   }
-  async history(before?: string) {
+  async history(before?: string, source?: string) {
     return validateBody(
       "GenerationPage",
       await this.request(
-        `/v1/generations?limit=30${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+        `/v1/generations?limit=30${before ? `&before=${encodeURIComponent(before)}` : ""}${source ? `&source=${encodeURIComponent(source)}` : ""}`,
       ),
     );
+  }
+  async deleteHistory(id: string) {
+    await this.request(`/v1/generations/${encodeURIComponent(id)}`, "DELETE");
+  }
+  async historyAudio(id: string, filename: "inference.wav" | "original.wav" | "source.wav") {
+    const response = await fetch(
+      `${this.endpoint}/v1/generations/${encodeURIComponent(id)}/artifacts/${filename}`,
+      {
+        redirect: "error",
+        signal: AbortSignal.timeout(8000),
+        headers: { Authorization: `Bearer ${this.token}` },
+      },
+    );
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new APIError(response.status, "audio_unavailable");
+    }
+    return response;
   }
   async preferences() {
     return validateBody("PreferencesSnapshot", await this.request("/v1/preferences"));

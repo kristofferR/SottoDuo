@@ -146,7 +146,7 @@ ApplicationWindow {
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
-            if (["preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
+            if (["history", "historyAudio", "deleteHistory", "preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
                 return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";
