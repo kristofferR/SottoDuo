@@ -1,6 +1,7 @@
 #include "Bridge.h"
 #include "GuiInstance.h"
 #include "HudSurface.h"
+#include <LayerShellQt/Shell>
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDir>
@@ -14,6 +15,7 @@
 #include <QTimer>
 
 int main(int argc, char **argv) {
+  LayerShellQt::Shell::useLayerShell();
   QApplication app(argc, argv);
   app.setOrganizationName("Sotto");
   app.setApplicationName("Sotto");

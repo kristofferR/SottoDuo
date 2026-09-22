@@ -14,6 +14,8 @@
 #include <cmath>
 
 namespace {
+constexpr auto maximumResponseBytes = 32 * 1024 * 1024;
+
 QColor blend(const QColor &a, const QColor &b, double fraction) {
   return QColor::fromRgbF(a.redF() * (1 - fraction) + b.redF() * fraction,
                           a.greenF() * (1 - fraction) + b.greenF() * fraction,
@@ -207,7 +209,7 @@ void Bridge::request(const QString &action, const QVariantMap &arguments) {
           });
   connect(socket, &QLocalSocket::readyRead, socket, [socket, bytes, finish] {
     bytes->append(socket->readAll());
-    if (bytes->size() > 8 * 1024 * 1024)
+    if (bytes->size() > maximumResponseBytes)
       finish(false);
     else if (bytes->endsWith('\n'))
       finish(true);

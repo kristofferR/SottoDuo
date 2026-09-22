@@ -84,7 +84,15 @@ export async function serve(
         void (async () => {
           try {
             if (!gui) throw new Error();
-            const data = await gui(JSON.parse(input));
+            const request: unknown = JSON.parse(input);
+            if (
+              request !== null &&
+              typeof request === "object" &&
+              "action" in request &&
+              request.action === "historyAudio"
+            )
+              socket.setTimeout(305_000, () => socket.destroy());
+            const data = await gui(request);
             socket.end(JSON.stringify({ ok: true, data }) + "\n");
           } catch (error) {
             socket.end(
