@@ -13,6 +13,8 @@ ColumnLayout {
     readonly property var audio: record ? record.inferenceAudio || record.originalAudio : null
     readonly property var processing: record ? record.textProcessing : null
     readonly property bool terminal: !!record && ["completed", "failed", "cancelled"].includes(record.status)
+    property string copiedID: ""
+    onRecordChanged: copiedID = ""
 
     function model(value) {
         return value ? value.modelID + " · " + value.backend : "";
@@ -43,18 +45,20 @@ ColumnLayout {
         visible: !!root.record
         SLabel {
             ui: root.ui
-            text: root.record ? root.record.device.name : "Your words, together"
+            objectName: "historyDetailDate"
+            text: root.record ? new Date(root.record.createdAt).toLocaleString(undefined, { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""
             Layout.fillWidth: true
-            color: root.ui.c.muted
+            font.weight: Font.DemiBold
         }
 
         SButton {
             ui: root.ui
             objectName: "copyHistory"
-            text: "Copy"
+            text: root.record && root.copiedID === root.record.id ? "Copied" : "Copy"
             enabled: root.transcript.length > 0
             onClicked: {
                 bridge.copy(root.transcript);
+                root.copiedID = root.record.id;
                 root.history.message = "Copied.";
             }
         }
@@ -75,7 +79,7 @@ ColumnLayout {
         visible: !!root.record
         color: root.ui.c.muted
         font.pixelSize: 12
-        text: root.record ? (root.record.importedSource ? "Wispr Flow · " : "Sotto · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
+        text: root.record ? root.record.device.name + " · " + (root.record.importedSource ? "Wispr Flow · " : "Sotto · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
     }
 
     ScrollView {

@@ -10,6 +10,13 @@ export class ShortcutCheck {
   private presses = 0;
   private releases = 0;
   private last = "Not checked";
+  private startedAt = 0;
+  private events: string[] = [];
+  private note(message: string) {
+    const seconds = Math.max(0, (Date.now() - this.startedAt) / 1000).toFixed(1);
+    this.events.push(`${seconds}s  ${message}`);
+    if (this.events.length > 24) this.events.shift();
+  }
   get blocked() {
     return this.until > Date.now() || this.held;
   }
@@ -17,10 +24,14 @@ export class ShortcutCheck {
     if (this.blocked)
       throw new ClientNotice("Finish the current shortcut check and release the key first.");
     this.until = Date.now() + 30000;
+    this.startedAt = Date.now();
     this.presses = this.releases = 0;
     this.last = "Hold and release your dictation key";
+    this.events = [];
+    this.note("Check started");
   }
   end() {
+    if (this.until > 0) this.note("Check finished");
     this.until = 0;
   }
   consume(action: string) {
@@ -28,14 +39,18 @@ export class ShortcutCheck {
       return false;
     if (action === "start") {
       if (!this.held) ++this.presses;
+      this.note(this.held ? "Repeated press" : "Press detected");
       this.held = true;
       this.last = "Press detected";
     } else if (action === "stop") {
       if (this.held) ++this.releases;
+      this.note(this.held ? "Release detected" : "Release without press");
       this.held = false;
       this.last = "Release detected";
-    } else
+    } else {
       this.last = `${action === "copy" ? "Copy" : action === "cancel" ? "Cancel" : "Toggle"} detected`;
+      this.note(this.last);
+    }
     return true;
   }
   snapshot() {
@@ -45,6 +60,7 @@ export class ShortcutCheck {
       held: this.held,
       presses: this.presses,
       releases: this.releases,
+      events: this.events.slice(),
       remainingSeconds: Math.max(0, Math.ceil((this.until - Date.now()) / 1000)),
       message:
         this.until <= Date.now() && this.held ? "Release the key to resume dictation" : this.last,

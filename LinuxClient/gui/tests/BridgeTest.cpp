@@ -426,6 +426,7 @@ private slots:
                                     {"held", true},
                                     {"presses", 1},
                                     {"releases", 0},
+                                    {"events", QVariantList{"0.0s  Check started", "0.5s  Press detected"}},
                                     {"remainingSeconds", 20},
                                     {"message", "Press detected"}};
     state["shortcut"] = shortcut;
@@ -437,6 +438,12 @@ private slots:
     auto *result = window->findChild<QQuickItem *>("shortcutCheckResult");
     QVERIFY(result);
     QVERIFY(result->property("text").toString().contains("Presses: 1"));
+    auto *events = window->findChild<QQuickItem *>("shortcutDiagnosticsEvents");
+    auto *toggle = window->findChild<QQuickItem *>("shortcutDiagnosticsToggle");
+    QVERIFY(events && toggle);
+    QVERIFY(QMetaObject::invokeMethod(toggle, "clicked"));
+    QVERIFY(events->isVisible());
+    QVERIFY(events->property("text").toString().contains("Press detected"));
     auto *settings = window->findChild<QQuickItem *>("shortcutSettings");
     QVERIFY(settings);
     const QString capture = qEnvironmentVariable("SOTTO_GUI_SHORTCUT_CAPTURE");
@@ -502,6 +509,29 @@ private slots:
     QVERIFY(!save->isEnabled());
     auto *page = window->findChild<QQuickItem *>("microphonePage");
     QVERIFY(page);
+    auto *testButton = window->findChild<QQuickItem *>("microphonePageTestButton");
+    QVERIFY(testButton);
+    QCOMPARE(testButton->property("text").toString(), QString("Test microphone"));
+    const QString microphoneCapture = qEnvironmentVariable("SOTTO_GUI_MICROPHONE_CAPTURE");
+    if (!microphoneCapture.isEmpty()) {
+      auto *content = page->property("contentItem").value<QQuickItem *>();
+      QVERIFY(content);
+      content->setProperty("contentY", qMax(0.0, content->property("contentHeight").toReal() - content->height()));
+      QTest::qWait(50);
+      QVERIFY(window->grabWindow().save(microphoneCapture));
+      content->setProperty("contentY", 0);
+    }
+    auto *mode = window->findChild<QQuickItem *>("microphoneMode");
+    QVERIFY(mode);
+    QTRY_COMPARE(mode->property("count").toInt(), 4);
+    QVERIFY(mode->setProperty("currentIndex", 3));
+    QVERIFY(QMetaObject::invokeMethod(mode, "activated", Q_ARG(int, 3)));
+    QTRY_VERIFY(page->property("dirty").toBool());
+    auto fixedDraft = page->property("draft").value<QJSValue>().toVariant().toMap();
+    QCOMPARE(fixedDraft["mode"].toString(), QString("fixed"));
+    QCOMPARE(fixedDraft["fixed"].toMap()["id"].toString(), QString("airpods"));
+    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
+    QCOMPARE(mode->property("currentIndex").toInt(), 0);
     auto findItem = [&](auto &&self, QQuickItem *parent,
                         const QString &name) -> QQuickItem * {
       for (auto *child : parent->childItems()) {
@@ -666,9 +696,14 @@ private slots:
     page->setProperty("selectedID", "preview");
     auto *older = page->findChild<QQuickItem *>("olderHistory");
     auto *remove = page->findChild<QQuickItem *>("deleteHistory");
+    auto *copy = page->findChild<QQuickItem *>("copyHistory");
+    auto *date = page->findChild<QQuickItem *>("historyDetailDate");
     auto *open = page->findChild<QQuickItem *>("openHistoryAudio");
     auto *transcript = page->findChild<QQuickItem *>("historyTranscript");
-    QVERIFY(older && remove && open && transcript);
+    QVERIFY(older && remove && copy && date && open && transcript);
+    QVERIFY(!date->property("text").toString().isEmpty());
+    QVERIFY(QMetaObject::invokeMethod(copy, "clicked"));
+    QCOMPARE(copy->property("text").toString(), QString("Copied"));
     QVERIFY(open->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(open,"clicked"));
     QTRY_VERIFY(!audio.isEmpty());
@@ -676,12 +711,24 @@ private slots:
     QCOMPARE(audio["kind"].toString(),"inference");
     QTRY_VERIFY(page->property("message").toString().contains("no longer available"));
     page->setProperty("selectedID","preview-2");
+    QCOMPARE(copy->property("text").toString(), QString("Copy"));
     QVERIFY(QMetaObject::invokeMethod(older,"clicked"));
     QTRY_VERIFY(!page->property("loading").toBool());
     QCOMPARE(page->property("selectedID").toString(),"preview-2");
     auto *list = page->findChild<QQuickItem *>("historyList");
     QVERIFY(list);
     QCOMPARE(list->property("count").toInt(),2);
+    auto *handle = window->findChild<QQuickItem *>("historyResizeHandle");
+    QVERIFY(handle);
+    const auto originalWidth = list->width();
+    const auto start = handle->mapToScene(QPointF(handle->width() / 2,
+                                                  handle->height() / 2)).toPoint();
+    const auto end = start + QPoint(65, 0);
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+    for (int step = 1; step <= 5; ++step)
+      QTest::mouseMove(window, start + (end - start) * step / 5, 20);
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+    QTRY_VERIFY(list->width() > originalWidth + 30);
     page->setProperty("deviceID","desktop");
     QCOMPARE(list->property("count").toInt(),1);
     QCOMPARE(page->property("selectedID").toString(),"preview");

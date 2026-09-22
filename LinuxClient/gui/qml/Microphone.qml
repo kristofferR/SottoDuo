@@ -23,6 +23,18 @@ ScrollView {
             name: "Default",
             priority: []
         })
+    readonly property var inputChoices: {
+        const choices = [
+            { label: "Automatic · priority list", mode: "automatic" },
+            { label: "System default", mode: "systemDefault" }
+        ];
+        for (const source of ui.sources.items)
+            choices.push({ label: source.name, mode: "fixed", identity: source.identity });
+        if (draft.mode === "fixed" && draft.fixed && !choices.some(choice => choice.identity && key(choice.identity) === key(draft.fixed)))
+            choices.push({ label: nameFor(draft.fixed) + " (disconnected)", mode: "fixed", identity: draft.fixed });
+        return choices;
+    }
+    readonly property int selectedInputIndex: draft.mode === "fixed" ? inputChoices.findIndex(choice => choice.identity && draft.fixed && key(choice.identity) === key(draft.fixed)) : draft.mode === "systemDefault" ? 1 : 0
     clip: true
     contentWidth: availableWidth
     function clone(value) {
@@ -191,12 +203,16 @@ ScrollView {
                 ComboBox {
                     objectName: "microphoneMode"
                     implicitWidth: 245
-                    model: ["Automatic · priority list", "System default", "Fixed input"]
-                    currentIndex: ["automatic", "systemDefault", "fixed"].indexOf(root.draft.mode)
+                    model: root.inputChoices
+                    textRole: "label"
+                    currentIndex: root.selectedInputIndex
                     enabled: root.editable
                     onActivated: {
+                        const choice = root.inputChoices[currentIndex];
                         let next = root.clone(root.draft);
-                        next.mode = ["automatic", "systemDefault", "fixed"][currentIndex];
+                        next.mode = choice.mode;
+                        if (choice.identity)
+                            next.fixed = choice.identity;
                         root.edited(next);
                     }
                 }
@@ -436,6 +452,11 @@ ScrollView {
                 text: "Refresh inputs"
                 onClicked: root.ui.refresh()
             }
+        }
+        MicrophoneTestButton {
+            objectName: "microphonePageTestButton"
+            ui: root.ui
+            Layout.fillWidth: true
         }
     }
     Dialog {

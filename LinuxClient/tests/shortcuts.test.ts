@@ -13,6 +13,13 @@ test("shortcut checking consumes commands without recording and waits for releas
   expect(check.consume("copy")).toBe(true);
   expect(check.consume("toggle")).toBe(true);
   expect(check.snapshot().presses).toBe(1);
+  expect(check.snapshot().events.map((event) => event.replace(/^.*?s  /, ""))).toEqual([
+    "Check started",
+    "Press detected",
+    "Repeated press",
+    "Copy detected",
+    "Toggle detected",
+  ]);
   check.end();
   expect(check.blocked).toBe(true);
   expect(check.consume("start")).toBe(true);
@@ -24,6 +31,7 @@ test("shortcut checking consumes commands without recording and waits for releas
     releases: 1,
   });
   expect(check.consume("start")).toBe(false);
+  expect(check.snapshot().events.at(-1)).toContain("Release detected");
 });
 
 test("an expired check cannot turn a held or repeated press into dictation", () => {

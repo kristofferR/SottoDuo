@@ -302,18 +302,34 @@ ColumnLayout {
         Layout.fillWidth: true
     }
 
-    RowLayout {
+    SplitView {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 20
+        orientation: Qt.Horizontal
+        handle: Rectangle {
+            objectName: "historyResizeHandle"
+            implicitWidth: 12
+            color: "transparent"
+            Rectangle {
+                anchors.centerIn: parent
+                width: SplitHandle.hovered || SplitHandle.pressed ? 3 : 1
+                height: parent.height
+                color: SplitHandle.hovered || SplitHandle.pressed ? root.ui.c.accent : root.ui.c.line
+            }
+            HoverHandler {
+                cursorShape: Qt.SplitHCursor
+            }
+        }
 
         ListView {
             objectName: "historyList"
-            Layout.preferredWidth: Math.max(225, root.width * 0.38)
-            Layout.fillHeight: true
+            SplitView.preferredWidth: Math.max(225, root.width * 0.38)
+            SplitView.minimumWidth: 220
+            SplitView.maximumWidth: 380
+            SplitView.fillHeight: true
             clip: true
             model: root.filtered
-            spacing: 8
+            spacing: 0
 
             SLabel {
                 ui: root.ui
@@ -331,8 +347,9 @@ ColumnLayout {
                 required property var modelData
 
                 width: ListView.view.width
-                implicitHeight: summary.implicitHeight + 26
+                implicitHeight: summary.implicitHeight + 30
                 onClicked: root.selectedID = modelData.id
+                Accessible.name: modelData.device.name + ", " + (modelData.finalText || modelData.insertionText || modelData.previewText || modelData.status)
 
                 contentItem: ColumnLayout {
                     id: summary
@@ -341,8 +358,8 @@ ColumnLayout {
 
                     SLabel {
                         ui: root.ui
-                        text: new Date(modelData.createdAt).toLocaleString()
-                        font.pixelSize: 11
+                        text: new Date(modelData.createdAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+                        font.pixelSize: 12
                         color: root.ui.c.muted
                         Layout.fillWidth: true
                     }
@@ -350,7 +367,7 @@ ColumnLayout {
                     SLabel {
                         ui: root.ui
                         text: modelData.finalText || modelData.insertionText || modelData.previewText || modelData.status
-                        maximumLineCount: 3
+                        maximumLineCount: 2
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -366,26 +383,32 @@ ColumnLayout {
                 }
 
                 background: Rectangle {
-                    radius: 10
-                    color: root.selectedID === modelData.id ? root.ui.c.tint : root.ui.c.surface
-                    border.color: parent.activeFocus ? root.ui.c.accent : root.ui.c.line
+                    radius: 8
+                    color: root.selectedID === modelData.id ? root.ui.c.tint : parent.hovered ? root.ui.c.surface : "transparent"
+                    border.width: parent.activeFocus ? 2 : 0
+                    border.color: root.ui.c.accent
+                }
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    height: 1
+                    color: root.ui.c.line
+                    opacity: 0.7
                 }
 
             }
 
         }
 
-        Rectangle {
-            Layout.fillHeight: true
-            implicitWidth: 1
-            color: root.ui.c.line
-        }
-
         HistoryDetail {
             ui: root.ui
             history: root
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            SplitView.minimumWidth: 280
+            SplitView.fillWidth: true
+            SplitView.fillHeight: true
         }
 
     }
