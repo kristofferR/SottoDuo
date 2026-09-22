@@ -1,0 +1,209 @@
+import { API } from "./api.ts";
+import { ButtonDestinationClient } from "./buttons.ts";
+import type { Config } from "./config.ts";
+import { ConnectionSettings } from "./connection.ts";
+import { Controller, type Desktop } from "./controller.ts";
+import { command } from "./desktop.ts";
+import { ClientNotice } from "./errors.ts";
+import { createGUIHandler } from "./gui.ts";
+import type { Command } from "./ipc.ts";
+import type { ShortcutSettings } from "./shortcuts.ts";
+
+/** Each connection owns immutable API clients, takes and button registrations. */
+export class ClientRuntime {
+  private current?: ReturnType<ClientRuntime["create"]>;
+  private changing = false;
+  private mutations = 0;
+  private generation = 0;
+  shortcuts?: ShortcutSettings;
+  constructor(
+    readonly settings: ConnectionSettings,
+    private desktop: Desktop,
+  ) {}
+  get busy() {
+    return this.changing || !!this.current?.controller.busy;
+  }
+  start() {
+    if (!this.current && this.settings.config && this.settings.api)
+      this.current = this.create(this.settings.config, this.settings.api);
+  }
+  private create(
+    config: Config,
+    api: API,
+    controller = new Controller(api, this.desktop, config.device, config.sources),
+  ) {
+    controller.captureAllowed = () => !this.changing && !this.shortcuts?.blocked;
+    const buttons = new ButtonDestinationClient(
+      api,
+      this.desktop,
+      controller,
+      config.device,
+      config.buttonEnabled,
+    );
+    const gui = createGUIHandler(
+      api,
+      controller,
+      this.desktop,
+      config,
+      buttons,
+      this.shortcuts,
+      (next) => this.settings.accepted(next),
+      this.settings.file,
+    );
+    buttons.start();
+    return { api, controller, buttons, gui };
+  }
+  async close() {
+    this.changing = true;
+    const current = this.current;
+    await Promise.allSettled([current?.buttons.close(), current?.controller.cancel()]);
+  }
+  unsafe() {
+    this.shortcuts?.check.end();
+    void this.current?.buttons.disarm().catch(() => {});
+    const controller = this.current?.controller;
+    if (
+      controller?.busy &&
+      ["preparing", "recording", "processing", "delivering"].includes(controller.activity.phase)
+    )
+      void controller.cancel().catch(() => {});
+  }
+  async gui(request: unknown): Promise<unknown> {
+    if (
+      !request ||
+      typeof request !== "object" ||
+      !("version" in request) ||
+      request.version !== 1 ||
+      !("action" in request) ||
+      typeof request.action !== "string"
+    )
+      throw new ClientNotice("Unsupported GUI request.");
+    const input = request as Record<string, unknown>;
+    const action = request.action;
+    if (action === "snapshot") {
+      const current = this.current;
+      const snapshot = current
+        ? await current.gui(request)
+        : {
+            version: 1,
+            activity: { phase: "idle" },
+            busy: false,
+            result: null,
+            message: "Set up your server connection in This computer.",
+            server: this.settings.config?.server ?? "",
+            device: this.settings.config?.device ?? { name: "This computer" },
+            shortcut: this.shortcuts?.snapshot() ?? null,
+          };
+      if (current !== this.current) return this.gui(request);
+      return {
+        ...(snapshot as object),
+        setupRequired: !this.current,
+        setupMessage: this.settings.setupMessage,
+        connectionChanging: this.changing,
+        connectionRevision: this.generation,
+      };
+    }
+    if (!(await this.desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
+    if (this.changing) throw new ClientNotice("The connection is changing. Try again in a moment.");
+    if (action === "testConnection") return this.settings.test(input);
+    if (action === "saveConnection") {
+      if (this.busy || this.mutations || this.shortcuts?.blocked)
+        throw new ClientNotice(
+          "Finish dictation or the shortcut check before changing the connection.",
+        );
+      this.settings.validateSave(input.ticket, input.hostID);
+      this.changing = true;
+      const old = this.current;
+      try {
+        // Drain late registration requests using the old URL and credentials.
+        await old?.buttons.close();
+        if (!(await this.desktop.unlocked()))
+          throw new ClientNotice("Unlock this computer before saving the connection.");
+        const next = this.settings.commit(input.ticket, input.hostID);
+        this.current = this.create(next.config, next.api);
+        this.generation++;
+        return { saved: true };
+      } catch (error) {
+        if (old && this.settings.config)
+          this.current = this.create(this.settings.config, old.api, old.controller);
+        throw error;
+      } finally {
+        this.changing = false;
+      }
+    }
+    if (!this.current)
+      throw new ClientNotice("Set up your server connection in This computer first.");
+    const current = this.current;
+    const generation = this.generation;
+    const mutating = ![
+      "connection",
+      "sources",
+      "history",
+      "preferences",
+      "receiver",
+      "shortcuts",
+    ].includes(action);
+    if (mutating) this.mutations++;
+    try {
+      const result = await current.gui(request);
+      if (generation !== this.generation || this.changing)
+        throw new ClientNotice("The connection changed. Reload this page.");
+      return result;
+    } finally {
+      if (mutating) this.mutations--;
+    }
+  }
+  async command(action: Command): Promise<string> {
+    if (this.shortcuts?.check.consume(action))
+      return "Shortcut detected. No recording or clipboard action was performed.";
+    if (this.changing) return "The connection is changing. Try again in a moment.";
+    const current = this.current;
+    if (!current) return "Set up your server connection in Sotto → This computer first.";
+    const { controller, buttons } = current;
+    this.mutations++;
+    try {
+      switch (action) {
+        case "arm":
+          if (!buttons.enabled)
+            return "Enable pairing-button dictation in Sotto → This computer first.";
+          await buttons.select();
+          return "DJI pairing button destination selected: this computer.";
+        case "disarm":
+          if (!buttons.enabled) return "Pairing-button dictation is disabled on this computer.";
+          await buttons.disarm();
+          return "This computer is no longer selected.";
+        case "button-status":
+          return JSON.stringify({ ...buttons.state, enabled: buttons.enabled });
+        case "start":
+          controller.start();
+          break;
+        case "stop":
+          controller.stop();
+          break;
+        case "toggle":
+          controller.toggle();
+          break;
+        case "cancel":
+          await controller.cancel();
+          break;
+        case "status":
+          return controller.state;
+        case "result":
+          return (
+            controller.result?.text ??
+            "No result in this session. Check shared history for older takes."
+          );
+        case "copy": {
+          const result = controller.result;
+          if (!result || !(await this.desktop.unlocked()) || controller.result !== result)
+            return "No current result to copy, or the desktop is locked.";
+          await command(["wl-copy", "--type", "text/plain;charset=utf-8"], 1500, result.text);
+          return "Copied. Paste into your chosen field.";
+        }
+      }
+      return controller.state;
+    } finally {
+      this.mutations--;
+    }
+  }
+}

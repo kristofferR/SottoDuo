@@ -18,23 +18,26 @@ export function createGUIHandler(
   initial: Config,
   buttons?: ButtonDestinationClient,
   shortcuts?: ShortcutSettings,
+  onConfigSaved?: (config: Config) => void,
+  file = configPath(),
 ) {
   let config = initial;
   const saveConfig = (next: Config) => {
     // Synchronous compare-and-replace keeps new takes and settings writes ordered.
-    const disk = parseConfig(JSON.parse(readFileSync(configPath(), "utf8")));
+    const disk = parseConfig(JSON.parse(readFileSync(file, "utf8")));
     if (JSON.stringify(disk) !== JSON.stringify(config))
       throw new ClientNotice("Configuration changed externally. Restart the client.");
-    const temp = `${configPath()}.${process.pid}.tmp`;
+    const temp = `${file}.${process.pid}.tmp`;
     writeFileSync(temp, JSON.stringify(next, null, 2) + "\n", { mode: 0o600, flag: "wx" });
     try {
-      renameSync(temp, configPath());
+      renameSync(temp, file);
     } finally {
       try {
         unlinkSync(temp);
       } catch {}
     }
     config = next;
+    onConfigSaved?.(next);
   };
   return async (request: unknown): Promise<unknown> => {
     if (!object(request) || request.version !== 1 || typeof request.action !== "string")
@@ -61,7 +64,7 @@ export function createGUIHandler(
             }
           : null,
         desktop: "hyprland",
-        configPath: configPath(),
+        configPath: file,
       };
     if (!(await desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
     switch (request.action) {

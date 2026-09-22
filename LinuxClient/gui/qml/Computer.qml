@@ -21,34 +21,8 @@ ScrollView {
             text: "Connection, appearance and desktop integration."
             color: root.ui.c.muted
         }
-        Group {
+        ConnectionSettings {
             ui: root.ui
-            title: "CONNECTION"
-            Setting {
-                ui: root.ui
-                title: "Server address"
-                detail: root.ui.snapshot.server || "Available after dictation connects"
-            }
-            Setting {
-                ui: root.ui
-                title: "Device name"
-                SLabel {
-                    ui: root.ui
-                    text: root.ui.snapshot.device ? root.ui.snapshot.device.name : "This computer"
-                }
-            }
-            Setting {
-                ui: root.ui
-                title: root.ui.connection
-                SButton {
-                    ui: root.ui
-                    text: "Reconnect"
-                    onClicked: {
-                        bridge.request("snapshot");
-                        root.ui.refresh();
-                    }
-                }
-            }
         }
         Group {
             ui: root.ui
@@ -122,11 +96,6 @@ ScrollView {
                     text: "Quit"
                     onClicked: bridge.desktop.quit()
                 }
-            }
-            Setting {
-                ui: root.ui
-                title: "Connection setup"
-                detail: "In-app setup is not available in this build yet. Dictation needs a server connection and a keyboard shortcut configured before use."
             }
         }
     }

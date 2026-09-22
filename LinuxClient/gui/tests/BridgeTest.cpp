@@ -2,6 +2,7 @@
 #include "../HudSurface.h"
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
@@ -421,6 +422,73 @@ private slots:
       QTest::qWait(50);
       QVERIFY(window->grabWindow().save(capture));
     }
+    QCOMPARE(warnings.count(), 0);
+  }
+  void connectionSetupMasksSecretsAndRequiresVerifiedSave() {
+    QTemporaryDir directory;
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QStringList actions;
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
+        if (!socket->canReadLine())
+          return;
+        const auto request =
+            QJsonDocument::fromJson(socket->readLine()).object();
+        const auto action = request["action"].toString();
+        actions << action;
+        QJsonObject data{{"version", 1}, {"setupRequired", true}};
+        if (action == "testConnection") {
+          QCOMPARE(request["accessToken"].toString(), "test-secret");
+          data = {{"ticket", "verified"},
+                  {"hosts", QJsonArray{"desktop"}},
+                  {"hostID", "desktop"},
+                  {"message", "Connected. Save to use it."}};
+        }
+        socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", data}})
+                          .toJson(QJsonDocument::Compact) +
+                      '\n');
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("page", 4);
+    QTest::qWait(50);
+    auto *settings = window->findChild<QQuickItem *>("connectionSettings");
+    auto *address = window->findChild<QQuickItem *>("connectionServer");
+    auto *token = window->findChild<QQuickItem *>("connectionToken");
+    auto *check = window->findChild<QQuickItem *>("testConnectionButton");
+    auto *save = window->findChild<QQuickItem *>("saveConnectionButton");
+    QVERIFY(settings && address && token && check && save);
+    QVERIFY(token->property("text").toString().isEmpty());
+    QVERIFY(!save->isEnabled());
+    address->setProperty("text", "https://speech.example.com");
+    token->setProperty("text", "test-secret");
+    QVERIFY(!token->property("displayText").toString().contains("test-secret"));
+    QVERIFY(check->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(check, "clicked"));
+    QVERIFY(token->property("text").toString().isEmpty());
+    QTRY_VERIFY(save->isEnabled());
+    QVERIFY(!actions.contains("test"));
+    window->setProperty("snapshot", QVariantMap{{"busy", true}});
+    QVERIFY(!save->isEnabled());
+    window->setProperty("snapshot", QVariantMap{{"busy", false}});
+    QVERIFY(save->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(address, "textEdited"));
+    QVERIFY(!save->isEnabled());
+    token->setProperty("text", "another-secret");
+    window->hide();
+    QVERIFY(token->property("text").toString().isEmpty());
     QCOMPARE(warnings.count(), 0);
   }
   void activeMicrophoneTestCanFinishWhenServerIsBusy() {

@@ -16,7 +16,7 @@ build/linux-gui/sotto-gui --preview
 
 Preview mode uses bundled sample data. It never connects to the client, opens a microphone, saves settings, or changes the desktop theme. It can copy sample text when explicitly requested.
 
-For real use, start the **configured client built from the same checkout** (`build/linux-client/sotto daemon`, or its existing user service), then run `build/linux-gui/sotto-gui`. The window does not start a second daemon or import microphone capture code from Cotto. Client setup and desktop bindings remain in the existing Linux client integration. No credentials are sent to QML.
+For real use, start the **background client built from the same checkout** (`build/linux-client/sotto daemon`, or its existing user service), then run `build/linux-gui/sotto-gui`. The window does not start a second daemon or import microphone capture code from Cotto. Open **This computer → Connection** to enter the server address, access token and device name. The daemon accepts setup requests even when its configuration or token is missing. Stored credentials are never sent to QML; a typed token is masked and cleared after submission or hiding the window. Desktop service installation and bindings remain in the existing Linux client integration.
 
 Closing settings keeps the live capsule available, including on desktops without a system tray. Open Sotto from the application launcher or tray to return to the same window. A session-bus service permits only one live GUI per user session; sample-data previews remain independent. A missing or unresponsive session bus produces a launch error rather than starting a duplicate.
 
@@ -38,6 +38,8 @@ The theme selection is local to the GUI. Reading Omarchy colors does not write t
 
 ## Implemented behavior
 
+- **This computer → Connection** tests authenticated server health and discovers capture hosts without recording. Save accepts the exact tested proposal for two minutes, retains the device ID, and applies without restarting the service. Blank tokens reuse the saved credential only at the same server origin. New credentials are written to a fresh private client token file and config is replaced atomically; existing/shared token files are never overwritten. Previous private token files are retained. Active dictation, shortcut checks, locked sessions and external configuration changes block saving. A connection switch drains old pairing-button registrations before replacing immutable API clients, clears the last result, rejects stale server replies, and starts unselected. Changing server or capture host resets microphone preferences to automatic. With no discovered sources, setup requires the server’s explicit capture host ID.
+
 - Structured, versioned private Unix-socket snapshots of activity, source, trigger, last text, delivery and destination selection. The CLI command protocol remains compatible.
 - Microphone tests use the existing capture controller and source fallback but **never capture a text destination, insert text or automatically select a pairing-button destination**. Test results remain available in Sotto and shared server history.
 - Current transcript recovery distinguishes inserted, ready to copy and uncertain insertion. No automatic clipboard action or insertion retry.
@@ -55,7 +57,7 @@ The theme selection is local to the GUI. Reading Omarchy colors does not write t
 
 The presentation is distro-neutral. Actual recording/shortcuts/guarded insertion still depend on the existing Omarchy/Hyprland client adapter; portal adapters for other desktops are separate work. The overlay requires a Wayland compositor implementing wlr-layer-shell (verified on Hyprland). Desktops without that protocol need a separate overlay adapter; exact placement is not guaranteed there. X11 uses passive tool-window flags and screen-relative positioning.
 
-Server credentials, initial setup and background-client service setup still use existing client configuration. Shortcut editing currently supports Sotto's standard Omarchy Lua bindings; other desktops and custom formats require their own shortcut setup. Named microphone profiles, a full dictionary-list editor, audio playback, history deletion and per-page unsaved-edit recovery are not yet in this first GUI implementation. The GUI is deployed on the Omarchy desktop; overlay verification uses synthetic state without opening a microphone.
+Background-client service installation still uses the existing Linux integration. The GUI can configure an installed/running client but does not install or start that service automatically. Shortcut editing currently supports Sotto's standard Omarchy Lua bindings; other desktops and custom formats require their own shortcut setup. Named microphone profiles, a full dictionary-list editor, audio playback, history deletion and per-page unsaved-edit recovery are not yet in this first GUI implementation. The GUI is deployed on the Omarchy desktop; overlay verification uses synthetic state without opening a microphone.
 
 ## Automated checks
 

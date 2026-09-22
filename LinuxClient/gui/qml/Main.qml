@@ -37,7 +37,7 @@ ApplicationWindow {
     readonly property string limitNotice: feedback.limitReached ? "Stopped at the recording limit" : activity.phase === "recording" && feedback.remainingSeconds !== undefined && feedback.remainingSeconds !== null && feedback.remainingSeconds <= 30 ? "Recording stops in " + duration(feedback.remainingSeconds) : ""
     property bool busy: snapshot.busy || false
     onBusyChanged: {
-        if (!busy && bridge.connected)
+        if (!busy && bridge.connected && !snapshot.setupRequired)
             bridge.request("connection");
     }
     property var sources: ({
@@ -45,9 +45,10 @@ ApplicationWindow {
             next: null
         })
     property bool wasConnected: false
+    property int connectionRevision: -1
     property bool sourcesChecked: false
     property string serverConnection: "Checking server"
-    readonly property string connection: bridge.connected ? serverConnection : bridge.connectionStatus === "setupRequired" ? "Dictation needs setup" : bridge.connectionStatus === "connecting" ? "Connecting dictation…" : "Dictation unavailable"
+    readonly property string connection: bridge.connected ? (snapshot.setupRequired ? "Dictation needs setup" : serverConnection) : bridge.connectionStatus === "setupRequired" ? "Dictation needs setup" : bridge.connectionStatus === "connecting" ? "Connecting dictation…" : "Dictation unavailable"
     property string notice: ""
     property bool serverReady: false
     property var pages: ["Dictation", "History", "Microphone", "Server preferences", "This computer"]
@@ -68,6 +69,8 @@ ApplicationWindow {
             bridge.request("snapshot");
             return;
         }
+        if (snapshot.setupRequired)
+            return;
         bridge.request("connection");
         bridge.request("sources");
         bridge.request("shortcuts");
@@ -104,13 +107,30 @@ ApplicationWindow {
                     items: [],
                     next: null
                 };
-            } else if (!app.wasConnected) {
+            } else if (!app.wasConnected || app.connectionRevision !== (bridge.snapshot.connectionRevision || 0)) {
+                app.connectionRevision = bridge.snapshot.connectionRevision || 0;
+                app.sourcesChecked = false;
+                app.serverReady = false;
+                app.sources = {
+                    items: [],
+                    next: null
+                };
                 app.serverConnection = "Checking server";
                 app.refresh();
             }
             app.wasConnected = bridge.connected;
         }
         function onReply(action, data) {
+            if (action === "saveConnection") {
+                app.sourcesChecked = false;
+                app.serverReady = false;
+                app.serverConnection = "Checking server";
+                app.sources = {
+                    items: [],
+                    next: null
+                };
+                bridge.request("snapshot");
+            }
             if (action === "connection") {
                 app.serverConnection = data.ready ? "Server online" : data.message || "Server not ready";
                 app.serverReady = data.ready;
@@ -126,7 +146,7 @@ ApplicationWindow {
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
-            if (["receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
+            if (["testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
                 return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";
@@ -240,7 +260,7 @@ ApplicationWindow {
             spacing: 16
             Rectangle {
                 objectName: "connectionBanner"
-                visible: !bridge.connected && bridge.connectionStatus !== "connecting"
+                visible: !!app.snapshot.setupRequired || (!bridge.connected && bridge.connectionStatus !== "connecting")
                 Layout.fillWidth: true
                 implicitHeight: offline.implicitHeight + 24
                 radius: 10
@@ -250,7 +270,7 @@ ApplicationWindow {
                     ui: app
                     anchors.fill: parent
                     anchors.margins: 12
-                    text: bridge.connectionStatus === "setupRequired" ? "Dictation isn’t set up on this computer yet. You can explore Sotto and choose a theme while setup is pending." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
+                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.connectionStatus === "setupRequired" ? "Start background dictation, then open This computer to set up your server connection." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
                 }
             }
             Rectangle {

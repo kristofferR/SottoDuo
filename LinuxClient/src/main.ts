@@ -1,11 +1,10 @@
 import { resolve, dirname } from "node:path";
-import { createGUIHandler } from "./gui.ts";
 import { API } from "./api.ts";
 import { configPath, initialize, readConfig, token } from "./config.ts";
-import { ButtonDestinationClient } from "./buttons.ts";
-import { Controller } from "./controller.ts";
+import { ConnectionSettings } from "./connection.ts";
 import { command, HyprlandDesktop } from "./desktop.ts";
-import { isCommand, send, serve, type Command } from "./ipc.ts";
+import { isCommand, send, serve } from "./ipc.ts";
+import { ClientRuntime } from "./runtime.ts";
 import { ShortcutSettings } from "./shortcuts.ts";
 
 const help = `Sotto for Hyprland
@@ -20,7 +19,7 @@ const help = `Sotto for Hyprland
   sotto copy             Explicitly copy that result; never inject paste keys
 
 Config: ${configPath()}
-Set source priorities in this desktop's config, then restart the daemon.
+Configure the connection and microphones in Sotto → This computer.
 No recording, insertion, or device ownership resumes after restart.`;
 
 try {
@@ -38,118 +37,60 @@ try {
     );
     console.log(`Created ${configPath()}`);
   } else if (isCommand(action)) process.stdout.write(await send(action));
-  else {
+  else if (action === "sources") {
     const config = await readConfig();
     const api = new API(config.server, await token(config));
-    if (action === "sources") console.log(JSON.stringify(await api.sources(), null, 2));
-    else if (action === "daemon") {
-      const desktop = new HyprlandDesktop(config.destinationHelper);
-      const controller = new Controller(api, desktop, config.device, config.sources);
-      const shortcuts = new ShortcutSettings(
-        (args) => command(args, 3000),
-        () => controller.busy,
+    console.log(JSON.stringify(await api.sources(), null, 2));
+  } else if (action === "daemon") {
+    const helper = resolve(`${dirname(process.execPath)}/sotto-destination`);
+    const settings = await ConnectionSettings.open(helper);
+    const desktop = new HyprlandDesktop(settings.config?.destinationHelper ?? helper);
+    const runtime = new ClientRuntime(settings, desktop);
+    runtime.shortcuts = new ShortcutSettings(
+      (args) => command(args, 3000),
+      () => runtime.busy,
+    );
+    let close: (() => Promise<void>) | undefined;
+    const shutdown = async (exitCode = 0) => {
+      await runtime.close();
+      desktop.close();
+      await close?.();
+      process.exit(exitCode);
+    };
+    process.once("SIGTERM", () => {
+      void shutdown();
+    });
+    process.once("SIGINT", () => {
+      void shutdown();
+    });
+    try {
+      runtime.start();
+      close = await serve(
+        (action) => runtime.command(action),
+        () => {
+          void shutdown(1);
+        },
+        (request) => runtime.gui(request),
       );
-      controller.captureAllowed = () => !shortcuts.blocked;
-      const buttons = new ButtonDestinationClient(
-        api,
-        desktop,
-        controller,
-        config.device,
-        config.buttonEnabled,
+      await desktop.monitorSession(
+        () => runtime.unsafe(),
+        (action) => {
+          void runtime.command(action).catch(() => desktop.notify("Shortcut failed."));
+        },
       );
-      let close: (() => Promise<void>) | undefined;
-      const shutdown = async (exitCode = 0) => {
-        await buttons.close();
-        await controller.cancel();
-        desktop.close();
-        await close?.();
-        process.exit(exitCode);
-      };
-      process.once("SIGTERM", () => {
-        void shutdown();
-      });
-      process.once("SIGINT", () => {
-        void shutdown();
-      });
-      try {
-        const handle = async (action: Command): Promise<string> => {
-          if (shortcuts.check.consume(action))
-            return "Shortcut detected. No recording or clipboard action was performed.";
-          switch (action) {
-            case "arm":
-              if (!buttons.enabled)
-                return "Enable pairing-button dictation in Sotto → This computer first.";
-              await buttons.select();
-              return "DJI pairing button destination selected: this computer.";
-            case "disarm":
-              if (!buttons.enabled) return "Pairing-button dictation is disabled on this computer.";
-              await buttons.disarm();
-              return "This computer is no longer selected.";
-            case "button-status":
-              return JSON.stringify({ ...buttons.state, enabled: buttons.enabled });
-            case "start":
-              controller.start();
-              break;
-            case "stop":
-              controller.stop();
-              break;
-            case "toggle":
-              controller.toggle();
-              break;
-            case "cancel":
-              await controller.cancel();
-              break;
-            case "status":
-              return controller.state;
-            case "result":
-              return (
-                controller.result?.text ??
-                "No result in this session. Check shared history for older takes."
-              );
-            case "copy": {
-              const result = controller.result;
-              if (!result || !(await desktop.unlocked()) || controller.result !== result)
-                return "No current result to copy, or the desktop is locked.";
-              await command(["wl-copy", "--type", "text/plain;charset=utf-8"], 1500, result.text);
-              return "Copied. Paste into your chosen field.";
-            }
-          }
-          return controller.state;
-        };
-        close = await serve(
-          handle,
-          () => {
-            void shutdown(1);
-          },
-          createGUIHandler(api, controller, desktop, config, buttons, shortcuts),
-        );
-        await desktop.monitorSession(
-          () => {
-            shortcuts.check.end();
-            void buttons.disarm();
-            if (
-              controller.busy &&
-              ["preparing", "recording", "processing", "delivering"].includes(
-                controller.activity.phase,
-              )
-            )
-              void controller.cancel();
-          },
-          (action) => {
-            void handle(action).catch(() => desktop.notify("Shortcut failed."));
-          },
-        );
-        await shortcuts.refresh();
-        buttons.start();
-        console.log("Sotto is ready. Waiting for a shortcut.");
-      } catch (error) {
-        await buttons.close();
-        desktop.close();
-        await close?.();
-        throw error;
-      }
-    } else throw new Error("Unknown command. Use sotto --help.");
-  }
+      await runtime.shortcuts.refresh();
+      console.log(
+        settings.api
+          ? "Sotto is ready. Waiting for a shortcut."
+          : "Open Sotto → This computer to set up the server connection.",
+      );
+    } catch (error) {
+      await runtime.close();
+      desktop.close();
+      await close?.();
+      throw error;
+    }
+  } else throw new Error("Unknown command. Use sotto --help.");
 } catch (error) {
   // Do not dump request objects, headers, server response text or credentials.
   console.error(error instanceof Error ? error.message : "Sotto failed.");
