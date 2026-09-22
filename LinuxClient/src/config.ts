@@ -3,13 +3,14 @@ import { dirname, isAbsolute, join } from "node:path";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { validateBody } from "../../Server/src/validation.ts";
+import { profileFields, type ConfiguredSources } from "./microphones.ts";
 import type { SourcePreferences } from "./sources.ts";
 export interface Config {
   buttonEnabled: boolean;
   server: string;
   tokenFile: string;
   device: { id: string; name: string };
-  sources: SourcePreferences & { server: string };
+  sources: ConfiguredSources;
   destinationHelper: string;
 }
 export const configPath = () =>
@@ -69,6 +70,7 @@ export function parseConfig(value: unknown): Config {
       mode: s.mode as SourcePreferences["mode"],
       priority: s.priority.map((id) => validateBody("AudioSourceIdentity", id)),
       fixed,
+      ...profileFields(s),
     },
   };
 }

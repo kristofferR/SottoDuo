@@ -1,10 +1,11 @@
+import { legacySourceEdit, microphoneSnapshot } from "./microphones.ts";
 import { ClientNotice } from "./errors.ts";
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { API } from "./api.ts";
 import { configPath, parseConfig, type Config } from "./config.ts";
 import type { Controller, Desktop } from "./controller.ts";
 import type { ButtonDestinationClient } from "./buttons.ts";
-import { candidates, eligible, sourceKey } from "./sources.ts";
+import { eligible, sourceKey, selectionExplanation, unavailableReason } from "./sources.ts";
 import type { ShortcutSettings } from "./shortcuts.ts";
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -53,6 +54,7 @@ export function createGUIHandler(
         device: config.device,
         server: config.server,
         sources: config.sources,
+        microphones: microphoneSnapshot(config.sources),
         buttonEnabled: config.buttonEnabled,
         shortcut: shortcuts?.snapshot() ?? null,
         buttonSettingsSupported: buttons !== undefined,
@@ -138,8 +140,12 @@ export function createGUIHandler(
           desktop.defaultInput(config.sources.hostID),
         ]);
         return {
-          items: sources.map((source) => ({ ...source, eligible: eligible(source) })),
-          next: candidates(sources, config.sources, defaultID)[0] ?? null,
+          items: sources.map((source) => ({
+            ...source,
+            eligible: eligible(source),
+            unavailableReason: unavailableReason(source),
+          })),
+          ...selectionExplanation(sources, config.sources, defaultID),
         };
       }
       case "history":
@@ -153,9 +159,32 @@ export function createGUIHandler(
         return api.preferences();
       case "savePreferences":
         return api.savePreferences(request.value);
+      case "saveMicrophones": {
+        if (controller.busy)
+          throw new ClientNotice("Finish dictation before changing microphone lists.");
+        if (request.revision !== microphoneSnapshot(config.sources).revision)
+          throw new ClientNotice(
+            "Microphone settings changed. Use Discard changes to reload them, then edit again.",
+          );
+        if (
+          !object(request.value) ||
+          request.value.server !== config.server ||
+          request.value.hostID !== config.sources.hostID
+        )
+          throw new ClientNotice(
+            "Microphone lists belong to this server and capture host. Reload saved settings.",
+          );
+        const next = parseConfig({ ...config, sources: request.value });
+        saveConfig(next);
+        controller.updatePreferences(config.sources);
+        return microphoneSnapshot(config.sources);
+      }
       case "saveSources": {
         if (controller.busy) throw new ClientNotice("Finish dictation first.");
-        const next = parseConfig({ ...config, sources: request.value });
+        const next = parseConfig({
+          ...config,
+          sources: legacySourceEdit(config.sources, request.value),
+        });
         saveConfig(next);
         controller.updatePreferences(config.sources);
         return config.sources;

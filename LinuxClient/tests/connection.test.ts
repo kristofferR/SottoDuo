@@ -199,6 +199,9 @@ test("switching servers resets scoped inputs and never replaces a shared token",
       mode: "fixed",
       priority: [{ hostID: "desktop", id: "dji" }],
       fixed: { hostID: "desktop", id: "dji" },
+      profiles: [{ id: "desk", name: "Desk", priority: [{ hostID: "desktop", id: "dji" }] }],
+      activeProfileID: "desk",
+      knownInputs: [{ identity: { hostID: "desktop", id: "dji" }, name: "DJI Mic Mini" }],
     },
   });
   const file = join(f.dir, "config.json");

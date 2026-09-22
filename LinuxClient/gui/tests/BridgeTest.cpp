@@ -2,6 +2,7 @@
 #include "../HudSurface.h"
 #include <QDir>
 #include <QFile>
+#include <QJSValue>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -422,6 +423,106 @@ private slots:
       QTest::qWait(50);
       QVERIFY(window->grabWindow().save(capture));
     }
+    QCOMPARE(warnings.count(), 0);
+  }
+  void microphoneProfilesKeepEditsAndDisableChangesWhileBusy() {
+    QTemporaryDir directory;
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QVERIFY(fixture.open(QIODevice::ReadOnly));
+    auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
+        if (!socket->canReadLine())
+          return;
+        const auto request =
+            QJsonDocument::fromJson(socket->readLine()).object();
+        const auto action = request["action"].toString();
+        const auto data = sample.contains(action) ? sample[action]
+                                                  : QJsonValue(QJsonObject());
+        socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", data}})
+                          .toJson(QJsonDocument::Compact) +
+                      '\n');
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("page", 2);
+    QTest::qWait(50);
+    auto *picker = window->findChild<QQuickItem *>("microphoneProfilePicker");
+    auto *create = window->findChild<QQuickItem *>("newMicrophoneProfile");
+    auto *save = window->findChild<QQuickItem *>("saveMicrophonesButton");
+    auto *remove = window->findChild<QQuickItem *>("deleteMicrophoneProfile");
+    QVERIFY(picker && create && save && remove);
+    QVERIFY(create->isEnabled());
+    QVERIFY(!remove->isEnabled());
+    QVERIFY(!save->isEnabled());
+    auto *page = window->findChild<QQuickItem *>("microphonePage");
+    QVERIFY(page);
+    auto draft = page->property("draft").value<QJSValue>().toVariant().toMap();
+    if (draft.isEmpty())
+      draft = page->property("draft").toMap();
+    auto profiles = draft["profiles"].toList();
+    profiles.append(QVariantMap{
+        {"id", "travel"}, {"name", "Travel"}, {"priority", QVariantList{}}});
+    draft["profiles"] = profiles;
+    page->setProperty("draft", draft);
+    QVERIFY(QMetaObject::invokeMethod(page, "selectProfile",
+                                      Q_ARG(QVariant, "travel")));
+    QVERIFY(page->property("dirty").toBool());
+    QVERIFY(save->isEnabled());
+    QCOMPARE(picker->property("currentIndex").toInt(), 1);
+    // A changed server snapshot cannot replace an unsaved profile choice.
+    auto polledSnapshot = sample["snapshot"].toObject();
+    auto polledMicrophones = polledSnapshot["microphones"].toObject();
+    polledMicrophones["revision"] = "poll-update";
+    polledSnapshot["microphones"] = polledMicrophones;
+    sample["snapshot"] = polledSnapshot;
+    QSignalSpy snapshotChanged(&bridge, &Bridge::snapshotChanged);
+    bridge.request("snapshot");
+    QTRY_VERIFY(snapshotChanged.count() > 0);
+    QCOMPARE(bridge.snapshot()["microphones"].toMap()["revision"].toString(),
+             QString("poll-update"));
+    QCOMPARE(picker->property("currentIndex").toInt(), 1);
+    auto snapshot = bridge.snapshot();
+    snapshot["busy"] = true;
+    window->setProperty("snapshot", snapshot);
+    QVERIFY(!save->isEnabled());
+    QVERIFY(!create->isEnabled());
+    QVERIFY(!picker->isEnabled());
+    snapshot["busy"] = false;
+    window->setProperty("snapshot", snapshot);
+    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
+    QVERIFY(!page->property("dirty").toBool());
+    QCOMPARE(picker->property("currentIndex").toInt(), 0);
+    QVERIFY(
+        QMetaObject::invokeMethod(page, "editName", Q_ARG(QVariant, false)));
+    auto *dialog = window->findChild<QObject *>("microphoneProfileDialog");
+    QVERIFY(dialog);
+    const auto revision = page->property("revision").toString();
+    auto microphones = snapshot["microphones"].toMap();
+    microphones["revision"] = "external-change";
+    snapshot["microphones"] = microphones;
+    sample["snapshot"] = QJsonObject::fromVariantMap(snapshot);
+    bridge.request("snapshot");
+    QTRY_COMPARE(
+        bridge.snapshot()["microphones"].toMap()["revision"].toString(),
+        QString("external-change"));
+    QCOMPARE(page->property("revision").toString(), revision);
+    QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+    QTRY_COMPARE(page->property("revision").toString(),
+                 QString("external-change"));
     QCOMPARE(warnings.count(), 0);
   }
   void connectionSetupMasksSecretsAndRequiresVerifiedSave() {

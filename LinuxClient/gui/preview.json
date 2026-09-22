@@ -80,6 +80,57 @@
         "remainingSeconds": 0,
         "message": "Not checked"
       }
+    },
+    "microphones": {
+      "value": {
+        "server": "https://speech.example.com",
+        "hostID": "desktop",
+        "mode": "automatic",
+        "priority": [
+          {
+            "hostID": "desktop",
+            "id": "dji"
+          },
+          {
+            "hostID": "desktop",
+            "id": "airpods"
+          }
+        ],
+        "profiles": [
+          {
+            "id": "default",
+            "name": "Default",
+            "priority": [
+              {
+                "hostID": "desktop",
+                "id": "dji"
+              },
+              {
+                "hostID": "desktop",
+                "id": "airpods"
+              }
+            ]
+          }
+        ],
+        "activeProfileID": "default",
+        "knownInputs": [
+          {
+            "identity": {
+              "hostID": "desktop",
+              "id": "dji"
+            },
+            "name": "DJI Mic Mini"
+          },
+          {
+            "identity": {
+              "hostID": "desktop",
+              "id": "airpods"
+            },
+            "name": "AirPods Pro 3"
+          }
+        ]
+      },
+      "revision": "90b474b70ff9dea6bea1cffc6d327eab11022f98670bfc060e70fa7b20af9beb"
     }
   },
   "connection": {
@@ -108,7 +159,8 @@
     ],
     "next": {
       "name": "DJI Mic Mini"
-    }
+    },
+    "reason": "The first microphone in the selected priority list is ready."
   },
   "preferences": {
     "revision": 1,
