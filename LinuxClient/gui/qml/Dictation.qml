@@ -141,10 +141,12 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         SButton {
+            objectName: "microphoneTestButton"
             ui: root.ui
             primary: true
-            text: root.ui.busy ? "Finish test" : "Test microphone"
-            enabled: bridge.connected && root.ui.serverReady && (!root.ui.busy || (root.ui.activity.trigger === "test" && root.ui.activity.phase === "recording"))
+            readonly property bool testing: root.ui.busy && root.ui.activity.trigger === "test"
+            text: testing ? root.ui.activity.phase === "recording" ? "Finish test" : root.ui.activity.phase === "preparing" ? "Starting test…" : "Transcribing…" : "Test microphone"
+            enabled: bridge.connected && (root.ui.busy ? testing && root.ui.activity.phase === "recording" : root.ui.serverReady)
             onClicked: bridge.request(root.ui.busy ? "stop" : "test")
         }
         SButton {

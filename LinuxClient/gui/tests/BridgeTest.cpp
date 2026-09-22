@@ -231,6 +231,62 @@ private slots:
     QVERIFY(window->isVisible());
     QCOMPARE(warnings.count(), 0);
   }
+  void activeMicrophoneTestCanFinishWhenServerIsBusy() {
+    Bridge bridge(true);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_VERIFY(window->property("serverReady").toBool());
+    auto *button = window->findChild<QQuickItem *>("microphoneTestButton");
+    QVERIFY(button && button->isEnabled());
+    auto snapshot = [](const QString &phase, const QString &trigger) {
+      return QVariantMap{
+          {"busy", true},
+          {"activity", QVariantMap{{"phase", phase}, {"trigger", trigger}}}};
+    };
+    window->setProperty("snapshot", snapshot("recording", "test"));
+    emit bridge.reply(
+        "connection",
+        QVariantMap{{"ready", false},
+                    {"message", "Server is handling a recording."}});
+    QVERIFY(!window->property("serverReady").toBool());
+    QCOMPARE(window->property("connection").toString(),
+             "Server is handling a recording.");
+    QVERIFY(button->isEnabled());
+    QCOMPARE(button->property("text").toString(), "Finish test");
+    QSignalSpy failed(&bridge, &Bridge::failed);
+    // Showing Cancel changes the row layout; click its settled screen geometry.
+    QTest::qWait(50);
+    const auto center =
+        button->mapToScene(QPointF(button->width() / 2, button->height() / 2));
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center.toPoint());
+    QTRY_COMPARE(failed.count(), 1);
+    // Preview refuses mutations, but the actual click must issue stop, not
+    // start.
+    QCOMPARE(failed.first().at(0).toString(), "stop");
+    window->setProperty("snapshot", snapshot("processing", "test"));
+    QVERIFY(!button->isEnabled());
+    QCOMPARE(button->property("text").toString(), "Transcribing…");
+    window->setProperty("snapshot", snapshot("recording", "shortcut"));
+    QVERIFY(!button->isEnabled());
+    QCOMPARE(button->property("text").toString(), "Test microphone");
+    window->setProperty(
+        "snapshot",
+        QVariantMap{{"busy", false},
+                    {"activity", QVariantMap{{"phase", "completed"}}}});
+    QTRY_VERIFY(window->property("serverReady").toBool());
+    QVERIFY(button->isEnabled());
+    emit bridge.reply(
+        "connection",
+        QVariantMap{{"ready", false},
+                    {"message", "Server models are unavailable."}});
+    QVERIFY(!button->isEnabled());
+    QCOMPARE(window->property("connection").toString(),
+             "Server models are unavailable.");
+  }
 };
 QTEST_MAIN(BridgeTest)
 #include "BridgeTest.moc"

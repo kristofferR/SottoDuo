@@ -28,6 +28,10 @@ ApplicationWindow {
         })
     property var result: snapshot.result || null
     property bool busy: snapshot.busy || false
+    onBusyChanged: {
+        if (!busy && bridge.connected)
+            bridge.request("connection");
+    }
     property var sources: ({
             items: [],
             next: null
@@ -97,7 +101,7 @@ ApplicationWindow {
         }
         function onReply(action, data) {
             if (action === "connection") {
-                app.serverConnection = data.ready ? "Server online" : "Server not ready";
+                app.serverConnection = data.ready ? "Server online" : data.message || "Server not ready";
                 app.serverReady = data.ready;
             }
             if (action === "sources") {
