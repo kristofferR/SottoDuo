@@ -87,6 +87,11 @@ ApplicationWindow {
         microphoneTestStarting = true;
         bridge.request("test");
     }
+    function syncMicrophoneTestStart() {
+        const terminalTest = activity.trigger === "test" && ["failed", "cancelled", "completed"].includes(activity.phase);
+        if ((busy && activity.trigger === "test") || terminalTest)
+            microphoneTestStarting = false;
+    }
     function startShortcutCheck() {
         shortcutCheckPending = true;
         finishShortcutCheckAfterReply = false;
@@ -143,8 +148,7 @@ ApplicationWindow {
                 app.serverConnection = "Checking server";
                 app.refresh();
             }
-            if (app.busy && app.activity.trigger === "test")
-                app.microphoneTestStarting = false;
+            app.syncMicrophoneTestStart();
             app.wasConnected = bridge.connected;
         }
         function onReply(action, data) {
