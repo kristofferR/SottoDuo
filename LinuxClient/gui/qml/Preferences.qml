@@ -387,13 +387,6 @@ ColumnLayout {
 
             }
 
-            DictionaryEditor {
-                id: dictionary
-
-                ui: root.ui
-                editor: root
-            }
-
             Group {
                 ui: root.ui
                 title: "Shared history"
@@ -412,6 +405,13 @@ ColumnLayout {
 
                 }
 
+            }
+
+            DictionaryEditor {
+                id: dictionary
+
+                ui: root.ui
+                editor: root
             }
 
         }

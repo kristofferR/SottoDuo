@@ -860,6 +860,7 @@ private slots:
     // A reset must retain the text binding for later edits and reloads.
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Final cleanup.");
+    dictionary->setProperty("selectedIndex", 0);
     auto *listName = dictionary->findChild<QQuickItem *>("dictionaryListName");
     QVERIFY(listName);
     listName->forceActiveFocus();
@@ -867,8 +868,25 @@ private slots:
     QVERIFY(QMetaObject::invokeMethod(listName, "textEdited"));
     QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
     QCOMPARE(listName->property("text").toString(), "New list");
+    QList<QQuickItem *> pending{window->contentItem()};
+    QList<QQuickItem *> listToggles;
+    while (!pending.isEmpty()) {
+      auto *item = pending.takeLast();
+      if (item->objectName() == "dictionaryListToggle")
+        listToggles.append(item);
+      for (auto *child : item->childItems())
+        pending.append(child);
+    }
+    QCOMPARE(listToggles.size(), 2);
     dictionary->setProperty("selectedIndex", 0);
     QCOMPARE(listName->property("text").toString(), "Edited personal");
+    auto *firstList = listToggles.last();
+    QVERIFY(QMetaObject::invokeMethod(firstList, "clicked"));
+    QCOMPARE(dictionary->property("selectedIndex").toInt(), -1);
+    QVERIFY(!listName->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(firstList, "clicked"));
+    QCOMPARE(dictionary->property("selectedIndex").toInt(), 0);
+    QVERIFY(listName->isVisible());
     auto *words = dictionary->findChild<QQuickItem *>("dictionaryWords");
     QVERIFY(words);
     auto *word = words->property("currentItem").value<QQuickItem *>();
@@ -907,6 +925,7 @@ private slots:
     QCOMPARE(page->property("message").toString(), "Check the dictionary replacement phrases.");
     const QString capture = qEnvironmentVariable("SOTTO_GUI_PROCESSING_CAPTURE");
     if (!capture.isEmpty()) {
+      dictionary->setProperty("selectedIndex", -1);
       for (auto *parent = dictionary->parentItem(); parent; parent = parent->parentItem()) {
         if (parent->property("contentY").isValid()) {
           parent->setProperty("contentY", dictionary->mapToItem(parent, QPointF()).y() + parent->property("contentY").toReal());
@@ -915,6 +934,7 @@ private slots:
       }
       QTest::qWait(50);
       QVERIFY(window->grabWindow().save(capture));
+      dictionary->setProperty("selectedIndex", 0);
     }
     auto legacy = newer;
     auto legacyPreferences = legacy["preferences"].toObject();
@@ -923,9 +943,7 @@ private slots:
     QVERIFY(QMetaObject::invokeMethod(page, "load", Q_ARG(QVariant, legacy.toVariantMap())));
     QCOMPARE(dictionary->property("wordCount").toInt(), 0);
     QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
-    auto *listPicker = dictionary->findChild<QQuickItem *>("dictionaryListPicker");
-    QVERIFY(listPicker);
-    QCOMPARE(listPicker->property("count").toInt(), 1);
+    QCOMPARE(dictionary->property("lists").value<QJSValue>().toVariant().toList().size(), 1);
     QVERIFY(page->property("dirty").toBool());
     QCOMPARE(warnings.count(), 0);
   }

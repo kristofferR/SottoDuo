@@ -7,7 +7,7 @@ Group {
 
     required property var editor
     property var lists: []
-    property int selectedIndex: 0
+    property int selectedIndex: -1
     property int structureRevision: 0
     readonly property var selectedList: lists[selectedIndex] || null
     onSelectedListChanged: listName.text = selectedList ? selectedList.name : ""
@@ -21,7 +21,8 @@ Group {
 
     function reset() {
         lists = editor.draft?.preferences?.dictionary?.lists || [];
-        selectedIndex = Math.min(Math.max(0, selectedIndex), Math.max(0, lists.length - 1));
+        if (selectedIndex >= lists.length && lists.length)
+            selectedIndex = lists.length - 1;
         structureRevision++;
     }
 
@@ -77,25 +78,32 @@ Group {
         target: root.editor
     }
 
-    Setting {
+    SLabel {
         ui: root.ui
-        title: "List"
-        detail: root.wordCount + " of 500 words · up to 32 lists"
+        text: root.wordCount + " of 500 words · up to 32 lists"
+        color: root.ui.c.muted
+        Layout.margins: 12
+    }
 
-        ComboBox {
-            objectName: "dictionaryListPicker"
-            implicitWidth: 220
-            model: {
-                root.structureRevision;
-                return root.lists.map((list) => {
-                    return list.name || "Unnamed list";
-                });
-            }
-            currentIndex: root.selectedIndex
-            enabled: root.editor.editable && root.lists.length > 0
-            onActivated: root.selectedIndex = currentIndex
+    Repeater {
+        model: {
+            root.structureRevision;
+            return root.lists;
         }
-
+        Setting {
+            required property var modelData
+            required property int index
+            ui: root.ui
+            title: (root.selectedIndex === index ? "⌄  " : "›  ") + (modelData.name || "New list")
+            detail: (modelData.entries || []).length + " words"
+            SButton {
+                ui: root.ui
+                objectName: "dictionaryListToggle"
+                text: root.selectedIndex === index ? "Collapse" : "Expand"
+                Accessible.name: (root.selectedIndex === index ? "Collapse " : "Expand ") + (modelData.name || "New list")
+                onClicked: root.selectedIndex = root.selectedIndex === index ? -1 : index
+            }
+        }
     }
 
     RowLayout {
@@ -112,6 +120,7 @@ Group {
         SButton {
             ui: root.ui
             text: "Remove list"
+            visible: !!root.selectedList
             enabled: root.editor.editable && !!root.selectedList
             onClicked: {
                 removeDialog.listID = root.selectedList.id;
@@ -136,8 +145,10 @@ Group {
         Accessible.name: "Dictionary list name"
         selectByMouse: true
         onTextEdited: {
-            root.selectedList.name = text;
-            root.editor.changed();
+            if (root.selectedList) {
+                root.selectedList.name = text;
+                root.editor.changed();
+            }
         }
         onEditingFinished: root.structureRevision++
     }
@@ -146,6 +157,7 @@ Group {
         ui: root.ui
         Layout.fillWidth: true
         Layout.margins: 12
+        visible: !!root.selectedList
         text: "Preferred spellings correct capitalization automatically. Add narrow replacement phrases, one per line. Priority words are suggested first when model space is limited."
         color: root.ui.c.muted
     }
@@ -154,8 +166,9 @@ Group {
         id: wordList
 
         objectName: "dictionaryWords"
+        visible: !!root.selectedList
         Layout.fillWidth: true
-        Layout.preferredHeight: count ? Math.min(420, count * 175) : 0
+        Layout.preferredHeight: count ? Math.min(420, count * 125) : 0
         Layout.leftMargin: 12
         Layout.rightMargin: 12
         clip: true
@@ -174,7 +187,7 @@ Group {
             required property var modelData
 
             width: wordList.width - 16
-            height: 165
+            height: 115
             spacing: 5
 
             RowLayout {
@@ -219,7 +232,7 @@ Group {
 
             ScrollView {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 105
+                Layout.preferredHeight: 58
 
                 TextArea {
                     objectName: "dictionaryAliases"
@@ -250,6 +263,7 @@ Group {
 
     RowLayout {
         Layout.margins: 12
+        visible: !!root.selectedList
 
         SButton {
             ui: root.ui
