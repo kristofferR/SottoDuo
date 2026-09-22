@@ -67,7 +67,11 @@ Linux visual consistency and Linux desktop integration are separate tasks. Keep 
 
 All five pages are implemented in `LinuxClient/gui`, including real shared history/preferences, local source priorities, pairing-button destination selection, transcript recovery and a passive capsule. A dedicated microphone-test path cannot insert text or select a destination. See [the GUI README](../../LinuxClient/gui/README.md) for build/run commands, automated checks and exact scope.
 
-Next work: initial setup and shortcut/autostart editing, named microphone profiles, full dictionary-list editing, audio playback, unsaved-edit recovery, packaging and portal-based desktop adapters. Physical tests are reserved for concrete unresolved compositor/device behavior.
+Login startup and background GUI lifecycle are implemented: a standard XDG autostart entry launches settings hidden; a session-bus singleton reopens the existing window; closing settings retains feedback even without a tray. Explicit Quit leaves the separate dictation service running. Preview mode never writes startup settings.
+
+Installed and enabled on Omarchy on 2026-09-22 using `~/.config/autostart/org.sotto.Gui.desktop`. The generated `app-org.sotto.Gui@autostart.service` now owns the installed GUI, replacing the temporary development unit. Live checks confirmed hidden startup, no window on a repeated background launch, and close/reopen using the same process. The server and dictation client stayed running throughout. No logout or audio recording was needed; next-login behavior is backed by the generated autostart unit rather than a completed logout/login trial.
+
+Next work: initial setup and shortcut editing, named microphone profiles, full dictionary-list editing, audio playback, unsaved-edit recovery, packaging and portal-based desktop adapters. Physical tests are reserved for concrete unresolved compositor/device behavior.
 
 The foundation is [PR #13](https://github.com/kristofferR/sottoniox/pull/13), stacked on #12, with autofix enabled. Direction A is now selected; the working Mac app and server remain separate deployment targets.
 

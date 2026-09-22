@@ -15,7 +15,8 @@ ApplicationWindow {
             notice = "Finish or cancel the microphone test before closing Sotto.";
         }
     }
-    visible: true
+    property bool startHidden: false
+    visible: !startHidden
     title: bridge.preview ? "Sotto · Preview" : "Sotto"
     color: c.canvas
     property var c: bridge.colors

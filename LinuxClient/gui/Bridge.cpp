@@ -32,7 +32,7 @@ double contrast(const QColor &a, const QColor &b) {
 }
 } // namespace
 Bridge::Bridge(bool preview, QObject *parent)
-    : QObject(parent), m_preview(preview) {
+    : QObject(parent), m_preview(preview), m_desktop(preview, this) {
   m_theme = m_settings.value("appearance", "system").toString();
   if (!QStringList{"system", "light", "dark", "omarchy"}.contains(m_theme))
     m_theme = "system";

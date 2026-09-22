@@ -107,8 +107,41 @@ ScrollView {
             }
             Setting {
                 ui: root.ui
+                title: "Launch at login"
+                detail: "Keep dictation feedback ready without opening this window. Your background dictation service must already be set up."
+                Switch {
+                    objectName: "launchAtLoginSwitch"
+                    Accessible.name: "Launch Sotto at login"
+                    checked: bridge.desktop.launchAtLogin
+                    enabled: !bridge.preview
+                    onClicked: {
+                        bridge.desktop.setLaunchAtLogin(checked);
+                        checked = Qt.binding(() => bridge.desktop.launchAtLogin);
+                    }
+                }
+            }
+            SLabel {
+                ui: root.ui
+                Layout.fillWidth: true
+                Layout.margins: 12
+                visible: bridge.desktop.error.length > 0
+                text: bridge.desktop.error
+                Accessible.role: Accessible.AlertMessage
+            }
+            Setting {
+                ui: root.ui
                 title: "Background dictation"
-                detail: "Once set up, Sotto can keep dictation available in the background when this window is closed."
+                detail: "Closing this window keeps live feedback available. Open Sotto again from your launcher to return here."
+            }
+            Setting {
+                ui: root.ui
+                title: "Quit Sotto feedback"
+                detail: "Hides the live indicator until you reopen Sotto. Keyboard and pairing-button dictation stay running."
+                SButton {
+                    ui: root.ui
+                    text: "Quit"
+                    onClicked: bridge.desktop.quit()
+                }
             }
             Setting {
                 ui: root.ui

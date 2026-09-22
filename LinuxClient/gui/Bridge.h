@@ -1,4 +1,5 @@
 #pragma once
+#include "DesktopIntegration.h"
 #include <QObject>
 #include <QSet>
 #include <QSettings>
@@ -15,6 +16,7 @@ class Bridge : public QObject {
   Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
   Q_PROPERTY(QVariantMap colors READ colors NOTIFY themeChanged)
   Q_PROPERTY(QString themeNote READ themeNote NOTIFY themeChanged)
+  Q_PROPERTY(QObject *desktop READ desktop CONSTANT)
 public:
   explicit Bridge(bool preview, QObject *parent = nullptr);
   QVariantMap snapshot() const { return m_snapshot; }
@@ -24,6 +26,7 @@ public:
   QString theme() const { return m_theme; }
   QVariantMap colors() const { return m_colors; }
   QString themeNote() const { return m_themeNote; }
+  DesktopIntegration *desktop() { return &m_desktop; }
   void setTheme(const QString &theme);
   Q_INVOKABLE void request(const QString &action,
                            const QVariantMap &arguments = {});
@@ -40,6 +43,7 @@ private:
   void updateColors();
   void receive(const QString &action, const QByteArray &bytes);
   bool m_preview = false;
+  DesktopIntegration m_desktop;
   bool m_connected = false;
   bool m_connectionChecked = false;
   bool m_hasConnected = false;

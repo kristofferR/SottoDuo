@@ -1,4 +1,5 @@
 #include "Bridge.h"
+#include "GuiInstance.h"
 #include "HudSurface.h"
 #include <QApplication>
 #include <QCommandLineParser>
@@ -23,14 +24,31 @@ int main(int argc, char **argv) {
   parser.addOption(
       {"preview", "Show sample data without connecting to a client."});
   parser.addOption(
+      {"background",
+       "Keep dictation feedback available without opening settings."});
+  parser.addOption(
       {"theme", "Preview appearance: system, light, dark or omarchy.", "name"});
   parser.addOption({"capture",
                     "Save preview screenshots and exit (requires --preview).",
                     "directory"});
   parser.process(app);
   const bool preview = parser.isSet("preview");
+  const bool background = parser.isSet("background");
   if (parser.isSet("capture") && !preview)
     return 2;
+  if (preview && background)
+    return 2;
+  GuiInstance instance;
+  if (!preview) {
+    const auto result = instance.acquire(background);
+    if (result == GuiInstance::Result::Forwarded)
+      return 0;
+    if (result == GuiInstance::Result::Failed) {
+      qCritical().noquote() << instance.error();
+      return 1;
+    }
+    app.setQuitOnLastWindowClosed(false);
+  }
   QQuickStyle::setStyle("Basic");
   qmlRegisterSingletonType<HudSurface>(
       "Sotto.Native", 1, 0, "HudSurface",
@@ -39,6 +57,7 @@ int main(int argc, char **argv) {
   if (parser.isSet("theme"))
     bridge.setTheme(parser.value("theme"));
   QQmlApplicationEngine engine;
+  engine.setInitialProperties({{"startHidden", background}});
   engine.rootContext()->setContextProperty("bridge", &bridge);
   QObject::connect(
       &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
@@ -56,12 +75,19 @@ int main(int argc, char **argv) {
     window->raise();
     window->requestActivate();
   };
+  QObject::connect(&instance, &GuiInstance::showRequested, &app, show);
   menu.addAction("Open Sotto", &app, show);
-  menu.addAction("Quit Sotto window (background dictation stays running)", &app,
-                 [window, &app] {
-                   if (window->close())
-                     app.quit();
-                 });
+  auto quit = [window, &app] {
+    if (window->close())
+      app.quit();
+    else {
+      window->show();
+      window->requestActivate();
+    }
+  };
+  menu.addAction("Quit Sotto feedback (dictation stays running)", &app, quit);
+  QObject::connect(bridge.desktop(), &DesktopIntegration::quitRequested, &app,
+                   quit);
   tray.setToolTip("Sotto");
   tray.setContextMenu(&menu);
   QObject::connect(&tray, &QSystemTrayIcon::activated, &app,
@@ -70,7 +96,6 @@ int main(int argc, char **argv) {
                        show();
                    });
   if (!preview && QSystemTrayIcon::isSystemTrayAvailable()) {
-    app.setQuitOnLastWindowClosed(false);
     tray.show();
   }
   if (parser.isSet("capture")) {

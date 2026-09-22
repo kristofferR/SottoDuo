@@ -186,8 +186,50 @@ private slots:
       QTest::qWait(50);
       QVERIFY(!window->grabWindow().isNull());
     }
+    auto *login = window->findChild<QQuickItem *>("launchAtLoginSwitch");
+    QVERIFY(login);
+    QVERIFY(!login->isEnabled());
+    for (auto *parent = login->parentItem(); parent;
+         parent = parent->parentItem()) {
+      if (parent->property("contentY").isValid()) {
+        parent->setProperty("contentY",
+                            parent->property("contentHeight").toReal() -
+                                parent->height());
+        break;
+      }
+    }
+    QTest::qWait(50);
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_SETTINGS_CAPTURE");
+    if (!capture.isEmpty())
+      QVERIFY(window->grabWindow().save(capture));
     QCOMPARE(warnings.count(), 0);
     QVERIFY(!hud->isVisible());
+  }
+  void settingsCanStartHiddenAndCloseWithoutAbandoningTest() {
+    Bridge bridge(true);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.setInitialProperties({{"startHidden", true}});
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QVERIFY(!window->isVisible());
+    window->show();
+    QVERIFY(window->isVisible());
+    window->setProperty("busy", true);
+    window->setProperty(
+        "activity", QVariantMap{{"phase", "recording"}, {"trigger", "test"}});
+    QVERIFY(!window->close());
+    QVERIFY(window->isVisible());
+    QVERIFY(!window->property("notice").toString().isEmpty());
+    window->setProperty("busy", false);
+    QVERIFY(window->close());
+    QVERIFY(!window->isVisible());
+    window->show();
+    QVERIFY(window->isVisible());
+    QCOMPARE(warnings.count(), 0);
   }
 };
 QTEST_MAIN(BridgeTest)
