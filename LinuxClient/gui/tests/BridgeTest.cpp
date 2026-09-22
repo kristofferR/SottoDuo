@@ -305,6 +305,11 @@ private slots:
     QVERIFY(!window->isVisible());
     window->show();
     QVERIFY(window->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(window, "startMicrophoneTest"));
+    QVERIFY(window->property("microphoneTestStarting").toBool());
+    QVERIFY(!window->close());
+    QVERIFY(window->isVisible());
+    QTRY_VERIFY(!window->property("microphoneTestStarting").toBool());
     window->setProperty("busy", true);
     window->setProperty(
         "activity", QVariantMap{{"phase", "recording"}, {"trigger", "test"}});
@@ -678,21 +683,25 @@ private slots:
     QVERIFY(page);
     QTRY_VERIFY(page->property("editable").toBool());
     auto *cleanup = page->findChild<QQuickItem *>("cleanupInstructions");
+    auto *vocabulary = page->findChild<QQuickItem *>("recognitionVocabulary");
     auto *reset = page->findChild<QQuickItem *>("resetCleanupPrompt");
     auto *save = page->findChild<QQuickItem *>("saveProcessingSettings");
     auto *dictionary = page->findChild<QQuickItem *>("dictionaryEditor");
     auto *readiness = page->findChild<QQuickItem *>("speechModelReadiness");
-    QVERIFY(cleanup && reset && save && dictionary && readiness);
+    QVERIFY(cleanup && vocabulary && reset && save && dictionary && readiness);
     QTRY_COMPARE(readiness->property("text").toString(), "Ready");
     QTRY_VERIFY(!page->property("defaultPrompt").toString().isEmpty());
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Keep my wording.");
+    vocabulary->forceActiveFocus();
+    vocabulary->setProperty("text", "Keep my vocabulary.");
     QVERIFY(page->property("dirty").toBool());
     QVERIFY(save->isEnabled());
     // A same-revision poll leaves the editor and focus intact.
     emit bridge.reply("preferences", sample["preferences"].toObject().toVariantMap());
     QCOMPARE(cleanup->property("text").toString(), "Keep my wording.");
-    QVERIFY(cleanup->hasActiveFocus());
+    QCOMPARE(vocabulary->property("text").toString(), "Keep my vocabulary.");
+    QVERIFY(vocabulary->hasActiveFocus());
     window->setProperty("page", 0);
     window->setProperty("page", 3);
     QCOMPARE(window->findChild<QQuickItem *>("processingSettings"), page);
@@ -708,6 +717,8 @@ private slots:
     QVERIFY(QMetaObject::invokeMethod(page, "read", Q_ARG(QVariant, true)));
     QTRY_VERIFY(!page->property("dirty").toBool());
     QTRY_VERIFY(!page->property("reading").toBool());
+    QCOMPARE(vocabulary->property("text").toString(),
+             newer["preferences"].toObject()["vocabulary"].toString());
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Temporary cleanup.");
     QVERIFY(reset->isEnabled());
@@ -716,6 +727,15 @@ private slots:
     // A reset must retain the text binding for later edits and reloads.
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Final cleanup.");
+    auto *listName = dictionary->findChild<QQuickItem *>("dictionaryListName");
+    QVERIFY(listName);
+    listName->forceActiveFocus();
+    listName->setProperty("text", "Edited personal");
+    QVERIFY(QMetaObject::invokeMethod(listName, "textEdited"));
+    QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
+    QCOMPARE(listName->property("text").toString(), "New list");
+    dictionary->setProperty("selectedIndex", 0);
+    QCOMPARE(listName->property("text").toString(), "Edited personal");
     auto *words = dictionary->findChild<QQuickItem *>("dictionaryWords");
     QVERIFY(words);
     auto *word = words->property("currentItem").value<QQuickItem *>();

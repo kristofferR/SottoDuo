@@ -65,15 +65,22 @@ private slots:
     QVERIFY(!desktop.launchAtLogin());
   }
   void repeatedLaunchForwardsOnlyExplicitOpen() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("XDG_CONFIG_HOME", directory.path());
+    env.insert("XDG_RUNTIME_DIR", directory.path());
     GuiInstance instance;
     QCOMPARE(instance.acquire(true), GuiInstance::Result::Primary);
     QSignalSpy shown(&instance, &GuiInstance::showRequested);
     QProcess background;
+    background.setProcessEnvironment(env);
     background.start(QString(SOTTO_GUI_EXECUTABLE), {"--background"});
     QVERIFY(background.waitForFinished(7000));
     QCOMPARE(background.exitCode(), 0);
     QCOMPARE(shown.count(), 0);
     QProcess foreground;
+    foreground.setProcessEnvironment(env);
     foreground.start(QString(SOTTO_GUI_EXECUTABLE));
     QTRY_COMPARE_WITH_TIMEOUT(shown.count(), 1, 7000);
     QTRY_COMPARE_WITH_TIMEOUT(foreground.state(), QProcess::NotRunning, 7000);

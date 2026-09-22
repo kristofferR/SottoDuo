@@ -16,15 +16,12 @@ Group {
     readonly property bool blocked: !!config.changing || !!check.blocked
     readonly property var selected: choices.find(choice => choice.key === (selectedKey || config.key)) || ({})
     Component.onCompleted: bridge.request("shortcuts")
-    Component.onDestruction: {
-        if (check.active)
-            bridge.request("endShortcutCheck");
-    }
+    Component.onDestruction: root.ui.finishShortcutCheck()
     Connections {
         target: root.ui
         function onVisibleChanged() {
-            if (!root.ui.visible && root.check.active)
-                bridge.request("endShortcutCheck");
+            if (!root.ui.visible)
+                root.ui.finishShortcutCheck();
         }
     }
     Connections {
@@ -107,7 +104,10 @@ Group {
             onClicked: {
                 root.pending = true;
                 root.error = "";
-                bridge.request(root.check.active ? "endShortcutCheck" : "checkShortcut");
+                if (root.check.active)
+                    bridge.request("endShortcutCheck");
+                else
+                    root.ui.startShortcutCheck();
             }
         }
     }

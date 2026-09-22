@@ -44,6 +44,8 @@ ColumnLayout {
         draft = next;
         latest = clone(value);
         draftServer = ui.snapshot.server;
+        cleanup.text = next.preferences.proofreadingPrompt !== undefined ? next.preferences.proofreadingPrompt : defaultPrompt;
+        vocabulary.text = next.preferences.vocabulary || "";
         dirty = false;
         changedRemotely = false;
         message = "";
@@ -317,6 +319,7 @@ ColumnLayout {
                         onClicked: {
                             root.edit("proofreadingPrompt", root.defaultPrompt);
                             root.draft = root.clone(root.draft);
+                            cleanup.text = root.defaultPrompt;
                         }
                     }
 
@@ -364,6 +367,8 @@ ColumnLayout {
                     Layout.preferredHeight: 110
 
                     TextArea {
+                        id: vocabulary
+
                         objectName: "recognitionVocabulary"
                         text: root.draft ? root.draft.preferences.vocabulary : ""
                         placeholderText: "Sotto, PipeWire, names you use often…"

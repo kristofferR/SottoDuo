@@ -83,7 +83,7 @@ export class API {
       `${this.endpoint}/v1/generations/${encodeURIComponent(id)}/artifacts/${filename}`,
       {
         redirect: "error",
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(300_000),
         headers: { Authorization: `Bearer ${this.token}` },
       },
     );

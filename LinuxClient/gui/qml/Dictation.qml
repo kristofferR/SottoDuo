@@ -178,10 +178,10 @@ ColumnLayout {
             objectName: "microphoneTestButton"
             ui: root.ui
             primary: true
-            readonly property bool testing: root.ui.busy && root.ui.activity.trigger === "test"
-            text: testing ? root.ui.activity.phase === "recording" ? "Finish test" : root.ui.activity.phase === "preparing" ? "Starting test…" : "Transcribing…" : "Test microphone"
-            enabled: bridge.connected && !root.ui.shortcutBlocked && (root.ui.busy ? testing && root.ui.activity.phase === "recording" : root.ui.serverReady)
-            onClicked: bridge.request(root.ui.busy ? "stop" : "test")
+            readonly property bool testing: root.ui.microphoneTestActive
+            text: root.ui.microphoneTestStarting ? "Starting test…" : testing ? root.ui.activity.phase === "recording" ? "Finish test" : root.ui.activity.phase === "preparing" ? "Starting test…" : "Transcribing…" : "Test microphone"
+            enabled: bridge.connected && !root.ui.shortcutBlocked && !root.ui.microphoneTestStarting && (root.ui.busy ? testing && root.ui.activity.phase === "recording" : root.ui.serverReady)
+            onClicked: root.ui.busy ? bridge.request("stop") : root.ui.startMicrophoneTest()
         }
         SButton {
             ui: root.ui

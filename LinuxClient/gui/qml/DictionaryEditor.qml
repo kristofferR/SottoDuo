@@ -10,6 +10,7 @@ Group {
     property int selectedIndex: 0
     property int structureRevision: 0
     readonly property var selectedList: lists[selectedIndex] || null
+    onSelectedListChanged: listName.text = selectedList ? selectedList.name : ""
     readonly property bool confirming: removeDialog.visible
     readonly property int wordCount: {
         structureRevision;
@@ -122,6 +123,8 @@ Group {
     }
 
     TextField {
+        id: listName
+
         objectName: "dictionaryListName"
         Layout.fillWidth: true
         Layout.margins: 12

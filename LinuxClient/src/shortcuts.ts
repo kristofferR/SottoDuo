@@ -253,7 +253,7 @@ export class ShortcutSettings {
       if (written && next !== undefined && original !== undefined) {
         if (this.read() !== next)
           throw new ClientNotice(
-            "The desktop configuration changed during saving. It was left untouched; a Sotto backup is beside bindings.lua.",
+            "The desktop configuration changed during saving, so your previous bindings were not restored. A Sotto backup is beside bindings.lua.",
           );
         atomic(original);
         await this.run(["hyprctl", "reload"]);

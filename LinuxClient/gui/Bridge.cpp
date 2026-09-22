@@ -63,10 +63,14 @@ QString Bridge::connectionStatus() const {
     return "connected";
   if (!m_connectionChecked)
     return "connecting";
-  const QString config = qEnvironmentVariable(
-      "SOTTO_CLIENT_CONFIG",
-      QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-          "/sotto/linux-client.json");
+  QString config = qEnvironmentVariable("SOTTO_CLIENT_CONFIG");
+  if (!qEnvironmentVariableIsSet("SOTTO_CLIENT_CONFIG")) {
+    const QString configHome = qEnvironmentVariableIsSet("XDG_CONFIG_HOME")
+                                   ? qEnvironmentVariable("XDG_CONFIG_HOME")
+                                   : QStandardPaths::writableLocation(
+                                         QStandardPaths::GenericConfigLocation);
+    config = QDir(configHome).filePath("sotto/linux-client.json");
+  }
   return m_hasConnected || QFileInfo(config).isFile() ? "unavailable"
                                                       : "setupRequired";
 }
@@ -211,7 +215,12 @@ void Bridge::request(const QString &action, const QVariantMap &arguments) {
   connect(socket, &QLocalSocket::errorOccurred, socket,
           [finish](QLocalSocket::LocalSocketError) { finish(false); });
   connect(timer, &QTimer::timeout, socket, [finish] { finish(false); });
-  timer->start(action == "snapshot" ? 2000 : 12000);
+  int timeout = 12000;
+  if (action == "snapshot")
+    timeout = 2000;
+  else if (action == "historyAudio")
+    timeout = 300000;
+  timer->start(timeout);
   const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
   if (runtime.isEmpty()) {
     finish(false);

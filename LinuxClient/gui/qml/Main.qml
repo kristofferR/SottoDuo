@@ -9,11 +9,15 @@ ApplicationWindow {
     minimumWidth: 880
     minimumHeight: 620
     onClosing: close => {
-        if (busy && activity.trigger === "test") {
+        if (microphoneTestActive) {
             close.accepted = false;
             page = 0;
             notice = "Finish or cancel the microphone test before closing Sotto.";
         }
+    }
+    onVisibleChanged: {
+        if (!visible)
+            finishShortcutCheck();
     }
     property bool startHidden: false
     visible: !startHidden
@@ -29,6 +33,10 @@ ApplicationWindow {
     property var result: snapshot.result || null
     property var shortcut: snapshot.shortcut || ({})
     readonly property bool shortcutBlocked: !!shortcut.changing || (!!shortcut.check && !!shortcut.check.blocked)
+    property bool shortcutCheckPending: false
+    property bool finishShortcutCheckAfterReply: false
+    property bool microphoneTestStarting: false
+    readonly property bool microphoneTestActive: microphoneTestStarting || (busy && activity.trigger === "test")
     property var feedback: snapshot.feedback || ({})
     function duration(seconds) {
         const value = Math.max(0, Math.floor(seconds || 0));
@@ -75,6 +83,22 @@ ApplicationWindow {
         bridge.request("sources");
         bridge.request("shortcuts");
     }
+    function startMicrophoneTest() {
+        microphoneTestStarting = true;
+        bridge.request("test");
+    }
+    function startShortcutCheck() {
+        shortcutCheckPending = true;
+        finishShortcutCheckAfterReply = false;
+        bridge.request("checkShortcut");
+    }
+    function finishShortcutCheck() {
+        if (shortcutCheckPending) {
+            finishShortcutCheckAfterReply = true;
+        } else if (shortcut.check && shortcut.check.active) {
+            bridge.request("endShortcutCheck");
+        }
+    }
     function messageFor(phase) {
         if (phase === "preparing")
             return "Starting microphone…";
@@ -100,6 +124,7 @@ ApplicationWindow {
         target: bridge
         function onSnapshotChanged() {
             if (!bridge.connected) {
+                app.microphoneTestStarting = false;
                 app.notice = "";
                 app.sourcesChecked = false;
                 app.serverReady = false;
@@ -118,9 +143,18 @@ ApplicationWindow {
                 app.serverConnection = "Checking server";
                 app.refresh();
             }
+            if (app.busy && app.activity.trigger === "test")
+                app.microphoneTestStarting = false;
             app.wasConnected = bridge.connected;
         }
         function onReply(action, data) {
+            if (action === "checkShortcut") {
+                app.shortcutCheckPending = false;
+                if (app.finishShortcutCheckAfterReply) {
+                    app.finishShortcutCheckAfterReply = false;
+                    bridge.request("endShortcutCheck");
+                }
+            }
             if (action === "saveConnection") {
                 app.sourcesChecked = false;
                 app.serverReady = false;
@@ -143,6 +177,12 @@ ApplicationWindow {
                 app.notice = action.startsWith("save") ? "Changes saved." : "Destination updated.";
         }
         function onFailed(action, message) {
+            if (action === "test")
+                app.microphoneTestStarting = false;
+            if (action === "checkShortcut") {
+                app.shortcutCheckPending = false;
+                app.finishShortcutCheckAfterReply = false;
+            }
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
