@@ -1,4 +1,5 @@
 #include "../Bridge.h"
+#include "../HudSurface.h"
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -6,6 +7,7 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQmlContext>
 #include <QQuickItem>
 #include <QQuickStyle>
@@ -17,7 +19,55 @@
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase() { QQuickStyle::setStyle("Basic"); }
+  void initTestCase() {
+    QQuickStyle::setStyle("Basic");
+    qmlRegisterSingletonType<HudSurface>(
+        "Sotto.Native", 1, 0, "HudSurface",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new HudSurface; });
+  }
+  void waylandOverlayLifecycle() {
+    if (!qEnvironmentVariableIsSet("SOTTO_GUI_TEST_WAYLAND"))
+      QSKIP("Opt-in compositor test; run this slot alone on Wayland.");
+    QVERIFY(QGuiApplication::platformName().startsWith("wayland"));
+    Bridge bridge(true);
+    QQmlEngine engine;
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QQmlComponent model(&engine);
+    model.setData(R"(
+      import QtQml
+      QtObject {
+        property bool visible: false
+        property bool active: false
+        property bool busy: false
+        property var activity: ({ phase: "idle", source: "No microphone in use" })
+        property var c: bridge.colors
+        function messageFor(phase) { return "Dictation preview"; }
+      }
+    )",
+                  QUrl());
+    QScopedPointer<QObject> ui(model.create());
+    QVERIFY2(ui, qPrintable(model.errorString()));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Hud.qml"));
+    QScopedPointer<QObject> object(component.createWithInitialProperties(
+        {{"ui", QVariant::fromValue(ui.data())}}));
+    QVERIFY2(object, qPrintable(component.errorString()));
+    auto *hud = qobject_cast<QQuickWindow *>(object.data());
+    QVERIFY(hud);
+    for (int cycle = 0; cycle < 2; ++cycle) {
+      hud->show();
+      QVERIFY(QTest::qWaitForWindowExposed(hud));
+      QTest::qWait(2000);
+      QVERIFY(!hud->isActive());
+      const QString capture = qEnvironmentVariable("SOTTO_GUI_TEST_CAPTURE");
+      if (!capture.isEmpty())
+        QVERIFY(hud->grabWindow().save(capture));
+      hud->hide();
+      QTest::qWait(500);
+    }
+    QCOMPARE(warnings.count(), 0);
+  }
   void themeFollowsPaletteAndRecovers() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());

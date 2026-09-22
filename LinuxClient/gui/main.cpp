@@ -1,4 +1,5 @@
 #include "Bridge.h"
+#include "HudSurface.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDir>
@@ -31,6 +32,9 @@ int main(int argc, char **argv) {
   if (parser.isSet("capture") && !preview)
     return 2;
   QQuickStyle::setStyle("Basic");
+  qmlRegisterSingletonType<HudSurface>(
+      "Sotto.Native", 1, 0, "HudSurface",
+      [](QQmlEngine *, QJSEngine *) -> QObject * { return new HudSurface; });
   Bridge bridge(preview);
   if (parser.isSet("theme"))
     bridge.setTheme(parser.value("theme"));

@@ -4,7 +4,7 @@ Direction A of the [design gallery](https://plans.kristofferr.com/d/fo12u4el8h2x
 
 ## Build and run
 
-Requires CMake 3.24+, a C++20 compiler, Qt 6.8+ (Quick, QuickControls2, Widgets, Network, Svg; Test for the default test build), and the existing Bun Linux client toolchain. On Arch these Qt modules are provided by qt6-base, qt6-declarative and qt6-svg.
+Requires CMake 3.24+, a C++20 compiler, Qt 6.8+ (Quick, QuickControls2, Widgets, Network, Svg; Test for the default test build), LayerShellQt 6.6+, and the existing Bun Linux client toolchain. On Arch these dependencies are provided by qt6-base, qt6-declarative, qt6-svg and layer-shell-qt.
 
 From the repository root:
 
@@ -40,13 +40,13 @@ The theme selection is local to the GUI. Reading Omarchy colors does not write t
 - Shared paginated history with transcript selection/copy. Shared recognition, language, vocabulary, audio retention and text cleanup settings use the existing server revision check and preserve dictionary lists and other preferences.
 - This computer's automatic priority list, system-default and fixed-input preferences persist atomically. Changes are rejected during active dictation or if configuration changed externally.
 - Explicit pairing-button destination selection and release.
-- The passive capsule reports preparing, recording, processing and completion/failure without continuous animation. Qt flags prohibit focus and input. It shows only when the main window is not active; successful/failed completion lingers briefly. No fake waveform or partial transcript is displayed when the controller does not supply one.
+- The passive capsule reports preparing, recording, processing and completion/failure without continuous animation. On Wayland with layer-shell support, the capsule is a bottom-centred overlay on the active monitor, 80 logical pixels above the bottom edge. It reserves no workspace space, stays outside the tiling layout/task switcher, and accepts neither keyboard focus nor pointer input. Only the capsule uses layer-shell; settings remain an ordinary window. It shows only when the main window is not active; successful/failed completion lingers briefly. No fake waveform or partial transcript is displayed when the controller does not supply one.
 
 ## Current boundaries
 
-The presentation is distro-neutral. Actual recording/shortcuts/guarded insertion still depend on the existing Omarchy/Hyprland client adapter; portal adapters for other desktops are separate work. Wayland compositors control final placement and stacking of ordinary tool windows, so the capsule is not yet a cross-compositor layer-shell implementation.
+The presentation is distro-neutral. Actual recording/shortcuts/guarded insertion still depend on the existing Omarchy/Hyprland client adapter; portal adapters for other desktops are separate work. The overlay requires a Wayland compositor implementing wlr-layer-shell (verified on Hyprland). Desktops without that protocol need a separate overlay adapter; exact placement is not guaranteed there. X11 uses passive tool-window flags and screen-relative positioning.
 
-Server credentials, initial setup, shortcut editing and autostart setup still use existing client configuration. Named microphone profiles, a full dictionary-list editor, audio playback, history deletion and per-page unsaved-edit recovery are not yet in this first GUI implementation. No desktop deployment or new physical receiver trial was performed for this change.
+Server credentials, initial setup, shortcut editing and autostart setup still use existing client configuration. Named microphone profiles, a full dictionary-list editor, audio playback, history deletion and per-page unsaved-edit recovery are not yet in this first GUI implementation. The GUI is deployed on the Omarchy desktop; overlay verification uses synthetic state without opening a microphone.
 
 ## Automated checks
 
@@ -58,4 +58,9 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
   build/linux-gui/sotto-gui --preview --theme dark --capture .local/gui/dark
 ```
 
-`--capture` is limited to preview mode. It renders all five pages into PNGs and exits. Qt tests check socket snapshots/disconnection, palette changes/fallback, page rendering without QML warnings, and non-activating overlay flags. Controller tests check that GUI tests cannot insert or select a destination. These checks do not claim live compositor placement or RF-range acceptance.
+`--capture` is limited to preview mode. It renders all five pages into PNGs and exits. Qt tests check socket snapshots/disconnection, palette changes/fallback, page rendering without QML warnings, and non-activating overlay flags. Controller tests check that GUI tests cannot insert or select a destination. The opt-in Wayland test below shows the actual capsule twice with synthetic state, without connecting to the client or using a microphone. During the test, inspect `hyprctl -j layers` for `sotto-dictation` on layer 3, absence from `hyprctl -j clients`, unchanged tile geometry and unchanged keyboard focus. This does not test RF range.
+
+```sh
+SOTTO_GUI_TEST_WAYLAND=1 QT_QPA_PLATFORM=wayland \
+  build/linux-gui/sotto-gui-tests waylandOverlayLifecycle
+```

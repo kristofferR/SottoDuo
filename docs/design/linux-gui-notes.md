@@ -46,7 +46,9 @@ flowchart LR
 
 The CLI commands remain compatible. The GUI now uses versioned JSON requests and structured snapshots over the same private socket, with explicit controller phases and scoped commands. It does not parse human-readable CLI status or expose arbitrary server paths. Local snapshots are polled every 500 ms; server health and sources refresh every five seconds while the window is visible.
 
-The first implementation uses Qt 6.8+ and QML with a small C++ socket/theme bridge. The Mac app and Bun capture architecture remain intact. Cotto informed the framework assessment, but no fork code was copied. Qt flags keep the capsule passive; compositor-specific placement and portal adapters remain separate acceptance work.
+The first implementation uses Qt 6.8+ and QML with a small C++ socket/theme bridge. The Mac app and Bun capture architecture remain intact. Cotto informed the framework assessment, but no fork code was copied. The capsule uses LayerShellQt 6.6+ on Wayland: a non-interactive bottom-centred overlay, 80 logical pixels above the active screen’s bottom edge, without reserving space or joining the tiling layout. The settings window keeps its ordinary role. Portal adapters and overlays for compositors without layer-shell remain separate work.
+
+Verified on Omarchy/Hyprland on 2026-09-22 with two synthetic show/hide cycles: `sotto-dictation` appeared only in overlay layer 3, at `(1100, 1286)` with size `360 × 74` on the `2560 × 1440` display. Keyboard focus and existing tile geometry stayed unchanged. The rebuilt main window remained tiled. The preview did not connect to the client or open a microphone.
 
 Linux visual consistency and Linux desktop integration are separate tasks. Keep platform differences behind capability-driven adapters: global shortcuts, text insertion, session lock/sleep, tray, autostart and overlay placement. Preserve the existing Hyprland adapter initially; investigate portal-based adapters without embedding compositor-specific labels or assumptions throughout the interface.
 
