@@ -2,150 +2,454 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-ScrollView {
+ColumnLayout {
     id: root
+
     required property var ui
     property var draft: null
+    property var latest: null
+    property string draftServer: ""
     property bool dirty: false
+    property int editRevision: 0
     property bool saving: false
-    clip: true
-    contentWidth: availableWidth
-    function edit(key, value) {
-        let next = JSON.parse(JSON.stringify(draft));
-        next.preferences[key] = value;
-        draft = next;
-        dirty = true;
+    property bool reading: false
+    property bool discardOnRead: false
+    property bool changedRemotely: false
+    property string message: ""
+    property string defaultPrompt: ""
+    property var health: null
+    readonly property bool editable: !!draft && bridge.connected && !ui.snapshot.setupRequired && !ui.snapshot.connectionChanging && !saving && !discardOnRead && !bridge.preview && draftServer === ui.snapshot.server
+
+    function clone(value) {
+        return JSON.parse(JSON.stringify(value));
     }
-    Component.onCompleted: bridge.request("preferences")
+
+    function changed() {
+        editRevision++;
+        dirty = true;
+        message = "";
+    }
+
+    function edit(key, value) {
+        if (draft) {
+            draft.preferences[key] = value;
+            changed();
+        }
+    }
+
+    function load(value) {
+        const next = clone(value);
+        if (!next.preferences.dictionary)
+            next.preferences.dictionary = { lists: [] };
+        draft = next;
+        latest = clone(value);
+        draftServer = ui.snapshot.server;
+        dirty = false;
+        changedRemotely = false;
+        message = "";
+    }
+
+    function read(discard) {
+        if (reading || saving || !bridge.connected)
+            return ;
+
+        discardOnRead = discard;
+        reading = true;
+        bridge.request("preferences");
+    }
+
+    function reload() {
+        if (dirty)
+            discardDialog.open();
+        else
+            read(true);
+    }
+
+    function modelDetail(model) {
+        if (!model)
+            return "Checking server models…";
+
+        return model.modelID + " · " + model.backend + (model.message ? "\n" + model.message : "");
+    }
+
+    objectName: "processingSettings"
+    Component.onCompleted: {
+        read(false);
+        bridge.request("processingDefaults");
+        bridge.request("connection");
+    }
+
     Connections {
-        target: bridge
         function onReply(action, data) {
-            if (action === "preferences" || action === "savePreferences") {
-                root.draft = data;
-                root.dirty = false;
+            if (action === "processingDefaults")
+                root.defaultPrompt = data.proofreadingPrompt;
+
+            if (action === "connection")
+                root.health = data;
+
+            if (action === "preferences") {
+                root.reading = false;
+                // A late read cannot replace a newer save or erase a local draft.
+                if (root.latest && data.revision < root.latest.revision) {
+                    root.discardOnRead = false;
+                    return ;
+                }
+                root.latest = root.clone(data);
+                if (root.discardOnRead || (!root.dirty && !dictionary.confirming && !root.saving && (!root.draft || data.revision !== root.draft.revision)))
+                    root.load(data);
+                else if (root.draft && data.revision !== root.draft.revision)
+                    root.changedRemotely = true;
+                root.discardOnRead = false;
+            }
+            if (action === "savePreferences" && root.saving) {
                 root.saving = false;
+                root.load(data);
+                root.message = "Shared preferences saved. Changes apply to new dictations.";
             }
         }
+
         function onFailed(action, message) {
             if (action === "savePreferences") {
                 root.saving = false;
-                root.ui.notice = "Could not save. Another computer may have changed these settings. Reload to compare before saving again.";
+                root.message = message;
+                root.read(false);
             }
+            if (action === "preferences") {
+                root.reading = false;
+                root.discardOnRead = false;
+                root.message = "Could not load shared preferences. Your edits are kept. Check the connection and try reloading.";
+            }
+            if (action === "connection")
+                root.health = null;
+
+        }
+
+        function onSnapshotChanged() {
+            if (!bridge.connected) {
+                root.health = null;
+                root.saving = false;
+                root.reading = false;
+                root.discardOnRead = false;
+            }
+            if (root.draft && bridge.connected && root.draftServer !== root.ui.snapshot.server) {
+                root.changedRemotely = true;
+                root.latest = null;
+                root.health = null;
+                root.message = "The connected server changed. Discard and reload its shared preferences before editing.";
+            }
+        }
+
+        target: bridge
+    }
+
+    Timer {
+        interval: 5000
+        repeat: true
+        running: root.visible && root.ui.visible && bridge.connected
+        onTriggered: {
+            root.read(false);
+            if (!root.defaultPrompt)
+                bridge.request("processingDefaults");
+
         }
     }
-    ColumnLayout {
-        width: root.availableWidth
-        spacing: 22
-        SLabel {
+
+    SLabel {
+        ui: root.ui
+        text: "Server preferences"
+        font.pixelSize: 28
+        font.weight: Font.DemiBold
+    }
+
+    SLabel {
+        ui: root.ui
+        text: "Shared by every computer using this server."
+        color: root.ui.c.muted
+    }
+
+    RowLayout {
+        SButton {
             ui: root.ui
-            text: "Server preferences"
-            font.pixelSize: 28
-            font.weight: Font.DemiBold
+            objectName: "saveProcessingSettings"
+            text: root.saving ? "Saving…" : "Save changes"
+            primary: true
+            enabled: root.editable && root.dirty && !root.changedRemotely
+            onClicked: {
+                root.saving = true;
+                root.message = "";
+                bridge.request("savePreferences", {
+                    "value": root.draft,
+                    "server": root.draftServer
+                });
+            }
         }
-        SLabel {
+
+        SButton {
             ui: root.ui
-            text: "Shared by every computer using this server."
-            color: root.ui.c.muted
+            objectName: "reloadProcessingSettings"
+            text: root.reading ? "Checking…" : root.dirty ? "Discard and reload" : "Reload from server"
+            enabled: !root.reading && !root.saving && bridge.connected
+            onClicked: root.reload()
         }
-        Group {
-            ui: root.ui
-            title: "TRANSCRIPTION"
-            enabled: !!root.draft && !root.saving
-            Setting {
+
+    }
+
+    SLabel {
+        ui: root.ui
+        objectName: "processingMessage"
+        Layout.fillWidth: true
+        visible: text.length > 0
+        text: root.message || (root.changedRemotely ? "Shared preferences changed on another device. Your edits are kept here. Discard and reload to continue." : "")
+    }
+
+    ScrollView {
+        id: settingsScroll
+
+        objectName: "processingScroll"
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        contentWidth: availableWidth
+        clip: true
+
+        ColumnLayout {
+            width: settingsScroll.availableWidth
+            spacing: 22
+
+            Group {
                 ui: root.ui
-                title: "Recognition"
-                ComboBox {
-                    implicitWidth: 245
-                    model: ["Automatic", "Cloud", "Local"]
-                    currentIndex: root.draft ? ["automatic", "cloud", "local"].indexOf(root.draft.preferences.recognitionMode || "automatic") : 0
-                    onActivated: root.edit("recognitionMode", ["automatic", "cloud", "local"][currentIndex])
+                title: "SERVER MODELS"
+
+                Setting {
+                    ui: root.ui
+                    title: "Speech recognition"
+                    detail: root.modelDetail(root.health ? root.health.speech : null)
+
+                    SLabel {
+                        ui: root.ui
+                        objectName: "speechModelReadiness"
+                        text: root.health && root.health.speech ? root.health.speech.ready ? "Ready" : "Not ready" : "Unavailable"
+                        color: root.ui.c.muted
+                    }
+
                 }
-            }
-            Setting {
-                ui: root.ui
-                title: "Language"
-                ComboBox {
-                    implicitWidth: 245
-                    property var codes: ["auto", "en", "es", "fr", "de", "it", "pt", "nl", "ja", "zh", "ko", "hi", "ar", "pl", "ru", "uk", "sv"]
-                    model: ["Detect automatically", "English", "Spanish", "French", "German", "Italian", "Portuguese", "Dutch", "Japanese", "Chinese", "Korean", "Hindi", "Arabic", "Polish", "Russian", "Ukrainian", "Swedish"]
-                    currentIndex: root.draft ? codes.indexOf(root.draft.preferences.language) : 0
-                    onActivated: root.edit("language", codes[currentIndex])
+
+                Setting {
+                    ui: root.ui
+                    title: "Text cleanup"
+                    detail: root.modelDetail(root.health ? root.health.proofreading : null)
+
+                    SLabel {
+                        ui: root.ui
+                        text: root.health && root.health.proofreading ? root.health.proofreading.ready ? "Ready" : "Not ready" : "Unavailable"
+                        color: root.ui.c.muted
+                    }
+
                 }
+
             }
-        }
-        Group {
-            ui: root.ui
-            title: "VOCABULARY · SHARED"
-            enabled: !!root.draft && !root.saving
-            Setting {
+
+            Group {
                 ui: root.ui
-                title: "Words and phrases"
-                detail: "Help Sotto recognize names and terms. Existing dictionary lists are preserved."
+                title: "TRANSCRIPTION"
+                enabled: root.editable
+
+                Setting {
+                    ui: root.ui
+                    title: "Recognition"
+
+                    ComboBox {
+                        implicitWidth: 245
+                        model: ["Automatic", "Cloud", "Local"]
+                        currentIndex: root.draft ? ["automatic", "cloud", "local"].indexOf(root.draft.preferences.recognitionMode || "automatic") : 0
+                        onActivated: root.edit("recognitionMode", ["automatic", "cloud", "local"][currentIndex])
+                    }
+
+                }
+
+                Setting {
+                    ui: root.ui
+                    title: "Language"
+
+                    ComboBox {
+                        property var codes: ["auto", "en", "es", "fr", "de", "it", "pt", "nl", "ja", "zh", "ko", "hi", "ar", "pl", "ru", "uk", "sv"]
+
+                        implicitWidth: 245
+                        model: ["Detect automatically", "English", "Spanish", "French", "German", "Italian", "Portuguese", "Dutch", "Japanese", "Chinese", "Korean", "Hindi", "Arabic", "Polish", "Russian", "Ukrainian", "Swedish"]
+                        currentIndex: root.draft ? codes.indexOf(root.draft.preferences.language) : 0
+                        onActivated: root.edit("language", codes[currentIndex])
+                    }
+
+                }
+
             }
-            TextArea {
+
+            Group {
+                ui: root.ui
+                title: "TEXT CLEANUP"
+                enabled: root.editable
+
+                Setting {
+                    ui: root.ui
+                    title: "Text cleanup"
+                    detail: "Apply these instructions to new dictations."
+
+                    Switch {
+                        checked: root.draft ? root.draft.preferences.textCorrectionEnabled : false
+                        Accessible.name: "Text cleanup"
+                        onClicked: root.edit("textCorrectionEnabled", checked)
+                    }
+
+                }
+
+                Setting {
+                    ui: root.ui
+                    title: "Cleanup instructions"
+                    detail: "Up to 4 KB. Reset changes your draft until you save."
+
+                    SButton {
+                        ui: root.ui
+                        objectName: "resetCleanupPrompt"
+                        text: "Reset to default"
+                        enabled: {
+                            root.editRevision;
+                            return !!root.defaultPrompt && !!root.draft && root.draft.preferences.proofreadingPrompt !== root.defaultPrompt;
+                        }
+                        onClicked: {
+                            root.edit("proofreadingPrompt", root.defaultPrompt);
+                            root.draft = root.clone(root.draft);
+                        }
+                    }
+
+                }
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.margins: 12
+                    Layout.preferredHeight: 240
+
+                    TextArea {
+                        id: cleanup
+
+                        objectName: "cleanupInstructions"
+                        text: root.draft ? (root.draft.preferences.proofreadingPrompt !== undefined ? root.draft.preferences.proofreadingPrompt : root.defaultPrompt) : ""
+                        Accessible.name: "Cleanup instructions"
+                        textFormat: TextEdit.PlainText
+                        wrapMode: TextEdit.Wrap
+                        selectByMouse: true
+                        onTextChanged: {
+                            if (activeFocus && root.draft && text !== root.draft.preferences.proofreadingPrompt) {
+                                root.edit("proofreadingPrompt", text);
+                            }
+                        }
+                    }
+
+                }
+
+            }
+
+            Group {
+                ui: root.ui
+                title: "VOCABULARY · SHARED"
+                enabled: root.editable
+
+                Setting {
+                    ui: root.ui
+                    title: "Words and phrases"
+                    detail: "Names and terms to help recognition, up to 16 KB."
+                }
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.margins: 12
+                    Layout.preferredHeight: 110
+
+                    TextArea {
+                        objectName: "recognitionVocabulary"
+                        text: root.draft ? root.draft.preferences.vocabulary : ""
+                        placeholderText: "Sotto, PipeWire, names you use often…"
+                        placeholderTextColor: root.ui.c.muted
+                        textFormat: TextEdit.PlainText
+                        wrapMode: TextEdit.Wrap
+                        selectByMouse: true
+                        onTextChanged: {
+                            if (activeFocus && root.draft && text !== root.draft.preferences.vocabulary) {
+                                root.edit("vocabulary", text);
+                            }
+                        }
+                    }
+
+                }
+
+            }
+
+            DictionaryEditor {
+                id: dictionary
+
+                ui: root.ui
+                editor: root
+            }
+
+            Group {
+                ui: root.ui
+                title: "SHARED HISTORY"
+                enabled: root.editable
+
+                Setting {
+                    ui: root.ui
+                    title: "Keep original audio"
+                    detail: "Save original recordings alongside shared dictation history."
+
+                    Switch {
+                        checked: root.draft ? root.draft.preferences.keepOriginalAudio : false
+                        Accessible.name: "Keep original audio"
+                        onClicked: root.edit("keepOriginalAudio", checked)
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+
+    Dialog {
+        id: discardDialog
+
+        title: "Discard unsaved shared settings?"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        width: 410
+
+        contentItem: ColumnLayout {
+            SLabel {
+                ui: root.ui
+                text: "Your local edits will be replaced with the latest settings from the connected server. Nothing is saved by reloading."
                 Layout.fillWidth: true
-                Layout.margins: 12
-                Layout.preferredHeight: 120
-                text: root.draft ? root.draft.preferences.vocabulary : ""
-                placeholderText: "Sotto, PipeWire, names you use often…"
-                textFormat: TextEdit.PlainText
-                wrapMode: TextEdit.Wrap
-                selectByMouse: true
-                onTextChanged: if (activeFocus && root.draft && text !== root.draft.preferences.vocabulary)
-                    root.edit("vocabulary", text)
             }
-        }
-        Group {
-            ui: root.ui
-            title: "AUDIO AND TEXT"
-            enabled: !!root.draft && !root.saving
-            Setting {
-                ui: root.ui
-                title: "Keep original audio"
-                detail: "Save original recordings alongside shared dictation history."
-                Switch {
-                    checked: root.draft ? root.draft.preferences.keepOriginalAudio : false
-                    Accessible.name: "Keep original audio"
-                    onToggled: root.edit("keepOriginalAudio", checked)
+
+            RowLayout {
+                SButton {
+                    ui: root.ui
+                    text: "Keep editing"
+                    onClicked: discardDialog.close()
                 }
-            }
-            Setting {
-                ui: root.ui
-                title: "Text cleanup"
-                detail: "Apply the server’s configured cleanup rules."
-                Switch {
-                    checked: root.draft ? root.draft.preferences.textCorrectionEnabled : false
-                    Accessible.name: "Text cleanup"
-                    onToggled: root.edit("textCorrectionEnabled", checked)
+
+                SButton {
+                    ui: root.ui
+                    text: "Discard and reload"
+                    enabled: !root.reading && !root.saving && bridge.connected
+                    onClicked: {
+                        root.read(true);
+                        discardDialog.close();
+                    }
                 }
+
             }
+
         }
-        RowLayout {
-            SButton {
-                ui: root.ui
-                text: root.saving ? "Saving…" : "Save changes"
-                primary: true
-                enabled: root.dirty && !root.saving && bridge.connected
-                onClicked: {
-                    root.saving = true;
-                    bridge.request("savePreferences", {
-                        value: root.draft
-                    });
-                }
-            }
-            SButton {
-                ui: root.ui
-                text: "Reload from server"
-                enabled: !root.saving && bridge.connected
-                onClicked: bridge.request("preferences")
-            }
-        }
-        SLabel {
-            ui: root.ui
-            text: "Changes apply to new dictations. Reload discards your unsaved edits."
-            color: root.ui.c.muted
-            font.pixelSize: 12
-            Layout.fillWidth: true
-        }
+
     }
+
 }

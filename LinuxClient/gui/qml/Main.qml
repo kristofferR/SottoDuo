@@ -139,14 +139,14 @@ ApplicationWindow {
                 app.sources = data;
                 app.sourcesChecked = true;
             }
-            if (["arm", "disarm", "saveSources", "savePreferences"].includes(action))
+            if (["arm", "disarm", "saveSources"].includes(action))
                 app.notice = action.startsWith("save") ? "Changes saved." : "Destination updated.";
         }
         function onFailed(action, message) {
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
-            if (["saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
+            if (["preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
                 return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";
@@ -300,7 +300,18 @@ ApplicationWindow {
             Loader {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                sourceComponent: [dictation, history, microphone, preferences, computer][app.page]
+                visible: app.page !== 3
+                sourceComponent: [dictation, history, microphone, null, computer][app.page]
+            }
+            Loader {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: app.page === 3
+                // Keep shared drafts and in-flight saves when visiting another page.
+                property bool opened: false
+                onVisibleChanged: if (visible) opened = true
+                active: opened || visible
+                sourceComponent: preferences
             }
         }
     }

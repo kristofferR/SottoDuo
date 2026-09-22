@@ -76,6 +76,13 @@ test("GUI IPC accepts a newline without a half-close and rejects malformed JSON"
       ok: false,
       error: "Request failed. Check the connection and reload before trying again.",
     });
+    const unicode = "æøå🌍".repeat(12000);
+    expect(
+      JSON.parse(await request(JSON.stringify({ unicode }) + "\n")).data.received.unicode,
+    ).toBe(unicode);
+    expect(
+      JSON.parse(await request(JSON.stringify({ large: "x".repeat(530000) }) + "\n")).error,
+    ).toContain("too large");
     expect(await send("status")).toBe("ok\n");
   } finally {
     await close?.();

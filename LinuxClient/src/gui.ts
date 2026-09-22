@@ -1,3 +1,4 @@
+import { defaultProofreadingPrompt, saveSharedPreferences } from "./processing.ts";
 import { legacySourceEdit, microphoneSnapshot } from "./microphones.ts";
 import { ClientNotice } from "./errors.ts";
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
@@ -155,10 +156,16 @@ export function createGUIHandler(
         )
           throw new ClientNotice("Invalid cursor.");
         return api.history(request.before);
+      case "processingDefaults":
+        return { proofreadingPrompt: defaultProofreadingPrompt };
       case "preferences":
         return api.preferences();
       case "savePreferences":
-        return api.savePreferences(request.value);
+        if (request.server !== undefined && request.server !== config.server)
+          throw new ClientNotice(
+            "The connected server changed. Discard and reload before editing its shared settings.",
+          );
+        return saveSharedPreferences(api, request.value);
       case "saveMicrophones": {
         if (controller.busy)
           throw new ClientNotice("Finish dictation before changing microphone lists.");

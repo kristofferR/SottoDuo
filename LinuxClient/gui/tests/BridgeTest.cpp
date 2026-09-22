@@ -525,6 +525,150 @@ private slots:
                  QString("external-change"));
     QCOMPARE(warnings.count(), 0);
   }
+  void processingDraftsSurviveConflictsAndNavigation() {
+    QTemporaryDir directory;
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QVERIFY(fixture.open(QIODevice::ReadOnly));
+    auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
+    QJsonObject saved;
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
+        if (!socket->canReadLine()) return;
+        const auto request = QJsonDocument::fromJson(socket->readLine()).object();
+        const auto action = request["action"].toString();
+        auto data = sample.value(action);
+        if (action == "savePreferences") {
+          QCOMPARE(request["server"], sample["snapshot"].toObject()["server"]);
+          saved = request["value"].toObject();
+          auto response = saved;
+          response["revision"] = saved["revision"].toInt() + 1;
+          sample["preferences"] = response;
+          data = response;
+        }
+        socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", data}})
+                          .toJson(QJsonDocument::Compact) + '\n');
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("page", 3);
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    window->requestActivate();
+    QTRY_VERIFY(window->isActive());
+    auto *page = window->findChild<QQuickItem *>("processingSettings");
+    QVERIFY(page);
+    QTRY_VERIFY(page->property("editable").toBool());
+    auto *cleanup = page->findChild<QQuickItem *>("cleanupInstructions");
+    auto *reset = page->findChild<QQuickItem *>("resetCleanupPrompt");
+    auto *save = page->findChild<QQuickItem *>("saveProcessingSettings");
+    auto *dictionary = page->findChild<QQuickItem *>("dictionaryEditor");
+    auto *readiness = page->findChild<QQuickItem *>("speechModelReadiness");
+    QVERIFY(cleanup && reset && save && dictionary && readiness);
+    QTRY_COMPARE(readiness->property("text").toString(), "Ready");
+    QTRY_VERIFY(!page->property("defaultPrompt").toString().isEmpty());
+    cleanup->forceActiveFocus();
+    cleanup->setProperty("text", "Keep my wording.");
+    QVERIFY(page->property("dirty").toBool());
+    QVERIFY(save->isEnabled());
+    // A same-revision poll leaves the editor and focus intact.
+    emit bridge.reply("preferences", sample["preferences"].toObject().toVariantMap());
+    QCOMPARE(cleanup->property("text").toString(), "Keep my wording.");
+    QVERIFY(cleanup->hasActiveFocus());
+    window->setProperty("page", 0);
+    window->setProperty("page", 3);
+    QCOMPARE(window->findChild<QQuickItem *>("processingSettings"), page);
+    QCOMPARE(cleanup->property("text").toString(), "Keep my wording.");
+    // The shared revision advances elsewhere while these edits remain local.
+    auto newer = sample["preferences"].toObject();
+    newer["revision"] = 2;
+    sample["preferences"] = newer;
+    emit bridge.reply("preferences", newer.toVariantMap());
+    QVERIFY(page->property("changedRemotely").toBool());
+    QVERIFY(!save->isEnabled());
+    QCOMPARE(cleanup->property("text").toString(), "Keep my wording.");
+    QVERIFY(QMetaObject::invokeMethod(page, "read", Q_ARG(QVariant, true)));
+    QTRY_VERIFY(!page->property("dirty").toBool());
+    QTRY_VERIFY(!page->property("reading").toBool());
+    cleanup->forceActiveFocus();
+    cleanup->setProperty("text", "Temporary cleanup.");
+    QVERIFY(reset->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(reset, "clicked"));
+    QCOMPARE(cleanup->property("text"), page->property("defaultPrompt"));
+    // A reset must retain the text binding for later edits and reloads.
+    cleanup->forceActiveFocus();
+    cleanup->setProperty("text", "Final cleanup.");
+    auto *words = dictionary->findChild<QQuickItem *>("dictionaryWords");
+    QVERIFY(words);
+    auto *word = words->property("currentItem").value<QQuickItem *>();
+    QVERIFY(word);
+    auto *aliases = word->findChild<QQuickItem *>("dictionaryAliases");
+    auto *priority = word->findChild<QQuickItem *>("dictionaryPriority");
+    QVERIFY(aliases && priority);
+    aliases->forceActiveFocus();
+    aliases->setProperty("text", "so, too\nso toe");
+    priority->setProperty("checked", false);
+    QVERIFY(QMetaObject::invokeMethod(priority, "clicked"));
+    QVERIFY(QMetaObject::invokeMethod(save, "clicked"));
+    QTRY_VERIFY(!saved.isEmpty());
+    QTRY_VERIFY(!page->property("saving").toBool());
+    QCOMPARE(saved["revision"].toInt(), 2);
+    QCOMPARE(saved["preferences"].toObject()["proofreadingPrompt"].toString(), "Final cleanup.");
+    const auto savedDictionary = saved["preferences"].toObject()["dictionary"].toObject();
+    const auto savedEntries = savedDictionary["lists"].toArray()[0].toObject()["entries"].toArray();
+    QCOMPARE(savedEntries[0].toObject()["aliases"].toArray(), QJsonArray({"so, too", "so toe"}));
+    QCOMPARE(savedEntries[0].toObject()["isPriority"].toBool(), false);
+    QCOMPARE(savedEntries[0].toObject()["id"].toString(), "sotto");
+    QCOMPARE(savedEntries[1], newer["preferences"].toObject()["dictionary"].toObject()["lists"].toArray()[0].toObject()["entries"].toArray()[1]);
+    QCOMPARE(saved["preferences"].toObject()["vocabulary"], newer["preferences"].toObject()["vocabulary"]);
+    emit bridge.reply("preferences", newer.toVariantMap());
+    QCOMPARE(cleanup->property("text").toString(), "Final cleanup.");
+    QVERIFY(!page->property("changedRemotely").toBool());
+    QVERIFY(!page->property("dirty").toBool());
+    // A failed save keeps the draft and shows its actionable error.
+    cleanup->forceActiveFocus();
+    cleanup->setProperty("text", "Unsaved after failure.");
+    page->setProperty("saving", true);
+    emit bridge.failed("savePreferences", "Check the dictionary replacement phrases.");
+    QTRY_VERIFY(!page->property("reading").toBool());
+    QCOMPARE(cleanup->property("text").toString(), "Unsaved after failure.");
+    QVERIFY(page->property("dirty").toBool());
+    QCOMPARE(page->property("message").toString(), "Check the dictionary replacement phrases.");
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_PROCESSING_CAPTURE");
+    if (!capture.isEmpty()) {
+      for (auto *parent = dictionary->parentItem(); parent; parent = parent->parentItem()) {
+        if (parent->property("contentY").isValid()) {
+          parent->setProperty("contentY", dictionary->mapToItem(parent, QPointF()).y() + parent->property("contentY").toReal());
+          break;
+        }
+      }
+      QTest::qWait(50);
+      QVERIFY(window->grabWindow().save(capture));
+    }
+    auto legacy = newer;
+    auto legacyPreferences = legacy["preferences"].toObject();
+    legacyPreferences.remove("dictionary");
+    legacy["preferences"] = legacyPreferences;
+    QVERIFY(QMetaObject::invokeMethod(page, "load", Q_ARG(QVariant, legacy.toVariantMap())));
+    QCOMPARE(dictionary->property("wordCount").toInt(), 0);
+    QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
+    auto *listPicker = dictionary->findChild<QQuickItem *>("dictionaryListPicker");
+    QVERIFY(listPicker);
+    QCOMPARE(listPicker->property("count").toInt(), 1);
+    QVERIFY(page->property("dirty").toBool());
+    QCOMPARE(warnings.count(), 0);
+  }
   void connectionSetupMasksSecretsAndRequiresVerifiedSave() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());

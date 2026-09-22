@@ -71,6 +71,7 @@ export async function serve(
     throw error;
   }
   const server = createServer({ allowHalfOpen: true }, (socket) => {
+    socket.setEncoding("utf8");
     let input = "";
     socket.setTimeout(2000, () => socket.destroy());
     socket.on("error", () => {});
@@ -109,14 +110,23 @@ export async function serve(
         () => socket.end("Command failed.\n"),
       );
     };
-    socket.on("data", (data: Buffer) => {
+    socket.on("data", (data: string) => {
       if (handled) {
         socket.destroy();
         return;
       }
-      input += data.toString();
-      if (Buffer.byteLength(input) > 65536) socket.destroy();
-      else if (input.includes("\n")) dispatch();
+      input += data;
+      if (Buffer.byteLength(input) > 524288) {
+        handled = true;
+        socket.removeAllListeners("data");
+        socket.resume();
+        socket.end(
+          JSON.stringify({
+            ok: false,
+            error: "Settings are too large. Reduce the dictionary or vocabulary before saving.",
+          }) + "\n",
+        );
+      } else if (input.includes("\n")) dispatch();
     });
     socket.on("end", dispatch);
   });
