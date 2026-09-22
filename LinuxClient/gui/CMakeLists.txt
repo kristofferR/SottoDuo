@@ -8,7 +8,7 @@ qt_standard_project_setup(REQUIRES 6.8)
 qt_add_executable(sotto-gui main.cpp Bridge.cpp Bridge.h HudSurface.cpp HudSurface.h DesktopIntegration.cpp DesktopIntegration.h GuiInstance.cpp GuiInstance.h)
 qt_add_qml_module(sotto-gui URI Sotto VERSION 1.0 QML_FILES
   qml/Main.qml qml/SButton.qml qml/SLabel.qml qml/Group.qml qml/Setting.qml qml/Dictation.qml
-  qml/History.qml qml/Microphone.qml qml/Preferences.qml qml/Computer.qml qml/Hud.qml qml/DjiSettings.qml
+  qml/History.qml qml/Microphone.qml qml/Preferences.qml qml/Computer.qml qml/Hud.qml qml/DjiSettings.qml qml/LevelMeter.qml
   RESOURCES mark.svg preview.json)
 target_link_libraries(sotto-gui PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Widgets Qt6::Network Qt6::Svg Qt6::DBus LayerShellQt::Interface)
 target_compile_options(sotto-gui PRIVATE -Wall -Wextra -Werror)

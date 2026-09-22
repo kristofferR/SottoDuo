@@ -89,9 +89,32 @@ ColumnLayout {
         }
     }
     RowLayout {
+        Layout.fillWidth: true
+        visible: root.ui.busy || !!root.ui.feedback.limitReached
+        LevelMeter {
+            ui: root.ui
+            levels: root.ui.feedback.levels || []
+            visible: root.ui.activity.phase === "recording"
+        }
         SLabel {
             ui: root.ui
-            text: "Last dictation"
+            objectName: "recordingClock"
+            text: root.ui.duration(root.ui.feedback.elapsedSeconds)
+            font.pixelSize: 18
+        }
+        SLabel {
+            ui: root.ui
+            Layout.fillWidth: true
+            objectName: "recordingLimitNotice"
+            text: root.ui.limitNotice || (root.ui.activity.phase === "recording" && !(root.ui.feedback.levels || []).length ? "Waiting for microphone levels" : "")
+            color: root.ui.c.muted
+            font.pixelSize: 13
+        }
+    }
+    RowLayout {
+        SLabel {
+            ui: root.ui
+            text: root.ui.busy ? "Live dictation" : "Last dictation"
             font.weight: Font.DemiBold
             Layout.fillWidth: true
         }
@@ -115,12 +138,13 @@ ColumnLayout {
         Layout.fillHeight: true
         clip: true
         TextArea {
-            text: root.ui.result ? root.ui.result.text : root.ui.activity.phase === "recording" ? "Your microphone is recording. Text appears after transcription." : "Your next thought will appear here."
+            objectName: "dictationTranscript"
+            text: root.ui.result ? root.ui.result.text : root.ui.busy && root.ui.feedback.partialText ? root.ui.feedback.partialText : root.ui.activity.phase === "recording" ? "Listening. Live text appears when the recognition service provides it." : root.ui.busy ? "Waiting for transcription…" : "Your next thought will appear here."
             readOnly: true
             selectByMouse: true
             wrapMode: TextEdit.Wrap
             textFormat: TextEdit.PlainText
-            color: root.ui.result ? root.ui.c.ink : root.ui.c.muted
+            color: root.ui.result || root.ui.feedback.partialText ? root.ui.c.ink : root.ui.c.muted
             font.pixelSize: 22
             background: null
             padding: 0
@@ -131,7 +155,7 @@ ColumnLayout {
         Layout.fillWidth: true
         color: root.ui.c.muted
         font.pixelSize: 13
-        text: root.ui.activity.phase === "failed" ? root.ui.snapshot.message : root.ui.result ? root.ui.result.delivery === "uncertain" ? "Insertion could not be confirmed. Check your field before copying to avoid a duplicate." : root.ui.result.delivery === "inserted" ? "Inserted at your cursor." : "Nothing was inserted. Your transcript is ready to copy." : "Use your configured desktop shortcut while your writing app is focused."
+        text: root.ui.activity.phase === "failed" ? root.ui.snapshot.message : root.ui.result ? root.ui.result.delivery === "uncertain" ? "Insertion could not be confirmed. Check your field before copying to avoid a duplicate." : root.ui.result.delivery === "inserted" ? "Inserted at your cursor." : "Nothing was inserted. Your transcript is ready to copy." : root.ui.busy ? root.ui.feedback.partialText ? "Live text may change. Only the finished dictation is delivered." : root.ui.feedback.streamAvailable === false ? "Live feedback is unavailable. Dictation is still controlled by its recording session." : "You can cancel this take below." : "Use your configured desktop shortcut while your writing app is focused."
     }
     Rectangle {
         Layout.fillWidth: true

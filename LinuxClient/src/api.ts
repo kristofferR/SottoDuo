@@ -121,6 +121,47 @@ export class API {
   async get(id: string) {
     return validateBody("GenerationRecord", await this.request(`/v1/generations/${id}`));
   }
+  async events(id: string, signal: AbortSignal, update: (record: Generation) => void) {
+    const response = await fetch(`${this.endpoint}/v1/generations/${id}/events`, {
+      redirect: "error",
+      signal,
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: "application/x-ndjson",
+        "X-Sotto-Capture": "capture-v1",
+      },
+    });
+    if (!response.ok || !response.body) {
+      await response.body?.cancel();
+      throw new Error("Live feedback is unavailable.");
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let pending = "";
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) throw new Error("Live feedback disconnected.");
+        pending += decoder.decode(value, { stream: true });
+        let newline: number;
+        while ((newline = pending.indexOf("\n")) >= 0) {
+          if (newline > 2 * 1024 * 1024) throw new Error("Oversized feedback record.");
+          const line = pending.slice(0, newline);
+          pending = pending.slice(newline + 1);
+          if (!line.trim()) continue;
+          signal.throwIfAborted();
+          const record = validateBody("GenerationRecord", JSON.parse(line));
+          if (record.id !== id) throw new Error("Mismatched feedback record.");
+          update(record);
+          if (["completed", "failed", "cancelled"].includes(record.status)) return;
+        }
+        if (pending.length > 2 * 1024 * 1024) throw new Error("Oversized feedback record.");
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  }
   async delivery(id: string, owner: string, status: string) {
     await this.request(
       `/v1/generations/${id}/delivery`,

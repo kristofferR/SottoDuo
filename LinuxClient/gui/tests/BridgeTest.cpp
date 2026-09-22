@@ -41,6 +41,9 @@ private slots:
         property bool active: false
         property bool busy: false
         property var activity: ({ phase: "idle", source: "No microphone in use" })
+        property var feedback: ({})
+        property string limitNotice: ""
+        function duration(seconds) { return "0:00"; }
         property var c: bridge.colors
         function messageFor(phase) { return "Dictation preview"; }
       }
@@ -311,6 +314,65 @@ private slots:
     QVERIFY(!window->isVisible());
     window->show();
     QVERIFY(window->isVisible());
+    QCOMPARE(warnings.count(), 0);
+  }
+  void liveFeedbackShowsTimePartialTextAndLimitWithoutActivatingOverlay() {
+    Bridge bridge(true);
+    bridge.setTheme("dark");
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QVariantMap feedback{
+        {"elapsedSeconds", 145},
+        {"remainingSeconds", 27},
+        {"partialText", "A provisional sentence"},
+        {"streamAvailable", true},
+        {"levels", QVariantList{0.05, 0.2, 0.5, 0.8, 0.4, 0.1, 0.3, 0.7, 0.2}}};
+    QVariantMap state{{"busy", true},
+                      {"activity", QVariantMap{{"phase", "recording"},
+                                               {"trigger", "shortcut"},
+                                               {"source", "DJI Mic Mini"}}},
+                      {"feedback", feedback}};
+    window->setProperty("snapshot", state);
+    auto *clock = window->findChild<QQuickItem *>("recordingClock");
+    auto *limit = window->findChild<QQuickItem *>("recordingLimitNotice");
+    auto *text = window->findChild<QQuickItem *>("dictationTranscript");
+    QVERIFY(clock && limit && text);
+    QCOMPARE(clock->property("text").toString(), "2:25");
+    QCOMPARE(limit->property("text").toString(), "Recording stops in 0:27");
+    QCOMPARE(text->property("text").toString(), "A provisional sentence");
+    QTest::qWait(100);
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_LIVE_CAPTURE");
+    if (!capture.isEmpty())
+      QVERIFY(window->grabWindow().save(capture));
+    auto *hud = window->findChild<QQuickWindow *>("dictationHud");
+    QVERIFY(hud);
+    QVERIFY(hud->flags().testFlag(Qt::WindowDoesNotAcceptFocus));
+    QVERIFY(hud->flags().testFlag(Qt::WindowTransparentForInput));
+    const QString hudCapture = qEnvironmentVariable("SOTTO_GUI_HUD_CAPTURE");
+    if (!hudCapture.isEmpty()) {
+      hud->show();
+      QTest::qWait(50);
+      QVERIFY(hud->grabWindow().save(hudCapture));
+      hud->hide();
+    }
+    feedback["limitReached"] = true;
+    feedback["levels"] = QVariantList{};
+    state["feedback"] = feedback;
+    state["activity"] = QVariantMap{{"phase", "processing"}};
+    window->setProperty("snapshot", state);
+    QCOMPARE(limit->property("text").toString(),
+             "Stopped at the recording limit");
+    state["busy"] = false;
+    state["activity"] = QVariantMap{{"phase", "completed"}};
+    state["result"] =
+        QVariantMap{{"text", "Final sentence."}, {"delivery", "preview"}};
+    window->setProperty("snapshot", state);
+    QCOMPARE(text->property("text").toString(), "Final sentence.");
     QCOMPARE(warnings.count(), 0);
   }
   void activeMicrophoneTestCanFinishWhenServerIsBusy() {

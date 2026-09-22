@@ -71,6 +71,7 @@ QString Bridge::connectionStatus() const {
                                                       : "setupRequired";
 }
 void Bridge::disconnected() {
+  m_poll.setInterval(500);
   m_connected = false;
   m_connectionChecked = true;
   m_snapshot.clear();
@@ -236,6 +237,10 @@ void Bridge::receive(const QString &action, const QByteArray &bytes) {
       disconnected();
       return;
     }
+    m_poll.setInterval(
+        next.value("activity").toMap().value("phase").toString() == "recording"
+            ? 100
+            : 500);
     if (next != m_snapshot || !m_connected) {
       m_snapshot = next;
       m_connected = true;

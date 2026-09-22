@@ -33,10 +33,12 @@ async function fixture() {
       observedAt: new Date().toISOString(),
     }));
   const starts: string[] = [];
+  let level: (peak: number) => void = () => {};
   const provider: CaptureProvider = {
     sources,
     async start(options) {
       starts.push(options.generation.capture!.source.id);
+      level = options.level;
       await options.write("inference", 0, { sampleRate: 16000, channels: 1 }, Buffer.alloc(64000));
       if (options.generation.settings.preferences.keepOriginalAudio)
         await options.write(
@@ -110,8 +112,68 @@ async function fixture() {
     delivery: (value: typeof mode) => {
       mode = value;
     },
+    level: (peak: number) => level(peak),
   };
 }
+test("live server feedback supplies real peaks but cannot deliver text; stopped and cancelled takes clear levels", async () => {
+  const f = await fixture();
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  f.level(0.65);
+  await until(() => f.controller.feedback.snapshot().levels.includes(0.65));
+  expect(f.deliveries()).toBe(0);
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.controller.feedback.snapshot().levels).toEqual([]);
+  expect(f.deliveries()).toBe(1);
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  expect(f.controller.feedback.snapshot().partialText).toBe("");
+  await f.controller.cancel();
+  f.level(0.9);
+  await f.controller.settled();
+  expect(f.controller.feedback.snapshot().levels).toEqual([]);
+  expect(f.deliveries()).toBe(1);
+});
+test("failed live feedback remains advisory and cannot prevent the owned take from completing", async () => {
+  const f = await fixture();
+  f.api.events = async () => {
+    throw new Error("feedback connection failed");
+  };
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  expect(f.controller.feedback.snapshot()).toMatchObject({ streamAvailable: false, levels: [] });
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
+});
+test("provisional text never inserts and a cancelled stream cannot update the next take", async () => {
+  const f = await fixture();
+  let late: (() => void) | undefined;
+  f.api.events = async (id, signal, update) => {
+    const record = await f.api.get(id);
+    const publish = () =>
+      update({ ...record, recognition: { provider: "soniox", partialText: "Not final" } });
+    late ??= publish;
+    publish();
+    if (!signal.aborted)
+      await new Promise<void>((resolve) =>
+        signal.addEventListener("abort", () => resolve(), { once: true }),
+      );
+  };
+  f.controller.start();
+  await until(() => f.controller.feedback.snapshot().partialText === "Not final");
+  expect(f.deliveries()).toBe(0);
+  await f.controller.cancel();
+  await f.controller.settled();
+  f.api.events = async () => {};
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  late!();
+  expect(f.controller.feedback.snapshot().partialText).toBe("");
+  expect(f.deliveries()).toBe(0);
+  await f.controller.cancel();
+});
 test("owned HTTP capture reuses history and delivers once, including duplicate release commands", async () => {
   const f = await fixture();
   f.controller.start();

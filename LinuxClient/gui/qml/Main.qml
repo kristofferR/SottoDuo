@@ -27,6 +27,12 @@ ApplicationWindow {
             phase: "idle"
         })
     property var result: snapshot.result || null
+    property var feedback: snapshot.feedback || ({})
+    function duration(seconds) {
+        const value = Math.max(0, Math.floor(seconds || 0));
+        return Math.floor(value / 60) + ":" + String(value % 60).padStart(2, "0");
+    }
+    readonly property string limitNotice: feedback.limitReached ? "Stopped at the recording limit" : activity.phase === "recording" && feedback.remainingSeconds !== undefined && feedback.remainingSeconds !== null && feedback.remainingSeconds <= 30 ? "Recording stops in " + duration(feedback.remainingSeconds) : ""
     property bool busy: snapshot.busy || false
     onBusyChanged: {
         if (!busy && bridge.connected)
@@ -69,7 +75,9 @@ ApplicationWindow {
         if (phase === "recording")
             return "Listening.";
         if (phase === "processing")
-            return "Transcribing…";
+            return feedback.processingStage === "proofreading" ? "Refining text…" : feedback.processingStage === "queued" ? "Waiting to transcribe…" : "Transcribing…";
+        if (phase === "delivering")
+            return "Delivering text…";
         if (phase === "failed")
             return "Dictation interrupted";
         if (phase === "cancelled")

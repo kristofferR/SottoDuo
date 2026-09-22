@@ -119,8 +119,10 @@ try {
           () => {
             void buttons.disarm();
             if (
-              ["preparing", "processing"].includes(controller.state) ||
-              controller.state.startsWith("recording")
+              controller.busy &&
+              ["preparing", "recording", "processing", "delivering"].includes(
+                controller.activity.phase,
+              )
             )
               void controller.cancel();
           },

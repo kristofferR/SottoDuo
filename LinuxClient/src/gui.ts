@@ -41,6 +41,7 @@ export function createGUIHandler(
       return {
         version: 1,
         activity: controller.activity,
+        feedback: controller.feedback.snapshot(),
         busy: controller.busy,
         message: controller.state,
         result: controller.result ?? null,
