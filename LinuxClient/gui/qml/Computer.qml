@@ -27,7 +27,7 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Server address"
-                detail: root.ui.snapshot.server || "No desktop client connected"
+                detail: root.ui.snapshot.server || "Available after dictation connects"
             }
             Setting {
                 ui: root.ui
@@ -94,7 +94,7 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Receiver dictation"
-                detail: root.ui.snapshot.buttonEnabled ? "Select this computer, focus your text field, then tap the transmitter’s pairing button." : "Pairing-button support is disabled in the desktop client configuration."
+                detail: root.ui.snapshot.buttonEnabled ? "Select this computer, focus your text field, then tap the transmitter’s pairing button." : !bridge.connected ? "Connect dictation to check receiver availability." : "Pairing-button dictation hasn’t been enabled on this computer."
             }
         }
         Group {
@@ -103,17 +103,17 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Shortcuts and text insertion"
-                detail: "Use the shortcuts configured for your desktop client. Safe insertion currently uses the existing Hyprland adapter; other desktop adapters are still pending."
+                detail: "Use your Sotto shortcut while a text field is focused. This build supports dictation on Omarchy/Hyprland."
             }
             Setting {
                 ui: root.ui
                 title: "Background dictation"
-                detail: "The desktop client runs separately. Closing this window leaves it running. The live capsule is available while the GUI runs; placement depends on your compositor."
+                detail: "Once set up, Sotto can keep dictation available in the background when this window is closed."
             }
             Setting {
                 ui: root.ui
                 title: "Connection setup"
-                detail: "Server address, credentials and startup are managed by the existing desktop client setup. This window does not change desktop keybindings."
+                detail: "In-app setup is not available in this build yet. Dictation needs a server connection and a keyboard shortcut configured before use."
             }
         }
     }

@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     window->requestActivate();
   };
   menu.addAction("Open Sotto", &app, show);
-  menu.addAction("Quit window (dictation client stays running)", &app,
+  menu.addAction("Quit Sotto window (background dictation stays running)", &app,
                  [window, &app] {
                    if (window->close())
                      app.quit();

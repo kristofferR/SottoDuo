@@ -5,19 +5,47 @@ import QtQuick.Layouts
 ColumnLayout {
     id: root
     required property var ui
-    spacing: 24
+    spacing: height < 620 ? 16 : 24
     SLabel {
         ui: root.ui
-        text: root.ui.busy ? "Current dictation" : "Ready when you are"
+        text: root.ui.busy ? "Current dictation" : !bridge.connected || !root.ui.serverReady ? "Keyboard dictation" : "Ready when you are"
         color: root.ui.c.muted
         font.pixelSize: 13
     }
-    SLabel {
-        ui: root.ui
-        text: root.ui.activity.phase === "completed" ? "Hold to dictate." : root.ui.messageFor(root.ui.activity.phase)
-        font.pixelSize: 38
-        font.weight: Font.DemiBold
+    RowLayout {
         Layout.fillWidth: true
+        spacing: 22
+        Rectangle {
+            objectName: "shortcutKeycap"
+            Layout.preferredWidth: 90
+            Layout.preferredHeight: 96
+            radius: 19
+            color: root.ui.c.line
+            Accessible.role: Accessible.Graphic
+            Accessible.name: "Dictation keyboard shortcut"
+            Rectangle {
+                width: parent.width
+                height: parent.height - 6
+                radius: 19
+                color: root.ui.c.surface
+                border.color: root.ui.c.line
+                Image {
+                    anchors.centerIn: parent
+                    width: 44
+                    height: 44
+                    sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+                    Accessible.ignored: true
+                    source: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="' + root.ui.c.accent + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 15h10"/></svg>')
+                }
+            }
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.activity.phase === "completed" ? "Hold to dictate." : root.ui.messageFor(root.ui.activity.phase)
+            font.pixelSize: 38
+            font.weight: Font.DemiBold
+            Layout.fillWidth: true
+        }
     }
     Rectangle {
         Layout.fillWidth: true
@@ -32,7 +60,7 @@ ColumnLayout {
             spacing: 16
             SLabel {
                 ui: root.ui
-                text: root.ui.activity.source && root.ui.busy ? root.ui.activity.source : root.ui.sources.next ? root.ui.sources.next.name : "No available microphone"
+                text: root.ui.activity.source && root.ui.busy ? root.ui.activity.source : root.ui.sources.next ? root.ui.sources.next.name : !root.ui.sourcesChecked ? "Microphone not checked" : "No available microphone"
                 Layout.fillWidth: true
             }
             SLabel {

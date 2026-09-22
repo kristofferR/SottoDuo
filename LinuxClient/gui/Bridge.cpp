@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
@@ -56,6 +57,24 @@ Bridge::Bridge(bool preview, QObject *parent)
       updateColors();
   });
   m_themePoll.start(3000);
+}
+QString Bridge::connectionStatus() const {
+  if (m_connected)
+    return "connected";
+  if (!m_connectionChecked)
+    return "connecting";
+  const QString config = qEnvironmentVariable(
+      "SOTTO_CLIENT_CONFIG",
+      QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
+          "/sotto/linux-client.json");
+  return m_hasConnected || QFileInfo(config).isFile() ? "unavailable"
+                                                      : "setupRequired";
+}
+void Bridge::disconnected() {
+  m_connected = false;
+  m_connectionChecked = true;
+  m_snapshot.clear();
+  emit snapshotChanged();
 }
 void Bridge::setTheme(const QString &theme) {
   if (!QStringList{"system", "light", "dark", "omarchy"}.contains(theme))
@@ -163,14 +182,13 @@ void Bridge::request(const QString &action, const QVariantMap &arguments) {
     m_pending.remove(action);
     if (valid)
       receive(action, *bytes);
-    else if (action == "snapshot") {
-      m_connected = false;
-      m_snapshot.clear();
-      emit snapshotChanged();
-    } else
-      emit failed(
-          action,
-          "The desktop client is unavailable. Start it, then reconnect.");
+    else {
+      disconnected();
+      if (action != "snapshot")
+        emit failed(
+            action,
+            "Dictation is unavailable. Try reconnecting in This computer.");
+    }
     socket->abort();
     socket->deleteLater();
   };
@@ -206,9 +224,7 @@ void Bridge::receive(const QString &action, const QByteArray &bytes) {
   const auto object = document.object();
   if (error.error != QJsonParseError::NoError || !object.value("ok").toBool()) {
     if (action == "snapshot") {
-      m_connected = false;
-      m_snapshot.clear();
-      emit snapshotChanged();
+      disconnected();
     } else
       emit failed(action,
                   object.value("error").toString("Invalid client response."));
@@ -217,13 +233,14 @@ void Bridge::receive(const QString &action, const QByteArray &bytes) {
   if (action == "snapshot") {
     const auto next = object.value("data").toObject().toVariantMap();
     if (next.value("version").toInt() != 1) {
-      m_connected = false;
-      emit snapshotChanged();
+      disconnected();
       return;
     }
     if (next != m_snapshot || !m_connected) {
       m_snapshot = next;
       m_connected = true;
+      m_connectionChecked = true;
+      m_hasConnected = true;
       emit snapshotChanged();
     }
   } else

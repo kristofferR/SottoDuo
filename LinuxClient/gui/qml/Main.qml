@@ -31,7 +31,10 @@ ApplicationWindow {
             items: [],
             next: null
         })
-    property string connection: "Checking connection"
+    property bool wasConnected: false
+    property bool sourcesChecked: false
+    property string serverConnection: "Checking server"
+    readonly property string connection: bridge.connected ? serverConnection : bridge.connectionStatus === "setupRequired" ? "Dictation needs setup" : bridge.connectionStatus === "connecting" ? "Connecting dictation…" : "Dictation unavailable"
     property string notice: ""
     property bool serverReady: false
     property var pages: ["Dictation", "History", "Microphone", "Server preferences", "This computer"]
@@ -48,8 +51,10 @@ ApplicationWindow {
     font.family: "Sans Serif"
     font.pixelSize: 15
     function refresh() {
-        if (!bridge.connected)
+        if (!bridge.connected) {
+            bridge.request("snapshot");
             return;
+        }
         bridge.request("connection");
         bridge.request("sources");
     }
@@ -68,39 +73,52 @@ ApplicationWindow {
             return result && result.delivery === "inserted" ? "Inserted at your cursor" : result && result.delivery === "uncertain" ? "Check your text field" : "Text ready to copy";
         return "Hold to dictate.";
     }
-    Component.onCompleted: refresh()
+    Component.onCompleted: {
+        wasConnected = bridge.connected;
+        refresh();
+    }
     Connections {
         target: bridge
         function onSnapshotChanged() {
             if (!bridge.connected) {
-                app.connection = "Desktop client offline";
+                app.notice = "";
+                app.sourcesChecked = false;
                 app.serverReady = false;
                 app.sources = {
                     items: [],
                     next: null
                 };
+            } else if (!app.wasConnected) {
+                app.serverConnection = "Checking server";
+                app.refresh();
             }
+            app.wasConnected = bridge.connected;
         }
         function onReply(action, data) {
             if (action === "connection") {
-                app.connection = data.ready ? "Server online" : "Server not ready";
+                app.serverConnection = data.ready ? "Server online" : "Server not ready";
                 app.serverReady = data.ready;
             }
-            if (action === "sources")
+            if (action === "sources") {
                 app.sources = data;
+                app.sourcesChecked = true;
+            }
             if (["arm", "disarm", "saveSources", "savePreferences"].includes(action))
                 app.notice = action.startsWith("save") ? "Changes saved." : "Destination updated.";
         }
         function onFailed(action, message) {
+            if (!bridge.connected)
+                return;
             if (action === "connection") {
-                app.connection = "Server unavailable";
+                app.serverConnection = "Server unavailable";
                 app.serverReady = false;
-            } else if (action === "sources")
+            } else if (action === "sources") {
+                app.sourcesChecked = false;
                 app.sources = {
                     items: [],
                     next: null
                 };
-            else
+            } else
                 app.notice = message;
         }
     }
@@ -202,7 +220,8 @@ ApplicationWindow {
             Layout.margins: 32
             spacing: 16
             Rectangle {
-                visible: !bridge.connected
+                objectName: "connectionBanner"
+                visible: !bridge.connected && bridge.connectionStatus !== "connecting"
                 Layout.fillWidth: true
                 implicitHeight: offline.implicitHeight + 24
                 radius: 10
@@ -212,11 +231,12 @@ ApplicationWindow {
                     ui: app
                     anchors.fill: parent
                     anchors.margins: 12
-                    text: "The desktop client is not running. Start your configured Sotto client to dictate, then reconnect. Appearance settings are still available."
+                    text: bridge.connectionStatus === "setupRequired" ? "Dictation isn’t set up on this computer yet. You can explore Sotto and choose a theme while setup is pending." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
                 }
             }
             Rectangle {
-                visible: app.notice.length > 0
+                objectName: "actionNotice"
+                visible: bridge.connected && app.notice.length > 0
                 Layout.fillWidth: true
                 implicitHeight: noticeRow.implicitHeight + 16
                 radius: 10

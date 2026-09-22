@@ -7,6 +7,7 @@
 #include <QLocalSocket>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QSignalSpy>
@@ -16,6 +17,7 @@
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
+  void initTestCase() { QQuickStyle::setStyle("Basic"); }
   void themeFollowsPaletteAndRecovers() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -71,9 +73,50 @@ private slots:
     server.close();
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.connected(), 2500);
     QVERIFY(bridge.snapshot().isEmpty());
+    QCOMPARE(bridge.connectionStatus(), "unavailable");
+  }
+  void offlinePagesShareOneConnectionNotice() {
+    QTemporaryDir directory;
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    qputenv("SOTTO_CLIENT_CONFIG",
+            (directory.path() + "/client.json").toUtf8());
+    Bridge bridge(false);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_COMPARE(bridge.connectionStatus(), QString("setupRequired"));
+    auto *banner = window->findChild<QQuickItem *>("connectionBanner");
+    auto *notice = window->findChild<QQuickItem *>("actionNotice");
+    QVERIFY(banner && notice);
+    QVERIFY(banner->isVisible());
+    for (const int page : {1, 3, 0}) {
+      window->setProperty("page", page);
+      QTest::qWait(50);
+      QVERIFY(!notice->isVisible());
+      QVERIFY(window->property("notice").toString().isEmpty());
+    }
+    auto *key = window->findChild<QQuickItem *>("shortcutKeycap");
+    QVERIFY(key && key->isVisible());
+    QVERIFY(key->width() > 0 && key->height() > 0);
+    QVERIFY(!window->property("sourcesChecked").toBool());
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_TEST_CAPTURE");
+    if (!capture.isEmpty())
+      QVERIFY(window->grabWindow().save(capture));
+    QFile config(qEnvironmentVariable("SOTTO_CLIENT_CONFIG"));
+    QVERIFY(config.open(QIODevice::WriteOnly));
+    config.close();
+    bridge.request("snapshot");
+    QTRY_COMPARE(bridge.connectionStatus(), QString("unavailable"));
+    QVERIFY(banner->isVisible());
+    QVERIFY(!notice->isVisible());
+    QCOMPARE(warnings.count(), 0);
+    qunsetenv("SOTTO_CLIENT_CONFIG");
   }
   void pagesRenderAndOverlayCannotTakeFocus() {
-    QQuickStyle::setStyle("Basic");
     Bridge bridge(true);
     bridge.setTheme("dark");
     QQmlApplicationEngine engine;

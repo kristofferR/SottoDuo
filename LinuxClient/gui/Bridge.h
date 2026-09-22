@@ -9,6 +9,8 @@ class Bridge : public QObject {
   Q_OBJECT
   Q_PROPERTY(QVariantMap snapshot READ snapshot NOTIFY snapshotChanged)
   Q_PROPERTY(bool connected READ connected NOTIFY snapshotChanged)
+  Q_PROPERTY(
+      QString connectionStatus READ connectionStatus NOTIFY snapshotChanged)
   Q_PROPERTY(bool preview READ preview CONSTANT)
   Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
   Q_PROPERTY(QVariantMap colors READ colors NOTIFY themeChanged)
@@ -17,6 +19,7 @@ public:
   explicit Bridge(bool preview, QObject *parent = nullptr);
   QVariantMap snapshot() const { return m_snapshot; }
   bool connected() const { return m_connected; }
+  QString connectionStatus() const;
   bool preview() const { return m_preview; }
   QString theme() const { return m_theme; }
   QVariantMap colors() const { return m_colors; }
@@ -33,10 +36,13 @@ signals:
   void failed(const QString &action, const QString &message);
 
 private:
+  void disconnected();
   void updateColors();
   void receive(const QString &action, const QByteArray &bytes);
   bool m_preview = false;
   bool m_connected = false;
+  bool m_connectionChecked = false;
+  bool m_hasConnected = false;
   QString m_theme;
   QString m_themeNote;
   QVariantMap m_snapshot;
