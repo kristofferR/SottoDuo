@@ -138,7 +138,7 @@ export class ShortcutSettings {
     private run: Run,
     private busy: () => boolean,
     private file = join(
-      process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"),
+      process.env.XDG_CONFIG_HOME || join(homedir(), ".config"),
       "hypr",
       "bindings.lua",
     ),

@@ -17,7 +17,8 @@ ScrollView {
     property bool pending: false
     property string message: ""
     property var seenInputs: []
-    readonly property bool editable: bridge.connected && !bridge.preview && !ui.busy && !ui.snapshot.connectionChanging && !pending && !!revision
+    readonly property bool scopeChanged: !!ui.snapshot.microphones && (draft.server !== ui.snapshot.microphones.value.server || draft.hostID !== ui.snapshot.microphones.value.hostID)
+    readonly property bool editable: bridge.connected && !bridge.preview && !ui.busy && !ui.snapshot.connectionChanging && !pending && !!revision && !scopeChanged
     readonly property var activeProfile: draft.profiles.find(p => p.id === draft.activeProfileID) || ({
             name: "Default",
             priority: []
@@ -311,7 +312,7 @@ ScrollView {
         }
         SLabel {
             ui: root.ui
-            text: root.message
+            text: root.scopeChanged ? "The server or capture host changed. Discard changes to reload microphone settings before editing." : root.message
             visible: text.length > 0
             Layout.fillWidth: true
         }

@@ -100,12 +100,21 @@ export class API {
     return response;
   }
   async preferences() {
-    return validateBody("PreferencesSnapshot", await this.request("/v1/preferences"));
+    return validateBody(
+      "PreferencesSnapshot",
+      await this.request("/v1/preferences", "GET", undefined, undefined, 10_000),
+    );
   }
   async savePreferences(value: unknown) {
     return validateBody(
       "PreferencesSnapshot",
-      await this.request("/v1/preferences", "PUT", validateBody("PreferencesSnapshot", value)),
+      await this.request(
+        "/v1/preferences",
+        "PUT",
+        validateBody("PreferencesSnapshot", value),
+        undefined,
+        10_000,
+      ),
     );
   }
   async sources() {

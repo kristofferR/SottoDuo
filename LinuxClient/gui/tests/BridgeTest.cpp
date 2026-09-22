@@ -516,6 +516,21 @@ private slots:
     QCOMPARE(bridge.snapshot()["microphones"].toMap()["revision"].toString(),
              QString("poll-update"));
     QCOMPARE(picker->property("currentIndex").toInt(), 1);
+    auto changedValue = polledMicrophones["value"].toObject();
+    changedValue["hostID"] = "other-host";
+    polledMicrophones["value"] = changedValue;
+    polledSnapshot["microphones"] = polledMicrophones;
+    sample["snapshot"] = polledSnapshot;
+    bridge.request("snapshot");
+    QTRY_COMPARE(bridge.snapshot()["microphones"].toMap()["value"].toMap()["hostID"].toString(),
+                 QString("other-host"));
+    QVERIFY(page->property("dirty").toBool());
+    QVERIFY(!save->isEnabled());
+    QVERIFY(!create->isEnabled());
+    QVERIFY(!picker->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
+    QVERIFY(create->isEnabled());
+    QVERIFY(!page->property("dirty").toBool());
     auto snapshot = bridge.snapshot();
     snapshot["busy"] = true;
     window->setProperty("snapshot", snapshot);
