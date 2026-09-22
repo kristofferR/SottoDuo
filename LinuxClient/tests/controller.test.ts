@@ -63,7 +63,15 @@ async function fixture() {
     { dataDirectory: directory, development: true, captureProvider: provider },
     new FakeInference(),
   );
-  const app = createHTTPServer(service, "fixture-token");
+  let recognitionHeader: string | undefined;
+  const app = createHTTPServer(service, "fixture-token", (server) => {
+    server.addHook("onRequest", async (request) => {
+      if (request.url.endsWith("/events")) {
+        const value = request.headers["x-sotto-recognition"];
+        recognitionHeader = typeof value === "string" ? value : undefined;
+      }
+    });
+  });
   const address = await app.listen({ host: "127.0.0.1", port: 0 });
   cleanup.push(async () => {
     await service.shutdown();
@@ -107,6 +115,7 @@ async function fixture() {
     notices,
     desktop,
     deliveries: () => deliveries,
+    recognitionHeader: () => recognitionHeader,
     lock: () => {
       unlocked = false;
     },
@@ -144,6 +153,7 @@ test("live server feedback supplies real peaks but cannot deliver text; stopped 
   await until(() => f.controller.activity.phase === "recording");
   f.level(0.65);
   await until(() => f.controller.feedback.snapshot().levels.includes(0.65));
+  expect(f.recognitionHeader()).toBe("streaming-v1");
   expect(f.deliveries()).toBe(0);
   f.controller.stop();
   await f.controller.settled();
@@ -218,7 +228,7 @@ test("definitive startup rejection permits one fallback with fresh owner and req
   const start = f.api.start.bind(f.api);
   const requests: { id: string; owner: string }[] = [];
   f.api.start = async (...args) => {
-    requests.push({ id: args[0], owner: args[3] });
+    requests.push({ id: args[0], owner: args[4] });
     if (requests.length === 1) throw new APIError(503, "source_unavailable");
     return start(...args);
   };
@@ -468,6 +478,7 @@ test("GUI microphone tests retain a preview without attempting desktop insertion
   await f.controller.settled();
   expect(f.controller.activity.phase).toBe("completed");
   expect(f.controller.result?.delivery).toBe("preview");
+  expect((await f.api.get(f.controller.result!.id)).mode).toBe("test");
   expect(f.deliveries()).toBe(0);
   expect(selected).toBe(false);
 });

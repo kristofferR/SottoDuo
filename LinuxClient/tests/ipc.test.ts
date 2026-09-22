@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { StringDecoder } from "node:string_decoder";
 import { send, serve } from "../src/ipc.ts";
 import { ClientNotice } from "../src/errors.ts";
 
@@ -14,6 +15,7 @@ test("private IPC serializes commands, rejects a second daemon and releases its 
     const calls: string[] = [];
     close = await serve(async (command) => {
       calls.push(command);
+      await Bun.sleep(10);
       return "ok";
     });
     expect((await stat(join(dir, "sotto-client", "control.sock"))).mode & 0o777).toBe(0o600);
@@ -42,13 +44,14 @@ test("GUI IPC accepts a newline without a half-close and rejects malformed JSON"
   const request = (input: string): Promise<string> =>
     new Promise((resolve, reject) => {
       const socket = connect(join(dir, "sotto-client", "control.sock"));
+      const decoder = new StringDecoder("utf8");
       let data = "";
       socket.setTimeout(3000, () => socket.destroy(new Error("timeout")));
       socket.on("connect", () => socket.write(input));
       socket.on("data", (bytes) => {
-        data += bytes.toString();
+        data += decoder.write(bytes);
       });
-      socket.on("end", () => resolve(data));
+      socket.on("end", () => resolve(data + decoder.end()));
       socket.on("error", reject);
     });
   try {

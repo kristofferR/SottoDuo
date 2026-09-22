@@ -235,6 +235,7 @@ export class Controller {
         const record = await this.api.start(
           take.requestID,
           this.device,
+          take.preview ? "test" : "dictation",
           source.identity,
           take.owner,
           remaining,

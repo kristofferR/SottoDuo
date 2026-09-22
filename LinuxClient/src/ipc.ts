@@ -1,6 +1,7 @@
 import { connect, createServer } from "node:net";
 import { chmod, lstat, mkdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { acquireDataDirectoryLock } from "../../Server/src/data-lock.ts";
 import { ClientNotice } from "./errors.ts";
 export type Command =
@@ -46,7 +47,7 @@ export async function send(command: Command): Promise<string> {
   return new Promise((resolve, reject) => {
     let value = "";
     socket.setTimeout(5000, () => socket.destroy(new Error("Sotto did not respond.")));
-    socket.on("connect", () => socket.end(command + "\n"));
+    socket.on("connect", () => socket.write(command + "\n"));
     socket.on("data", (data: Buffer) => {
       value += data.toString();
       if (value.length > 524288) socket.destroy(new Error("Oversized reply."));
@@ -71,7 +72,7 @@ export async function serve(
     throw error;
   }
   const server = createServer({ allowHalfOpen: true }, (socket) => {
-    socket.setEncoding("utf8");
+    const decoder = new StringDecoder("utf8");
     let input = "";
     socket.setTimeout(2000, () => socket.destroy());
     socket.on("error", () => {});
@@ -118,12 +119,12 @@ export async function serve(
         () => socket.end("Command failed.\n"),
       );
     };
-    socket.on("data", (data: string) => {
+    socket.on("data", (data: Buffer) => {
       if (handled) {
         socket.destroy();
         return;
       }
-      input += data;
+      input += decoder.write(data);
       if (Buffer.byteLength(input) > 524288) {
         handled = true;
         socket.removeAllListeners("data");
@@ -136,7 +137,10 @@ export async function serve(
         );
       } else if (input.includes("\n")) dispatch();
     });
-    socket.on("end", dispatch);
+    socket.on("end", () => {
+      input += decoder.end();
+      dispatch();
+    });
   });
   try {
     await new Promise<void>((resolve, reject) => {

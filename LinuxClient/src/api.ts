@@ -3,6 +3,7 @@ import type { components } from "../../Server/src/generated/api.ts";
 import type { SourceID } from "./sources.ts";
 export type Generation = components["schemas"]["GenerationRecord"];
 export type Device = components["schemas"]["DeviceIdentity"];
+export type CaptureMode = components["schemas"]["StartCaptureRequest"]["mode"];
 export class APIError extends Error {
   constructor(
     readonly status: number,
@@ -108,6 +109,7 @@ export class API {
   async start(
     requestID: string,
     device: Device,
+    mode: CaptureMode,
     source: SourceID,
     owner: string,
     timeout: number,
@@ -118,7 +120,7 @@ export class API {
       await this.request(
         "/v1/captures",
         "POST",
-        { requestID, device, mode: "dictation", source, buttonTicket },
+        { requestID, device, mode, source, buttonTicket },
         owner,
         timeout,
       ),
@@ -147,6 +149,7 @@ export class API {
         Authorization: `Bearer ${this.token}`,
         Accept: "application/x-ndjson",
         "X-Sotto-Capture": "capture-v1",
+        "X-Sotto-Recognition": "streaming-v1",
       },
     });
     if (!response.ok || !response.body) {
