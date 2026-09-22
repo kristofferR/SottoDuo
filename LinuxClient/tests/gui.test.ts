@@ -152,9 +152,11 @@ test("shared GUI settings preserve untouched preferences and reject a stale revi
       preferences: {
         ...old.preferences,
         proofreadingPrompt: "Preserve this prompt",
+        recognitionMode: "local",
         vocabulary: "First computer",
       },
     });
+    expect(current.preferences.recognitionMode).toBe("local");
     await expect(
       api.savePreferences({
         ...old,
@@ -166,7 +168,9 @@ test("shared GUI settings preserve untouched preferences and reject a stale revi
       preferences: { ...current.preferences, vocabulary: "Current computer" },
     });
     expect(saved.preferences.proofreadingPrompt).toBe("Preserve this prompt");
+    expect(saved.preferences.recognitionMode).toBe("local");
     expect(saved.preferences.vocabulary).toBe("Current computer");
+    expect((await api.preferences()).preferences.recognitionMode).toBe("local");
   } finally {
     await service.shutdown();
     await server.close();

@@ -40,6 +40,7 @@ export class API {
         ...(destinationOwner ? { "X-Sotto-Destination-Owner": destinationOwner } : {}),
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         "X-Sotto-Capture": "capture-v1",
+        "X-Sotto-Recognition": "streaming-v1",
         ...(owner ? { "X-Sotto-Capture-Owner": owner } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
