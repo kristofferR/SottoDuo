@@ -71,6 +71,9 @@ ScrollView {
                 detail: bridge.themeNote
             }
         }
+        ShortcutSettings {
+            ui: root.ui
+        }
         DjiSettings {
             ui: root.ui
         }

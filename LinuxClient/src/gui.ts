@@ -5,6 +5,7 @@ import { configPath, parseConfig, type Config } from "./config.ts";
 import type { Controller, Desktop } from "./controller.ts";
 import type { ButtonDestinationClient } from "./buttons.ts";
 import { candidates, eligible, sourceKey } from "./sources.ts";
+import type { ShortcutSettings } from "./shortcuts.ts";
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -16,6 +17,7 @@ export function createGUIHandler(
   desktop: Desktop,
   initial: Config,
   buttons?: ButtonDestinationClient,
+  shortcuts?: ShortcutSettings,
 ) {
   let config = initial;
   const saveConfig = (next: Config) => {
@@ -49,6 +51,7 @@ export function createGUIHandler(
         server: config.server,
         sources: config.sources,
         buttonEnabled: config.buttonEnabled,
+        shortcut: shortcuts?.snapshot() ?? null,
         buttonSettingsSupported: buttons !== undefined,
         button: buttons?.state
           ? {
@@ -62,6 +65,21 @@ export function createGUIHandler(
       };
     if (!(await desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
     switch (request.action) {
+      case "shortcuts":
+        if (!shortcuts)
+          throw new ClientNotice("Update the background client for shortcut settings.");
+        return shortcuts.refresh();
+      case "saveShortcut":
+        if (!shortcuts)
+          throw new ClientNotice("Update the background client for shortcut settings.");
+        return shortcuts.save(request.key, request.revision);
+      case "checkShortcut":
+        if (!shortcuts)
+          throw new ClientNotice("Update the background client for shortcut checking.");
+        return shortcuts.startCheck();
+      case "endShortcutCheck":
+        shortcuts?.check.end();
+        return {};
       case "test":
         controller.start(undefined, true);
         return {};

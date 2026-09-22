@@ -22,7 +22,7 @@ ColumnLayout {
             radius: 19
             color: root.ui.c.line
             Accessible.role: Accessible.Graphic
-            Accessible.name: "Dictation keyboard shortcut"
+            Accessible.name: root.ui.shortcut.key ? "Hold " + root.ui.shortcut.key + " to dictate" : "Dictation keyboard shortcut"
             Rectangle {
                 width: parent.width
                 height: parent.height - 6
@@ -30,6 +30,7 @@ ColumnLayout {
                 color: root.ui.c.surface
                 border.color: root.ui.c.line
                 Image {
+                    visible: !root.ui.shortcut.key
                     anchors.centerIn: parent
                     width: 44
                     height: 44
@@ -37,11 +38,20 @@ ColumnLayout {
                     Accessible.ignored: true
                     source: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="' + root.ui.c.accent + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 15h10"/></svg>')
                 }
+                SLabel {
+                    objectName: "configuredShortcutKey"
+                    ui: root.ui
+                    anchors.centerIn: parent
+                    text: root.ui.shortcut.key || ""
+                    visible: text.length > 0
+                    font.pixelSize: 22
+                    font.weight: Font.DemiBold
+                }
             }
         }
         SLabel {
             ui: root.ui
-            text: root.ui.activity.phase === "completed" ? "Hold to dictate." : root.ui.messageFor(root.ui.activity.phase)
+            text: root.ui.shortcut.changing ? "Saving shortcut…" : !root.ui.busy && root.ui.shortcutBlocked ? "Checking shortcut…" : root.ui.activity.phase === "completed" ? "Hold to dictate." : root.ui.messageFor(root.ui.activity.phase)
             font.pixelSize: 38
             font.weight: Font.DemiBold
             Layout.fillWidth: true
@@ -170,7 +180,7 @@ ColumnLayout {
             primary: true
             readonly property bool testing: root.ui.busy && root.ui.activity.trigger === "test"
             text: testing ? root.ui.activity.phase === "recording" ? "Finish test" : root.ui.activity.phase === "preparing" ? "Starting test…" : "Transcribing…" : "Test microphone"
-            enabled: bridge.connected && (root.ui.busy ? testing && root.ui.activity.phase === "recording" : root.ui.serverReady)
+            enabled: bridge.connected && !root.ui.shortcutBlocked && (root.ui.busy ? testing && root.ui.activity.phase === "recording" : root.ui.serverReady)
             onClicked: bridge.request(root.ui.busy ? "stop" : "test")
         }
         SButton {

@@ -6,6 +6,7 @@ import { ButtonDestinationClient } from "./buttons.ts";
 import { Controller } from "./controller.ts";
 import { command, HyprlandDesktop } from "./desktop.ts";
 import { isCommand, send, serve, type Command } from "./ipc.ts";
+import { ShortcutSettings } from "./shortcuts.ts";
 
 const help = `Sotto for Hyprland
   sotto init SERVER_ORIGIN CAPTURE_HOST_ID TOKEN_FILE [DESTINATION_HELPER]
@@ -44,6 +45,11 @@ try {
     else if (action === "daemon") {
       const desktop = new HyprlandDesktop(config.destinationHelper);
       const controller = new Controller(api, desktop, config.device, config.sources);
+      const shortcuts = new ShortcutSettings(
+        (args) => command(args, 3000),
+        () => controller.busy,
+      );
+      controller.captureAllowed = () => !shortcuts.blocked;
       const buttons = new ButtonDestinationClient(
         api,
         desktop,
@@ -67,6 +73,8 @@ try {
       });
       try {
         const handle = async (action: Command): Promise<string> => {
+          if (shortcuts.check.consume(action))
+            return "Shortcut detected. No recording or clipboard action was performed.";
           switch (action) {
             case "arm":
               if (!buttons.enabled)
@@ -113,10 +121,11 @@ try {
           () => {
             void shutdown(1);
           },
-          createGUIHandler(api, controller, desktop, config, buttons),
+          createGUIHandler(api, controller, desktop, config, buttons, shortcuts),
         );
         await desktop.monitorSession(
           () => {
+            shortcuts.check.end();
             void buttons.disarm();
             if (
               controller.busy &&
@@ -130,6 +139,7 @@ try {
             void handle(action).catch(() => desktop.notify("Shortcut failed."));
           },
         );
+        await shortcuts.refresh();
         buttons.start();
         console.log("Sotto is ready. Waiting for a shortcut.");
       } catch (error) {

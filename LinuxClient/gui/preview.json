@@ -37,7 +37,50 @@
       "available": true,
       "selectedHere": false
     },
-    "buttonSettingsSupported": true
+    "buttonSettingsSupported": true,
+    "shortcut": {
+      "supported": true,
+      "key": "Menu",
+      "revision": "preview",
+      "message": "Hold to dictate; release to transcribe.",
+      "choices": [
+        {
+          "key": "Menu",
+          "available": true,
+          "reason": "Available"
+        },
+        {
+          "key": "F8",
+          "available": true,
+          "reason": "Available"
+        },
+        {
+          "key": "F9",
+          "available": false,
+          "reason": "Already used: Voxtype"
+        },
+        {
+          "key": "F10",
+          "available": true,
+          "reason": "Available"
+        },
+        {
+          "key": "F12",
+          "available": true,
+          "reason": "Available"
+        }
+      ],
+      "changing": false,
+      "check": {
+        "active": false,
+        "blocked": false,
+        "held": false,
+        "presses": 0,
+        "releases": 0,
+        "remainingSeconds": 0,
+        "message": "Not checked"
+      }
+    }
   },
   "connection": {
     "ready": true
@@ -117,6 +160,49 @@
       "link": "connected",
       "capture": "available",
       "audioHealth": "unknown"
+    }
+  },
+  "shortcuts": {
+    "supported": true,
+    "key": "Menu",
+    "revision": "preview",
+    "message": "Hold to dictate; release to transcribe.",
+    "choices": [
+      {
+        "key": "Menu",
+        "available": true,
+        "reason": "Available"
+      },
+      {
+        "key": "F8",
+        "available": true,
+        "reason": "Available"
+      },
+      {
+        "key": "F9",
+        "available": false,
+        "reason": "Already used: Voxtype"
+      },
+      {
+        "key": "F10",
+        "available": true,
+        "reason": "Available"
+      },
+      {
+        "key": "F12",
+        "available": true,
+        "reason": "Available"
+      }
+    ],
+    "changing": false,
+    "check": {
+      "active": false,
+      "blocked": false,
+      "held": false,
+      "presses": 0,
+      "releases": 0,
+      "remainingSeconds": 0,
+      "message": "Not checked"
     }
   }
 }

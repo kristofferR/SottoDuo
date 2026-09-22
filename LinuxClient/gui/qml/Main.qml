@@ -27,6 +27,8 @@ ApplicationWindow {
             phase: "idle"
         })
     property var result: snapshot.result || null
+    property var shortcut: snapshot.shortcut || ({})
+    readonly property bool shortcutBlocked: !!shortcut.changing || (!!shortcut.check && !!shortcut.check.blocked)
     property var feedback: snapshot.feedback || ({})
     function duration(seconds) {
         const value = Math.max(0, Math.floor(seconds || 0));
@@ -68,6 +70,7 @@ ApplicationWindow {
         }
         bridge.request("connection");
         bridge.request("sources");
+        bridge.request("shortcuts");
     }
     function messageFor(phase) {
         if (phase === "preparing")
@@ -123,7 +126,7 @@ ApplicationWindow {
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
-            if (["receiver", "saveButton", "arm", "disarm"].includes(action))
+            if (["receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
                 return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";

@@ -375,6 +375,54 @@ private slots:
     QCOMPARE(text->property("text").toString(), "Final sentence.");
     QCOMPARE(warnings.count(), 0);
   }
+  void shortcutKeyAndCheckAreVisibleWithoutEnablingRecording() {
+    Bridge bridge(true);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    auto *key = window->findChild<QQuickItem *>("configuredShortcutKey");
+    QVERIFY(key);
+    QCOMPARE(key->property("text").toString(), "Menu");
+    auto state = bridge.snapshot();
+    auto shortcut = state["shortcut"].toMap();
+    shortcut["check"] = QVariantMap{{"active", true},
+                                    {"blocked", true},
+                                    {"held", true},
+                                    {"presses", 1},
+                                    {"releases", 0},
+                                    {"remainingSeconds", 20},
+                                    {"message", "Press detected"}};
+    state["shortcut"] = shortcut;
+    window->setProperty("snapshot", state);
+    auto *test = window->findChild<QQuickItem *>("microphoneTestButton");
+    QVERIFY(test && !test->isEnabled());
+    window->setProperty("page", 4);
+    QTest::qWait(50);
+    auto *result = window->findChild<QQuickItem *>("shortcutCheckResult");
+    QVERIFY(result);
+    QVERIFY(result->property("text").toString().contains("Presses: 1"));
+    auto *settings = window->findChild<QQuickItem *>("shortcutSettings");
+    QVERIFY(settings);
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_SHORTCUT_CAPTURE");
+    if (!capture.isEmpty()) {
+      for (auto *parent = settings->parentItem(); parent;
+           parent = parent->parentItem()) {
+        if (parent->property("contentY").isValid()) {
+          parent->setProperty("contentY",
+                              settings->mapToItem(parent, QPointF()).y() +
+                                  parent->property("contentY").toReal());
+          break;
+        }
+      }
+      QTest::qWait(50);
+      QVERIFY(window->grabWindow().save(capture));
+    }
+    QCOMPARE(warnings.count(), 0);
+  }
   void activeMicrophoneTestCanFinishWhenServerIsBusy() {
     Bridge bridge(true);
     QQmlApplicationEngine engine;

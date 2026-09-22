@@ -41,6 +41,7 @@ export class Controller {
   private watching = false;
   private lastTick = Date.now();
   feedback = new RecordingFeedback();
+  captureAllowed: () => boolean = () => true;
   onStart?: (ticket?: string) => void;
   onComplete?: (id: string | undefined, ticket: string | undefined, succeeded: boolean) => void;
   activity: {
@@ -77,7 +78,7 @@ export class Controller {
     private preferences: SourcePreferences,
   ) {}
   start(button?: Take["button"], preview = false): void {
-    if (this.take) return;
+    if (this.take || !this.captureAllowed()) return;
     this.result = undefined;
     this.feedback = new RecordingFeedback();
     const take: Take = {
@@ -129,7 +130,7 @@ export class Controller {
     if (this.take && !this.take.button) this.take.released = true;
   }
   startButton(ticket: string, source: SourceID): boolean {
-    if (this.take) return false;
+    if (this.take || !this.captureAllowed()) return false;
     this.start({ ticket, source });
     return true;
   }

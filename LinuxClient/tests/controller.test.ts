@@ -9,6 +9,7 @@ import { FakeInference } from "../../Server/tests/support.ts";
 import { API, APIError } from "../src/api.ts";
 import { Controller, type Desktop } from "../src/controller.ts";
 import type { Source } from "../src/sources.ts";
+import { ShortcutCheck } from "../src/shortcuts.ts";
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
@@ -115,6 +116,28 @@ async function fixture() {
     level: (peak: number) => level(peak),
   };
 }
+test("shortcut diagnostics block shortcut, GUI test and pairing captures until a held key is released", async () => {
+  const f = await fixture();
+  const check = new ShortcutCheck();
+  f.controller.captureAllowed = () => !check.blocked;
+  check.begin();
+  check.consume("start");
+  f.controller.start();
+  f.controller.start(undefined, true);
+  expect(f.controller.startButton("ticket", { hostID: "desktop", id: "dji" })).toBe(false);
+  expect(f.controller.busy).toBe(false);
+  expect(f.starts).toEqual([]);
+  check.end();
+  f.controller.start();
+  expect(f.controller.busy).toBe(false);
+  check.consume("stop");
+  f.controller.start(undefined, true);
+  await until(() => f.controller.activity.phase === "recording");
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.starts).toEqual(["dji"]);
+  expect(f.deliveries()).toBe(0);
+});
 test("live server feedback supplies real peaks but cannot deliver text; stopped and cancelled takes clear levels", async () => {
   const f = await fixture();
   f.controller.start();
