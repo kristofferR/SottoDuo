@@ -499,6 +499,11 @@ private slots:
     QVERIFY(page->property("dirty").toBool());
     QVERIFY(save->isEnabled());
     QCOMPARE(picker->property("currentIndex").toInt(), 1);
+    window->setProperty("page", 0);
+    window->setProperty("page", 2);
+    QCOMPARE(window->findChild<QQuickItem *>("microphonePage"), page);
+    QCOMPARE(picker->property("currentIndex").toInt(), 1);
+    QVERIFY(page->property("dirty").toBool());
     // A changed server snapshot cannot replace an unsaved profile choice.
     auto polledSnapshot = sample["snapshot"].toObject();
     auto polledMicrophones = polledSnapshot["microphones"].toObject();

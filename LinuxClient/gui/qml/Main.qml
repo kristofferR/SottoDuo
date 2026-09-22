@@ -344,8 +344,18 @@ ApplicationWindow {
             Loader {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: app.page !== 3
-                sourceComponent: [dictation, history, microphone, null, computer][app.page]
+                visible: app.page !== 2 && app.page !== 3
+                sourceComponent: [dictation, history, null, null, computer][app.page]
+            }
+            Loader {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: app.page === 2
+                // Keep microphone drafts and in-flight saves when visiting another page.
+                property bool opened: false
+                onVisibleChanged: if (visible) opened = true
+                active: opened || visible
+                sourceComponent: microphone
             }
             Loader {
                 Layout.fillWidth: true
