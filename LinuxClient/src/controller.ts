@@ -77,8 +77,8 @@ export class Controller {
     private device: Device,
     private preferences: SourcePreferences,
   ) {}
-  start(button?: Take["button"], preview = false): void {
-    if (this.take || !this.captureAllowed()) return;
+  start(button?: Take["button"], preview = false): boolean {
+    if (this.take || !this.captureAllowed()) return false;
     this.result = undefined;
     this.feedback = new RecordingFeedback();
     const take: Take = {
@@ -125,14 +125,13 @@ export class Controller {
           );
         }
       });
+    return true;
   }
   stop(): void {
     if (this.take && !this.take.button) this.take.released = true;
   }
   startButton(ticket: string, source: SourceID): boolean {
-    if (this.take || !this.captureAllowed()) return false;
-    this.start({ ticket, source });
-    return true;
+    return this.start({ ticket, source });
   }
   stopButton(ticket: string): void {
     if (this.take?.button?.ticket === ticket) this.take.released = true;

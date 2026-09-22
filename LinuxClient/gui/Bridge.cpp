@@ -67,10 +67,12 @@ QString Bridge::connectionStatus() const {
     return "connecting";
   QString config = qEnvironmentVariable("SOTTO_CLIENT_CONFIG");
   if (!qEnvironmentVariableIsSet("SOTTO_CLIENT_CONFIG")) {
-    const QString configHome = qEnvironmentVariableIsSet("XDG_CONFIG_HOME")
-                                   ? qEnvironmentVariable("XDG_CONFIG_HOME")
-                                   : QStandardPaths::writableLocation(
-                                         QStandardPaths::GenericConfigLocation);
+    const QString xdgConfigHome = qEnvironmentVariable("XDG_CONFIG_HOME");
+    const QString configHome =
+        xdgConfigHome.isEmpty()
+            ? QStandardPaths::writableLocation(
+                  QStandardPaths::GenericConfigLocation)
+            : xdgConfigHome;
     config = QDir(configHome).filePath("sotto/linux-client.json");
   }
   return m_hasConnected || QFileInfo(config).isFile() ? "unavailable"

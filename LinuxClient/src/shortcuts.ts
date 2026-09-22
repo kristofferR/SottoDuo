@@ -58,6 +58,15 @@ const codes: Record<Key, number[]> = { Menu: [135, 147], F8: [74], F9: [75], F10
 const actions = ["start dictation", "stop dictation", "cancel dictation", "copy last result"];
 const begin = "-- BEGIN Sotto shortcuts\n",
   end = "-- END Sotto shortcuts\n";
+const documentedMenuBlock = `-- Kris selected Menu for Sotto, replacing its Voxtype toggle binding.
+-- Remove the existing Menu binding once, then add both press and release actions.
+hl.unbind("Menu")
+-- Compositor events preserve press/release ordering without racing CLI processes.
+o.bind("Menu", "Sotto: start dictation", hl.dsp.event("sotto:start"))
+o.bind("Menu", "Sotto: stop dictation", hl.dsp.event("sotto:stop"), { release = true, ignore_mods = true })
+o.bind("SUPER + Menu", "Sotto: cancel dictation", hl.dsp.event("sotto:cancel"))
+o.bind("SUPER + SHIFT + Menu", "Sotto: copy last result", hl.dsp.event("sotto:copy"))
+`;
 const revision = (text: string) => createHash("sha256").update(text).digest("hex");
 export function shortcutBlock(key: Key) {
   return `o.rebind("${key}", "Sotto: start dictation", hl.dsp.event("sotto:start"))\no.bind("${key}", "Sotto: stop dictation", hl.dsp.event("sotto:stop"), { release = true, ignore_mods = true })\no.bind("SUPER + ${key}", "Sotto: cancel dictation", hl.dsp.event("sotto:cancel"))\no.bind("SUPER + SHIFT + ${key}", "Sotto: copy last result", hl.dsp.event("sotto:copy"))\n`;
@@ -67,6 +76,7 @@ function section(text: string) {
     for (const block of [
       begin + shortcutBlock(key) + end,
       `-- Sotto dictation: hold ${key}; release to transcribe.\n` + shortcutBlock(key),
+      ...(key === "Menu" ? [documentedMenuBlock] : []),
     ]) {
       const at = text.indexOf(block);
       if (

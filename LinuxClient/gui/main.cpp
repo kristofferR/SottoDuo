@@ -15,7 +15,14 @@
 #include <QTimer>
 
 int main(int argc, char **argv) {
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
   LayerShellQt::Shell::useLayerShell();
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
   QApplication app(argc, argv);
   app.setOrganizationName("Sotto");
   app.setApplicationName("Sotto");

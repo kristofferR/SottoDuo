@@ -15,7 +15,7 @@ export interface Config {
 }
 export const configPath = () =>
   process.env.SOTTO_CLIENT_CONFIG ??
-  join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "sotto", "linux-client.json");
+  join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "sotto", "linux-client.json");
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }

@@ -107,3 +107,31 @@ test("shortcut settings preserve other bindings, reject conflicts and stale edit
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("shortcut settings recognize and migrate the documented Menu bindings", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sotto-shortcuts-documented-"));
+  const file = join(dir, "bindings.lua");
+  const documented = await readFile(join(import.meta.dir, "../integration/bindings.lua"), "utf8");
+  let active = bindings("Menu");
+  const run = async (args: string[]) => {
+    if (args.includes("binds")) return JSON.stringify(active);
+    if (args.includes("configerrors")) return "";
+    if (args.includes("reload")) {
+      active = bindings("F8");
+      return "ok";
+    }
+    throw new Error("Unexpected command");
+  };
+  const settings = new ShortcutSettings(run, () => false, file);
+  try {
+    await writeFile(file, documented);
+    const state = await settings.refresh();
+    expect(state).toMatchObject({ supported: true, key: "Menu" });
+    await settings.save("F8", state.revision);
+    const saved = await readFile(file, "utf8");
+    expect(saved).toContain("-- BEGIN Sotto shortcuts");
+    expect(saved).toContain('o.rebind("F8"');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

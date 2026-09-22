@@ -63,6 +63,10 @@ test("GUI requests are versioned and scoped; source preferences persist without 
     const snapshot = JSON.stringify(await gui({ version: 1, action: "snapshot" }));
     expect(snapshot).not.toContain("/private");
     expect(snapshot).not.toContain("never-publish");
+    controller.captureAllowed = () => false;
+    await expect(gui({ version: 1, action: "test" })).rejects.toThrow("shortcut check");
+    expect(controller.busy).toBe(false);
+    controller.captureAllowed = () => true;
     expect(await gui({ version: 1, action: "receiver" })).toMatchObject({
       available: false,
       source: null,

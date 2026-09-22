@@ -89,7 +89,8 @@ export function createGUIHandler(
         shortcuts?.check.end();
         return {};
       case "test":
-        controller.start(undefined, true);
+        if (!controller.start(undefined, true))
+          throw new ClientNotice("Finish dictation or the shortcut check before testing.");
         return {};
       case "stop":
         controller.stop();

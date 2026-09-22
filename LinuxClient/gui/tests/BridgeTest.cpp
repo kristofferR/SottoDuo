@@ -1,5 +1,7 @@
 #include "../Bridge.h"
 #include "../HudSurface.h"
+#include <LayerShellQt/Shell>
+#include <QApplication>
 #include <QDir>
 #include <QFile>
 #include <QJSValue>
@@ -920,5 +922,17 @@ private slots:
              "Server models are unavailable.");
   }
 };
-QTEST_MAIN(BridgeTest)
+int main(int argc, char **argv) {
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  LayerShellQt::Shell::useLayerShell();
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+  QApplication app(argc, argv);
+  BridgeTest test;
+  return QTest::qExec(&test, argc, argv);
+}
 #include "BridgeTest.moc"
