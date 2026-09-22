@@ -5,7 +5,8 @@ import QtQuick.Layouts
 Group {
     id: root
     objectName: "shortcutSettings"
-    title: "SHORTCUTS"
+    title: "Shortcuts"
+    property bool enabledForDesktop: true
     readonly property var config: ui.snapshot.shortcut || ({})
     readonly property var check: config.check || ({})
     readonly property var choices: config.choices || []
@@ -15,8 +16,8 @@ Group {
     property bool pending: false
     readonly property bool blocked: !!config.changing || !!check.blocked
     readonly property var selected: choices.find(choice => choice.key === (selectedKey || config.key)) || ({})
-    Component.onCompleted: bridge.request("shortcuts")
-    Component.onDestruction: root.ui.finishShortcutCheck()
+    Component.onCompleted: if (enabledForDesktop) bridge.request("shortcuts")
+    Component.onDestruction: if (enabledForDesktop) root.ui.finishShortcutCheck()
     Connections {
         target: root.ui
         function onVisibleChanged() {

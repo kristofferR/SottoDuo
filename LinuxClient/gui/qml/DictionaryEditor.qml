@@ -66,7 +66,7 @@ Group {
     }
 
     objectName: "dictionaryEditor"
-    title: "DICTIONARY · SHARED"
+    title: "Dictionary · shared"
     Component.onCompleted: reset()
 
     Connections {

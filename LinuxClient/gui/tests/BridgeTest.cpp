@@ -37,6 +37,8 @@ private slots:
     QQmlEngine engine;
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QQmlComponent model(&engine);
     model.setData(R"(
       import QtQml
@@ -140,6 +142,8 @@ private slots:
     Bridge bridge(false);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -192,6 +196,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     QQmlComponent model(&engine);
     model.setData(R"(
@@ -244,6 +250,8 @@ private slots:
     bridge.setTheme("dark");
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -298,6 +306,8 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     engine.setInitialProperties({{"startHidden", true}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
@@ -339,6 +349,8 @@ private slots:
     bridge.setTheme("dark");
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -397,6 +409,8 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -469,6 +483,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -602,6 +618,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -610,7 +628,9 @@ private slots:
     window->setProperty("page",1);
     auto *page = window->findChild<QQuickItem *>("historyPage");
     QVERIFY(page);
-    QTRY_COMPARE(page->property("selectedID").toString(), "preview");
+    QTRY_COMPARE(page->property("records").toList().size(), 2);
+    QCOMPARE(page->property("selectedID").toString(), "");
+    page->setProperty("selectedID", "preview");
     auto *older = page->findChild<QQuickItem *>("olderHistory");
     auto *remove = page->findChild<QQuickItem *>("deleteHistory");
     auto *open = page->findChild<QQuickItem *>("openHistoryAudio");
@@ -701,6 +721,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -860,6 +882,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -898,6 +922,8 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());

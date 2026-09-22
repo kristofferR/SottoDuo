@@ -55,7 +55,7 @@ ColumnLayout {
     readonly property bool available: bridge.connected && !bridge.snapshot.setupRequired && server === bridge.snapshot.server
 
     function reconcile() {
-        if (!filtered.some((r) => {
+        if (selectedID && !filtered.some((r) => {
             return r.id === selectedID;
         }))
             selectedID = filtered.length ? filtered[0].id : "";
@@ -105,6 +105,19 @@ ColumnLayout {
         bridge.request("historyAudio", {
             "id": audioID,
             "kind": kind,
+            "server": server
+        });
+    }
+
+    function openArtifact(filename) {
+        if (!selected || acting || !available || bridge.preview || !(selected.importedSource?.artifactNames || []).includes(filename))
+            return;
+        audioID = selected.id;
+        audioKind = filename;
+        message = "Downloading saved source file…";
+        bridge.request("historyArtifact", {
+            "id": audioID,
+            "filename": filename,
             "server": server
         });
     }
@@ -166,24 +179,24 @@ ColumnLayout {
                 root.load(false);
                 root.message = "Deleted from shared history.";
             }
-            if (action === "historyAudio") {
-                const wanted = root.audioID === data.id && root.audioKind === data.kind && data.server === root.server && root.selectedID === data.id;
+            if (action === "historyAudio" || action === "historyArtifact") {
+                const wanted = root.audioID === data.id && root.audioKind === (action === "historyAudio" ? data.kind : data.filename) && data.server === root.server && root.selectedID === data.id;
                 root.audioID = "";
                 if (!wanted)
                     return ;
 
-                root.message = Qt.openUrlExternally(data.url) ? "Opened in your audio player." : "No audio player could open this recording. Choose a default WAV player in your desktop settings.";
+                root.message = Qt.openUrlExternally(data.url) ? "Opened saved file." : "No application could open this saved file. Choose a default app in your desktop settings.";
             }
         }
 
         function onFailed(action, message) {
-            if (!["history", "historyAudio", "deleteHistory"].includes(action))
+            if (!["history", "historyAudio", "historyArtifact", "deleteHistory"].includes(action))
                 return ;
 
             if (action === "history")
                 root.loading = false;
 
-            if (action === "historyAudio")
+            if (action === "historyAudio" || action === "historyArtifact")
                 root.audioID = "";
 
             if (action === "deleteHistory")
@@ -214,6 +227,8 @@ ColumnLayout {
     }
 
     RowLayout {
+        Layout.fillWidth: true
+        spacing: 12
         SLabel {
             ui: root.ui
             text: "History"
@@ -222,20 +237,9 @@ ColumnLayout {
             Layout.fillWidth: true
         }
 
-        SButton {
-            ui: root.ui
-            objectName: "refreshHistory"
-            text: "Refresh"
-            enabled: !root.loading && !root.acting && root.available
-            onClicked: root.load(false)
-        }
-
-    }
-
-    RowLayout {
         ComboBox {
             objectName: "historyDeviceFilter"
-            Layout.preferredWidth: 220
+            Layout.preferredWidth: 178
             model: root.devices
             textRole: "name"
             currentIndex: Math.max(0, root.devices.findIndex((d) => {
@@ -251,7 +255,7 @@ ColumnLayout {
 
         ComboBox {
             objectName: "historySourceFilter"
-            Layout.preferredWidth: 160
+            Layout.preferredWidth: 146
             model: ["All sources", "Sotto", "Wispr Flow"]
             currentIndex: ["", "sotto", "wispr-flow"].indexOf(root.source)
             enabled: !root.loading && !root.acting && root.available
@@ -259,14 +263,35 @@ ColumnLayout {
             onActivated: root.filterSource(["", "sotto", "wispr-flow"][currentIndex])
         }
 
+        SButton {
+            ui: root.ui
+            objectName: "refreshHistory"
+            text: "Refresh"
+            enabled: !root.loading && !root.acting && root.available
+            onClicked: root.load(false)
+        }
+
     }
 
-    SLabel {
-        ui: root.ui
-        text: root.filtered.length + " entries shown · " + root.records.length + " loaded · Shared across computers"
-        color: root.ui.c.muted
-        font.pixelSize: 12
+    RowLayout {
         Layout.fillWidth: true
+        spacing: 9
+        Rectangle {
+            Layout.preferredWidth: 8
+            Layout.preferredHeight: 8
+            radius: 4
+            color: root.ui.serverReady || bridge.preview ? "#4ade80" : root.ui.c.muted
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.connection
+            Layout.fillWidth: true
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.snapshot.server || ""
+            color: root.ui.c.muted
+        }
     }
 
     SLabel {
@@ -284,7 +309,7 @@ ColumnLayout {
 
         ListView {
             objectName: "historyList"
-            Layout.preferredWidth: 225
+            Layout.preferredWidth: Math.max(225, root.width * 0.38)
             Layout.fillHeight: true
             clip: true
             model: root.filtered
@@ -365,12 +390,21 @@ ColumnLayout {
 
     }
 
-    SButton {
-        ui: root.ui
-        objectName: "olderHistory"
-        text: root.loading ? "Loading…" : "Load older"
-        enabled: root.cursor.length > 0 && !root.loading && !root.acting && root.available
-        onClicked: root.load(true)
+    RowLayout {
+        Layout.fillWidth: true
+        SLabel {
+            ui: root.ui
+            text: root.records.length + " sessions loaded"
+            color: root.ui.c.muted
+            Layout.fillWidth: true
+        }
+        SButton {
+            ui: root.ui
+            objectName: "olderHistory"
+            text: root.loading ? "Loading…" : "Load older"
+            enabled: root.cursor.length > 0 && !root.loading && !root.acting && root.available
+            onClicked: root.load(true)
+        }
     }
 
     Dialog {

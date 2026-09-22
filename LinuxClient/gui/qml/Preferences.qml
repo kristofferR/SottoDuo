@@ -219,7 +219,7 @@ ColumnLayout {
 
             Group {
                 ui: root.ui
-                title: "SERVER MODELS"
+                title: "Server models"
 
                 Setting {
                     ui: root.ui
@@ -252,7 +252,7 @@ ColumnLayout {
 
             Group {
                 ui: root.ui
-                title: "TRANSCRIPTION"
+                title: "Transcription"
                 enabled: root.editable
 
                 Setting {
@@ -287,7 +287,7 @@ ColumnLayout {
 
             Group {
                 ui: root.ui
-                title: "TEXT CLEANUP"
+                title: "Text cleanup"
                 enabled: root.editable
 
                 Setting {
@@ -352,7 +352,7 @@ ColumnLayout {
 
             Group {
                 ui: root.ui
-                title: "VOCABULARY · SHARED"
+                title: "Vocabulary · shared"
                 enabled: root.editable
 
                 Setting {
@@ -396,7 +396,7 @@ ColumnLayout {
 
             Group {
                 ui: root.ui
-                title: "SHARED HISTORY"
+                title: "Shared history"
                 enabled: root.editable
 
                 Setting {

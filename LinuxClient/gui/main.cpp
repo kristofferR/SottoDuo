@@ -1,6 +1,7 @@
 #include "Bridge.h"
 #include "GuiInstance.h"
 #include "HudSurface.h"
+#include "PortalShortcuts.h"
 #include <LayerShellQt/Shell>
 #include <QApplication>
 #include <QCommandLineParser>
@@ -63,11 +64,19 @@ int main(int argc, char **argv) {
       "Sotto.Native", 1, 0, "HudSurface",
       [](QQmlEngine *, QJSEngine *) -> QObject * { return new HudSurface; });
   Bridge bridge(preview);
+  PortalShortcuts portalShortcuts(!preview);
+  if (!preview) {
+    QObject::connect(&portalShortcuts, &PortalShortcuts::pressed, &bridge,
+                     [&bridge] { bridge.request("start"); });
+    QObject::connect(&portalShortcuts, &PortalShortcuts::released, &bridge,
+                     [&bridge] { bridge.request("stop"); });
+  }
   if (parser.isSet("theme"))
     bridge.setTheme(parser.value("theme"));
   QQmlApplicationEngine engine;
   engine.setInitialProperties({{"startHidden", background}});
   engine.rootContext()->setContextProperty("bridge", &bridge);
+  engine.rootContext()->setContextProperty("portalShortcuts", &portalShortcuts);
   QObject::connect(
       &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
       [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);

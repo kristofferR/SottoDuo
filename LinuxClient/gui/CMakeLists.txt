@@ -4,15 +4,26 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Widgets Network Svg DBus)
 find_package(LayerShellQt 6.6 REQUIRED)
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+  pkg_check_modules(LIBPORTAL QUIET IMPORTED_TARGET libportal)
+endif()
 qt_standard_project_setup(REQUIRES 6.8)
-qt_add_executable(sotto-gui main.cpp Bridge.cpp Bridge.h HudSurface.cpp HudSurface.h DesktopIntegration.cpp DesktopIntegration.h GuiInstance.cpp GuiInstance.h)
+qt_add_executable(sotto-gui main.cpp Bridge.cpp Bridge.h HudSurface.cpp HudSurface.h DesktopIntegration.cpp DesktopIntegration.h GuiInstance.cpp GuiInstance.h PortalShortcuts.cpp PortalShortcuts.h)
 qt_add_qml_module(sotto-gui URI Sotto VERSION 1.0 QML_FILES
   qml/Main.qml qml/SButton.qml qml/SLabel.qml qml/Group.qml qml/Setting.qml qml/Dictation.qml
-  qml/History.qml qml/HistoryDetail.qml qml/Microphone.qml qml/Preferences.qml qml/DictionaryEditor.qml qml/Computer.qml qml/Hud.qml qml/DjiSettings.qml qml/LevelMeter.qml qml/ShortcutSettings.qml qml/ConnectionSettings.qml
+  qml/History.qml qml/HistoryDetail.qml qml/Microphone.qml qml/Preferences.qml qml/DictionaryEditor.qml qml/Computer.qml qml/Hud.qml qml/DjiSettings.qml qml/LevelMeter.qml qml/ShortcutSettings.qml qml/PortalShortcutSettings.qml qml/ConnectionSettings.qml
   RESOURCES mark.svg preview.json)
 target_link_libraries(sotto-gui PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Widgets Qt6::Network Qt6::Svg Qt6::DBus LayerShellQt::Interface)
+if(LIBPORTAL_FOUND)
+  target_link_libraries(sotto-gui PRIVATE PkgConfig::LIBPORTAL)
+  target_compile_definitions(sotto-gui PRIVATE SOTTO_HAS_LIBPORTAL)
+endif()
 target_compile_options(sotto-gui PRIVATE -Wall -Wextra -Werror)
 install(TARGETS sotto-gui RUNTIME DESTINATION bin)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../../build/linux-client/sotto"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/../../build/linux-client/sotto-destination"
+        DESTINATION bin)
 install(FILES sotto.desktop DESTINATION share/applications)
 install(FILES mark.svg DESTINATION share/icons/hicolor/scalable/apps RENAME sotto.svg)
 

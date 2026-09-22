@@ -81,7 +81,8 @@ ApplicationWindow {
             return;
         bridge.request("connection");
         bridge.request("sources");
-        bridge.request("shortcuts");
+        if (!portalShortcuts.plasma)
+            bridge.request("shortcuts");
     }
     function startMicrophoneTest() {
         microphoneTestStarting = true;
@@ -123,6 +124,7 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         wasConnected = bridge.connected;
+        bridge.desktop.refreshClientService();
         refresh();
     }
     Connections {
@@ -190,7 +192,7 @@ ApplicationWindow {
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
-            if (["history", "historyAudio", "deleteHistory", "preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
+            if (["history", "historyAudio", "historyArtifact", "deleteHistory", "preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
                 return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";
@@ -277,18 +279,22 @@ ApplicationWindow {
                 Item {
                     Layout.fillHeight: true
                 }
-                SLabel {
-                    ui: app
-                    text: bridge.preview ? "Preview · sample data" : app.connection
-                    font.pixelSize: 12
-                    color: app.c.muted
+                RowLayout {
                     Layout.fillWidth: true
-                }
-                SLabel {
-                    ui: app
-                    text: "Sotto for Linux"
-                    font.pixelSize: 11
-                    color: app.c.muted
+                    spacing: 9
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: bridge.preview || app.serverReady ? "#4ade80" : app.c.muted
+                    }
+                    SLabel {
+                        ui: app
+                        text: bridge.preview ? "Preview · sample data" : app.connection
+                        font.pixelSize: 12
+                        color: app.c.ink
+                        Layout.fillWidth: true
+                    }
                 }
             }
         }
@@ -314,7 +320,7 @@ ApplicationWindow {
                     ui: app
                     anchors.fill: parent
                     anchors.margins: 12
-                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.connectionStatus === "setupRequired" ? "Start background dictation, then open This computer to set up your server connection." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
+                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.desktop.clientService !== "Running" ? "Background dictation is stopped. Open This computer to set it up and start it." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
                 }
             }
             Rectangle {

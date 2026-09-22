@@ -5,6 +5,7 @@ import QtQuick.Layouts
 ScrollView {
     id: root
     required property var ui
+    Component.onCompleted: bridge.desktop.refreshClientService()
     clip: true
     contentWidth: availableWidth
     ColumnLayout {
@@ -26,7 +27,7 @@ ScrollView {
         }
         Group {
             ui: root.ui
-            title: "APPEARANCE"
+            title: "Appearance"
             Setting {
                 ui: root.ui
                 title: "Theme"
@@ -47,17 +48,23 @@ ScrollView {
         }
         ShortcutSettings {
             ui: root.ui
+            enabledForDesktop: !portalShortcuts.plasma
+            visible: !portalShortcuts.plasma
+        }
+        PortalShortcutSettings {
+            ui: root.ui
+            visible: portalShortcuts.plasma
         }
         DjiSettings {
             ui: root.ui
         }
         Group {
             ui: root.ui
-            title: "DESKTOP INTEGRATION"
+            title: "Desktop integration"
             Setting {
                 ui: root.ui
                 title: "Shortcuts and text insertion"
-                detail: "Use your Sotto shortcut while a text field is focused. This build supports dictation on Omarchy/Hyprland."
+                detail: portalShortcuts.plasma ? "Use your Plasma shortcut while a text field is focused." : "Use your Sotto shortcut while a text field is focused."
             }
             Setting {
                 ui: root.ui
@@ -85,7 +92,19 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Background dictation"
-                detail: "Closing this window keeps live feedback available. Open Sotto again from your launcher to return here."
+                detail: bridge.desktop.clientService === "Running" ? "Running. Shortcuts and pairing-button dictation keep working when this window closes." : bridge.desktop.clientService === "Systemd user service unavailable" ? "This desktop does not provide a systemd user service. Start the Sotto client with your desktop's startup tools." : "Install and start the background client for keyboard and pairing-button dictation."
+                SLabel {
+                    ui: root.ui
+                    text: bridge.desktop.clientService
+                    color: root.ui.c.muted
+                }
+                SButton {
+                    ui: root.ui
+                    visible: bridge.desktop.clientService !== "Running" && bridge.desktop.clientService !== "Systemd user service unavailable"
+                    text: bridge.desktop.clientServiceBusy ? "Starting…" : "Set up and start"
+                    enabled: !bridge.preview && !bridge.desktop.clientServiceBusy
+                    onClicked: bridge.desktop.setUpClientService()
+                }
             }
             Setting {
                 ui: root.ui

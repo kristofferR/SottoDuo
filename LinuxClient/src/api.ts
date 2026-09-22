@@ -84,7 +84,10 @@ export class API {
   async deleteHistory(id: string) {
     await this.request(`/v1/generations/${encodeURIComponent(id)}`, "DELETE");
   }
-  async historyAudio(id: string, filename: "inference.wav" | "original.wav" | "source.wav") {
+  async historyAudio(
+    id: string,
+    filename: "inference.wav" | "original.wav" | components["schemas"]["WisprFlowArtifactName"],
+  ) {
     const response = await fetch(
       `${this.endpoint}/v1/generations/${encodeURIComponent(id)}/artifacts/${filename}`,
       {

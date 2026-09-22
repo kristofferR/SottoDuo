@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQml.Models
 
 ColumnLayout {
     id: root
@@ -17,6 +18,16 @@ ColumnLayout {
         return value ? value.modelID + " · " + value.backend : "";
     }
 
+    function sourceLabel(filename) {
+        return ({
+            "source.json": "Full source data",
+            "source.wav": "Wispr Flow audio",
+            "opus.json": "Opus packets",
+            "screenshot.png": "Screenshot",
+            "built-in-audio.bin": "Built-in audio"
+        })[filename] || filename;
+    }
+
     function duration() {
         const value = audio && audio.sampleRate ? audio.frameCount / audio.sampleRate : record && record.importedSource ? record.importedSource.durationSeconds : undefined;
         if (value === undefined || value <= 0)
@@ -29,6 +40,7 @@ ColumnLayout {
     spacing: 12
 
     RowLayout {
+        visible: !!root.record
         SLabel {
             ui: root.ui
             text: root.record ? root.record.device.name : "Your words, together"
@@ -60,6 +72,7 @@ ColumnLayout {
     SLabel {
         ui: root.ui
         Layout.fillWidth: true
+        visible: !!root.record
         color: root.ui.c.muted
         font.pixelSize: 12
         text: root.record ? (root.record.importedSource ? "Wispr Flow · " : "Sotto · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
@@ -67,6 +80,7 @@ ColumnLayout {
 
     ScrollView {
         id: scroll
+        visible: !!root.record
 
         Layout.fillWidth: true
         Layout.fillHeight: true
@@ -197,6 +211,7 @@ ColumnLayout {
     }
 
     Flow {
+        visible: !!root.record
         Layout.fillWidth: true
         spacing: 8
 
@@ -225,6 +240,53 @@ ColumnLayout {
             onClicked: root.history.openAudio("imported")
         }
 
+        SButton {
+            id: sourceFilesButton
+            ui: root.ui
+            text: "Source files"
+            visible: !!root.record && (root.record.importedSource?.artifactNames || []).length > 0
+            enabled: root.history.available && !root.history.acting && !bridge.preview
+            onClicked: sourceFilesMenu.popup()
+            Menu {
+                id: sourceFilesMenu
+                Instantiator {
+                    model: root.record?.importedSource?.artifactNames || []
+                    delegate: MenuItem {
+                        required property string modelData
+                        text: root.sourceLabel(modelData)
+                        onTriggered: root.history.openArtifact(modelData)
+                    }
+                    onObjectAdded: (index, object) => sourceFilesMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => sourceFilesMenu.removeItem(object)
+                }
+            }
+        }
+
+    }
+
+    Item {
+        visible: !root.record
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 12
+            SLabel {
+                ui: root.ui
+                text: "☰"
+                font.pixelSize: 45
+                color: root.ui.c.muted
+                Layout.alignment: Qt.AlignHCenter
+            }
+            SLabel {
+                ui: root.ui
+                text: "Select a dictation"
+                font.pixelSize: 22
+                font.weight: Font.DemiBold
+                color: root.ui.c.muted
+                Layout.alignment: Qt.AlignHCenter
+            }
+        }
     }
 
 }

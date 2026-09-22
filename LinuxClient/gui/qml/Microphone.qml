@@ -82,6 +82,8 @@ ScrollView {
             next.priority.splice(index, 1);
         if (action === "up" && index > 0)
             [next.priority[index - 1], next.priority[index]] = [next.priority[index], next.priority[index - 1]];
+        if (action === "down" && index >= 0 && index < next.priority.length - 1)
+            [next.priority[index + 1], next.priority[index]] = [next.priority[index], next.priority[index + 1]];
         next.profiles.find(p => p.id === next.activeProfileID).priority = clone(next.priority);
         edited(next);
     }
@@ -206,7 +208,7 @@ ScrollView {
         }
         Group {
             ui: root.ui
-            title: "PRIORITY LISTS · ONLY THIS COMPUTER"
+            title: "Priority lists · only this computer"
             Setting {
                 ui: root.ui
                 title: "Saved list"
@@ -253,9 +255,17 @@ ScrollView {
                     detail: root.detailFor(modelData)
                     SButton {
                         ui: root.ui
-                        text: "Move up"
+                        text: "↑"
+                        Accessible.name: "Move " + root.nameFor(modelData) + " up"
                         enabled: root.editable && index > 0
                         onClicked: root.changePriority(modelData, "up")
+                    }
+                    SButton {
+                        ui: root.ui
+                        text: "↓"
+                        Accessible.name: "Move " + root.nameFor(modelData) + " down"
+                        enabled: root.editable && index < root.draft.priority.length - 1
+                        onClicked: root.changePriority(modelData, "down")
                     }
                     SButton {
                         ui: root.ui
@@ -273,7 +283,7 @@ ScrollView {
         }
         Group {
             ui: root.ui
-            title: "AVAILABLE INPUTS"
+            title: "Available inputs"
             Repeater {
                 model: root.ui.sources.items
                 Setting {

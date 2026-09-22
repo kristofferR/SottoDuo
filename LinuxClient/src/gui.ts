@@ -68,11 +68,15 @@ export function createGUIHandler(
               selectedHere: buttons.selectedHere,
             }
           : null,
-        desktop: "hyprland",
+        desktop: desktop.kind ?? "hyprland",
         configPath: file,
       };
     if (!(await desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
     switch (request.action) {
+      case "start":
+        if (!controller.start())
+          throw new ClientNotice("Finish dictation or the shortcut check first.");
+        return {};
       case "shortcuts":
         if (!shortcuts)
           throw new ClientNotice("Update the background client for shortcut settings.");
@@ -155,6 +159,7 @@ export function createGUIHandler(
       case "history":
         return history.list(request.before, request.source, request.queryID);
       case "historyAudio":
+      case "historyArtifact":
       case "deleteHistory":
         return history.action(request.action, request);
       case "processingDefaults":

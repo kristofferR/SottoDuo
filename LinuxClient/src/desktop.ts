@@ -40,6 +40,7 @@ async function activeWindow(): Promise<Window | undefined> {
 }
 const preview = (): Destination => ({ deliver: async () => "preview", close() {} });
 export class HyprlandDesktop implements Desktop {
+  readonly kind = "hyprland";
   private socket?: Socket;
   private monitor?: ReturnType<typeof Bun.spawn>;
   private connected = false;

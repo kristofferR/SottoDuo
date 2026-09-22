@@ -5,8 +5,8 @@ Button {
     id: control
     required property var ui
     property bool primary: false
-    font.pixelSize: 14
-    padding: 12
+    font.pixelSize: 15
+    padding: 13
     horizontalPadding: 18
     Accessible.name: text
     opacity: enabled ? 1 : 0.45

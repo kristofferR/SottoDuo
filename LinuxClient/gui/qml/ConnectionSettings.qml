@@ -5,13 +5,15 @@ import QtQuick.Layouts
 Group {
     id: root
     objectName: "connectionSettings"
-    title: "CONNECTION · THIS COMPUTER"
+    title: "Connection"
     property string ticket: ""
     property var hosts: []
     property string message: ""
     property bool pending: false
     property bool tested: false
     property bool dirty: false
+    property bool editing: false
+    readonly property bool configured: !ui.snapshot.setupRequired && !!ui.snapshot.server
     function loadConnection() {
         server.text = ui.snapshot.server || "";
         deviceName.text = ui.snapshot.device ? ui.snapshot.device.name : "This computer";
@@ -53,6 +55,7 @@ Group {
                 root.ticket = "";
                 root.tested = false;
                 root.dirty = false;
+                root.editing = false;
                 root.message = "Connection saved. To use the pairing button here, select this computer again below.";
                 root.clearSecret();
                 bridge.request("snapshot");
@@ -78,6 +81,49 @@ Group {
         }
     }
     ColumnLayout {
+        visible: root.configured && !root.editing
+        Layout.fillWidth: true
+        Layout.margins: 12
+        spacing: 0
+        Setting {
+            ui: root.ui
+            title: "Server address"
+            SLabel {
+                ui: root.ui
+                text: root.ui.snapshot.server || ""
+                color: root.ui.c.muted
+            }
+        }
+        Setting {
+            ui: root.ui
+            title: "Access token"
+            SLabel {
+                ui: root.ui
+                text: "Saved"
+                color: root.ui.c.muted
+            }
+        }
+        Setting {
+            ui: root.ui
+            title: "Device name"
+            SLabel {
+                ui: root.ui
+                text: root.ui.snapshot.device?.name || "This computer"
+                color: root.ui.c.muted
+            }
+        }
+        Setting {
+            ui: root.ui
+            title: root.ui.connection
+            SButton {
+                ui: root.ui
+                text: "Edit connection"
+                onClicked: root.editing = true
+            }
+        }
+    }
+    ColumnLayout {
+        visible: !root.configured || root.editing
         Layout.fillWidth: true
         Layout.margins: 12
         spacing: 10
@@ -184,6 +230,18 @@ Group {
             color: root.ui.c.muted
         }
         RowLayout {
+            SButton {
+                ui: root.ui
+                visible: root.configured
+                text: "Cancel"
+                onClicked: {
+                    root.clearSecret();
+                    root.edited();
+                    root.dirty = false;
+                    root.loadConnection();
+                    root.editing = false;
+                }
+            }
             SButton {
                 ui: root.ui
                 objectName: "testConnectionButton"

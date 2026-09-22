@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Group {
     id: root
     objectName: "djiSettings"
-    title: "DJI RECEIVER ON SERVER"
+    title: "DJI receiver on server"
     property var receiver: null
     property bool checking: false
     property bool saving: false

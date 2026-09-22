@@ -128,3 +128,55 @@ test("history actions reject wrong servers, paths, missing audio and untrusted d
   ).rejects.toThrow("private audio folder");
   expect((await api.get(record.id)).status).toBe("completed");
 });
+
+test("saved Wispr Flow source files can be opened without a Linux importer", async () => {
+  const { tools, record, complete, address, api, runtime } = await fixture();
+  await complete();
+  const get = api.get.bind(api);
+  api.get = async (id) => ({
+    ...(await get(id)),
+    importedSource: {
+      provider: "wispr-flow",
+      sourceID: randomUUID(),
+      importedAt: new Date().toISOString(),
+      variantNames: [],
+      artifactNames: ["source.json", "screenshot.png"],
+      sourceSHA256: "0".repeat(64),
+      artifactSHA256: {},
+    },
+  });
+  await expect(
+    tools.action("historyArtifact", {
+      id: record.id,
+      filename: "../../token",
+      server: address,
+    }),
+  ).rejects.toThrow("no saved source file");
+  await expect(
+    tools.action("historyArtifact", {
+      id: record.id,
+      filename: "opus.json",
+      server: address,
+    }),
+  ).rejects.toThrow("no saved source file");
+  api.historyAudio = async () => new Response('{"words":[]}');
+  const source = await tools.action("historyArtifact", {
+    id: record.id,
+    filename: "source.json",
+    server: address,
+  });
+  if (typeof source.url !== "string") throw Error("Expected a private source file");
+  expect(fileURLToPath(source.url).endsWith(".json")).toBe(true);
+  expect((await stat(fileURLToPath(source.url))).mode & 0o777).toBe(0o600);
+  expect(JSON.parse(await readFile(fileURLToPath(source.url), "utf8"))).toEqual({ words: [] });
+  api.historyAudio = async () => new Response("not a PNG");
+  await expect(
+    tools.action("historyArtifact", {
+      id: record.id,
+      filename: "screenshot.png",
+      server: address,
+    }),
+  ).rejects.toThrow("PNG screenshot");
+  await tools.action("deleteHistory", { id: record.id, server: address });
+  expect(await readdir(join(runtime, "sotto-client", "history-audio"))).toEqual([]);
+});

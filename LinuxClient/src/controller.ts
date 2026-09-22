@@ -8,6 +8,7 @@ export interface Destination {
   close(): void;
 }
 export interface Desktop {
+  kind?: "hyprland" | "plasma";
   unlocked(since?: number): Promise<boolean>;
   capture(): Promise<Destination>;
   defaultInput(hostID: string): Promise<SourceID | undefined>;
