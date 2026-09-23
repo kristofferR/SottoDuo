@@ -5,8 +5,8 @@
 <h1 align="center">SottoDuo</h1>
 
 <p align="center">
-  <strong>Hold a key. Speak. Keep writing.</strong><br>
-  Open-source dictation for macOS and Linux, with local or cloud speech recognition.
+  <strong>Dictation for macOS and Linux.</strong><br>
+  Local Whisper or Soniox streaming, with shared microphones and history.
 </p>
 
 <p align="center">
@@ -22,49 +22,25 @@
 
 ---
 
-SottoDuo turns speech into text in the app you're using. Hold your dictation
-shortcut, speak, and release to insert the result. Use a microphone on your
-computer, or share one connected to a Linux server between your Mac and Linux
-desktop. A DJI transmitter button can start and stop dictation without touching
-the keyboard.
-
-The desktop apps connect to a server you run on your own hardware. It handles
-speech recognition, optional text cleanup, and shared history. Run everything
-on one Mac, or let a separate machine do the inference for your computers.
-
-## Why SottoDuo?
-
-- **Dictate where you work.** A global shortcut and compact recording overlay
-  keep you in your current app. Unsupported text fields have a copy fallback.
-- **Choose local or cloud recognition.** Use Whisper on your own hardware,
-  Soniox streaming, or automatic cloud-to-local fallback.
-- **Share a microphone across computers.** Keep a USB receiver plugged into
-  your Linux machine and dictate into either desktop.
-- **Use the mic's button.** Tap a supported DJI transmitter's linking button
-  to start, then tap again to finish.
-- **Keep your words consistent.** Shared dictionaries, preferred spellings,
-  recognition vocabulary, and optional Qwen proofreading.
-- **Find previous dictations.** Shared history includes transcripts, retained
-  audio, and the device that recorded each take.
+SottoDuo is a fork of [Sotto](https://github.com/davis7dotsh/sotto) with a Linux
+desktop client, Soniox streaming, and shared microphone support. The native
+Swift and Qt Quick clients connect to a self-hosted server on macOS or Linux.
+Run it locally or on a separate machine; dictionaries, optional Qwen cleanup,
+and history are shared between clients.
 
 ## Changes from upstream Sotto
 
-SottoDuo is a fork of [Sotto by davis7dotsh](https://github.com/davis7dotsh/sotto).
-Upstream provides the native Mac app, self-hosted Whisper/Qwen pipeline,
-Mac/Linux server, dictionaries, shared history, and Wispr Flow history import.
-This fork builds on that foundation:
+The Mac app, Whisper/Qwen pipeline, Mac/Linux server, dictionaries, shared
+history, and Wispr Flow import come from upstream. SottoDuo adds:
 
 | Addition | What it does |
 | --- | --- |
-| **Linux desktop app** | A native Qt Quick interface with dictation, history, microphone priorities, shared server preferences, and a floating recording capsule. Desktop integration targets Omarchy/Hyprland and KDE Plasma Wayland. |
-| **Soniox streaming** | Cloud speech recognition with live transcript previews, Automatic / Cloud only / Local only modes, and full-recording Whisper fallback when cloud recognition fails in Automatic mode. |
-| **Remote microphones** | On-demand PipeWire capture on a Linux server. The Mac can select remote inputs alongside its own microphones; the Linux client records through the capture server. |
-| **DJI button dictation** | USB receiver button support on the Mac and Linux server, plus routing to a selected Mac or Linux destination. |
-| **Linux appearance and desktop controls** | Light and dark themes, an Omarchy theme option, shortcut setup, background service controls, and launch at login. |
-| **SottoDuo identity** | A separate app name and icon, with migration support for settings and data from earlier fork builds. |
+| **Linux desktop app** | Qt Quick client for Omarchy/Hyprland and experimental KDE Plasma Wayland, with history, microphone priorities, shared preferences, and a recording overlay. Light, dark, and Omarchy themes. |
+| **Soniox streaming** | Live transcript previews and optional Whisper fallback. Local-only recognition remains available. |
+| **Remote microphones** | PipeWire capture on a Linux server, selectable from either desktop. Mac microphone priorities can mix local and remote inputs. |
+| **DJI button routing** | USB receiver support on Mac or Linux. Route the transmitter's linking button to a selected computer for start/stop dictation. |
 
-The server and text-cleanup pipeline remain shared across platforms. Linux
-insertion depends on application accessibility support; terminals use explicit
+Linux insertion depends on application accessibility support; terminals use explicit
 copy and paste. Omarchy/Hyprland is the verified Linux desktop; Plasma integration
 still needs real-device validation, and its overlay placement is not guaranteed.
 Wispr Flow history import runs on the Mac, while either desktop can browse
@@ -93,8 +69,7 @@ See [Soniox setup and fallback behavior](docs/soniox-streaming.md) and
 
 ## Get started
 
-SottoDuo currently requires a source build. There are no published app installers.
-Choose a desktop client and a server:
+Source builds only for now.
 
 | Component | Requirements |
 | --- | --- |
@@ -121,15 +96,11 @@ export SOTTODUO_TEXT_MODEL="$PWD/.local/models/Qwen3-4B-Instruct-2507-MLX-4bit"
 This starts the server at **http://localhost:8391** and opens **SottoDuo Dev**,
 which has separate settings from the regular app.
 
-1. Grant **Microphone** and **Accessibility** permissions when requested.
-2. Wait for the server to be ready, focus a text field, hold <kbd>Right Option</kbd>,
-   speak, and release.
-3. Choose your shortcut under **This Mac**, inputs under **Microphone**, and
-   dictionary or cleanup settings under **Server preferences**.
-
-**Test microphone** lets you check a recording without inserting text.
-Recordings have a three-minute limit. Fn/Globe shortcuts are also supported;
-set macOS **Keyboard → Press Globe key to → Do Nothing** if its action conflicts.
+Grant **Microphone** and **Accessibility** permissions. The default hold-to-dictate
+key is <kbd>Right Option</kbd>, configurable under **This Mac**. Inputs are under
+**Microphone**; dictionaries and cleanup are under **Server preferences**.
+Recordings are limited to three minutes. For Fn/Globe shortcuts, set macOS
+**Keyboard → Press Globe key to → Do Nothing** if its action conflicts.
 
 For the regular app, run `./scripts/build-app.sh` and move `build/SottoDuo.app`
 to Applications. It still needs the independently running server.
@@ -224,8 +195,7 @@ For HTTP/audio smoke tests, native helper checks, and Linux GUI tests, see the
 
 [Open an issue](https://github.com/kristofferR/SottoDuo/issues) for bugs or ideas.
 For a dictation problem, include your desktop environment, server platform,
-recognition mode, and microphone setup. Keep API keys, access tokens, and private
-recordings out of reports.
+recognition mode, and microphone setup.
 
 Contributions are welcome; see [repository instructions](AGENTS.md) for the
 contributor PR requirements.
