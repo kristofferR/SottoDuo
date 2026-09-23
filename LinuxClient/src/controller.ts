@@ -140,7 +140,7 @@ export class Controller {
     if (this.take?.button?.ticket === ticket) this.take.released = true;
   }
   async cancelButton(ticket?: string): Promise<void> {
-    if (this.activity.phase === "delivering") return;
+    if (["delivering", "completed"].includes(this.activity.phase)) return;
     if (this.take?.button && (!ticket || this.take.button.ticket === ticket)) await this.cancel();
   }
   toggle(): void {
@@ -183,7 +183,7 @@ export class Controller {
       this.lastTick = now;
       const unlocked = await this.desktop.unlocked(take.startedAt);
       if (!this.live(take)) return;
-      if (this.activity.phase === "delivering") return;
+      if (["delivering", "completed"].includes(this.activity.phase)) return;
       if (slept || !unlocked) {
         await this.cancel();
         return;
@@ -206,7 +206,7 @@ export class Controller {
       }
     } catch {
       if (take.sealMayHaveSucceeded) return;
-      if (this.live(take) && this.activity.phase !== "delivering") {
+      if (this.live(take) && !["delivering", "completed"].includes(this.activity.phase)) {
         await this.cancelTake(take);
         this.setState("Connection lost; dictation cancelled.");
       }

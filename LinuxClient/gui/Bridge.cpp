@@ -251,6 +251,8 @@ void Bridge::sendRequest(const QString &action, const QVariantMap &arguments,
     timeout = 35000;
   else if (action == "history")
     timeout = 70000;
+  else if (action == "deleteHistory")
+    timeout = 75000;
   else if (action == "historyAudio" || action == "historyArtifact")
     timeout = 370000;
   timer->start(timeout);

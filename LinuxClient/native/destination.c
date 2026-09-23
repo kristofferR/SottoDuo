@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
         g_object_unref(app);
         break;
       }
-      target = candidate;
+      if (candidate) target = candidate;
     }
     g_object_unref(app);
     if (target && !focused_mode) break;
