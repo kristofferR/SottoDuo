@@ -113,6 +113,17 @@ ColumnLayout {
             color: root.ui.c.muted
             Layout.fillWidth: true
         }
+        SLabel {
+            ui: root.ui
+            objectName: "dictationServerAddress"
+            text: root.ui.snapshot.server || ""
+            visible: text.length > 0
+            color: root.ui.c.muted
+            font.pixelSize: 13
+            wrapMode: Text.NoWrap
+            elide: Text.ElideMiddle
+            Layout.preferredWidth: Math.min(200, root.width * 0.28)
+        }
         SButton {
             ui: root.ui
             text: "Check connection"

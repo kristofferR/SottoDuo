@@ -170,6 +170,33 @@ ColumnLayout {
     }
 
     RowLayout {
+        Layout.fillWidth: true
+        spacing: 9
+        Rectangle {
+            Layout.preferredWidth: 8
+            Layout.preferredHeight: 8
+            radius: 4
+            color: root.ui.serverReady || bridge.preview ? "#4ade80" : root.ui.c.muted
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.connection
+            Layout.fillWidth: true
+        }
+        SLabel {
+            ui: root.ui
+            objectName: "preferencesServerAddress"
+            text: root.ui.snapshot.server || ""
+            visible: text.length > 0
+            color: root.ui.c.muted
+            font.pixelSize: 13
+            wrapMode: Text.NoWrap
+            elide: Text.ElideMiddle
+            Layout.preferredWidth: Math.min(220, root.width * 0.35)
+        }
+    }
+
+    RowLayout {
         SButton {
             ui: root.ui
             objectName: "saveProcessingSettings"
