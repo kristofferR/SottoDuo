@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { execFile, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -60,7 +60,7 @@ async function noCapture() {
       : true,
   );
 }
-beforeAll(async () => {
+beforeEach(async () => {
   if (!helper || process.platform !== "linux") return;
   directory = await mkdtemp(join(tmpdir(), "sotto-pw-"));
   previous = { runtime: process.env.PIPEWIRE_RUNTIME_DIR, remote: process.env.PIPEWIRE_REMOTE };
@@ -83,7 +83,7 @@ beforeAll(async () => {
     new FakeInference(),
   );
 }, 20_000);
-afterAll(async () => {
+afterEach(async () => {
   if (!helper || process.platform !== "linux") return;
   try {
     await service?.shutdown();
@@ -189,11 +189,15 @@ nativeTest("wrong target cannot silently attach to another source", async () => 
   await noCapture();
 });
 nativeTest("parent crash kills its native helper", async () => {
+  const source = (await graph()).find((x) => x.info?.props?.["node.name"] === "sotto-test-source");
+  const serial = source?.info?.props?.["object.serial"];
+  if (typeof serial !== "number" || !Number.isSafeInteger(serial) || serial <= 0)
+    throw new Error("The test source has no PipeWire serial.");
   const parent = spawn(
     process.execPath,
     [
       "-e",
-      `const p=Bun.spawn([process.argv[1],"capture","13","48000","2","0"],{stdin:"pipe",stdout:"ignore",stderr:"ignore",env:{...process.env,SOTTO_CAPTURE_PARENT_PID:String(process.pid)}}); console.log(p.pid); setInterval(()=>{},1000);`,
+      `const p=Bun.spawn([process.argv[1],"capture","${serial}","48000","2","0"],{stdin:"pipe",stdout:"ignore",stderr:"ignore",env:{...process.env,SOTTO_CAPTURE_PARENT_PID:String(process.pid)}}); console.log(p.pid); setInterval(()=>{},1000);`,
       helper!,
     ],
     { stdio: ["ignore", "pipe", "ignore"] },
