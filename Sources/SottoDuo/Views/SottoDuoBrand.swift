@@ -4,29 +4,39 @@ import SwiftUI
 
 /// The two ribbon turns used by the approved SottoDuo SVG assets.
 enum SottoDuoBrand {
-    static func ribbonPath(in rect: CGRect) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 102, y: 18))
-        path.addLine(to: CGPoint(x: 62, y: 18))
-        path.addCurve(to: CGPoint(x: 22, y: 50), control1: CGPoint(x: 38, y: 18), control2: CGPoint(x: 22, y: 31))
-        path.addCurve(to: CGPoint(x: 49, y: 81), control1: CGPoint(x: 22, y: 67), control2: CGPoint(x: 33, y: 76))
-        path.addLine(to: CGPoint(x: 60, y: 59))
-        path.addCurve(to: CGPoint(x: 47, y: 48), control1: CGPoint(x: 50, y: 56), control2: CGPoint(x: 47, y: 53))
-        path.addCurve(to: CGPoint(x: 63, y: 40), control1: CGPoint(x: 47, y: 43), control2: CGPoint(x: 53, y: 40))
-        path.addLine(to: CGPoint(x: 102, y: 40))
-        path.closeSubpath()
-        path.move(to: CGPoint(x: 26, y: 110))
-        path.addLine(to: CGPoint(x: 66, y: 110))
-        path.addCurve(to: CGPoint(x: 106, y: 78), control1: CGPoint(x: 90, y: 110), control2: CGPoint(x: 106, y: 97))
-        path.addCurve(to: CGPoint(x: 79, y: 47), control1: CGPoint(x: 106, y: 61), control2: CGPoint(x: 95, y: 52))
-        path.addLine(to: CGPoint(x: 68, y: 69))
-        path.addCurve(to: CGPoint(x: 81, y: 80), control1: CGPoint(x: 78, y: 72), control2: CGPoint(x: 81, y: 75))
-        path.addCurve(to: CGPoint(x: 65, y: 88), control1: CGPoint(x: 81, y: 85), control2: CGPoint(x: 75, y: 88))
-        path.addLine(to: CGPoint(x: 26, y: 88))
-        path.closeSubpath()
+    static func ribbonPaths(in rect: CGRect) -> (upper: CGPath, lower: CGPath) {
+        let upper = CGMutablePath()
+        upper.move(to: CGPoint(x: 102, y: 18))
+        upper.addLine(to: CGPoint(x: 62, y: 18))
+        upper.addCurve(to: CGPoint(x: 22, y: 50), control1: CGPoint(x: 38, y: 18), control2: CGPoint(x: 22, y: 31))
+        upper.addCurve(to: CGPoint(x: 49, y: 81), control1: CGPoint(x: 22, y: 67), control2: CGPoint(x: 33, y: 76))
+        upper.addLine(to: CGPoint(x: 60, y: 59))
+        upper.addCurve(to: CGPoint(x: 47, y: 48), control1: CGPoint(x: 50, y: 56), control2: CGPoint(x: 47, y: 53))
+        upper.addCurve(to: CGPoint(x: 63, y: 40), control1: CGPoint(x: 47, y: 43), control2: CGPoint(x: 53, y: 40))
+        upper.addLine(to: CGPoint(x: 102, y: 40))
+        upper.closeSubpath()
+
+        let lower = CGMutablePath()
+        lower.move(to: CGPoint(x: 26, y: 110))
+        lower.addLine(to: CGPoint(x: 66, y: 110))
+        lower.addCurve(to: CGPoint(x: 106, y: 78), control1: CGPoint(x: 90, y: 110), control2: CGPoint(x: 106, y: 97))
+        lower.addCurve(to: CGPoint(x: 79, y: 47), control1: CGPoint(x: 106, y: 61), control2: CGPoint(x: 95, y: 52))
+        lower.addLine(to: CGPoint(x: 68, y: 69))
+        lower.addCurve(to: CGPoint(x: 81, y: 80), control1: CGPoint(x: 78, y: 72), control2: CGPoint(x: 81, y: 75))
+        lower.addCurve(to: CGPoint(x: 65, y: 88), control1: CGPoint(x: 81, y: 85), control2: CGPoint(x: 75, y: 88))
+        lower.addLine(to: CGPoint(x: 26, y: 88))
+        lower.closeSubpath()
         var transform = CGAffineTransform(a: rect.width / 128, b: 0, c: 0, d: rect.height / 128,
                                          tx: rect.minX, ty: rect.minY)
-        return path.copy(using: &transform) ?? path
+        return (upper.copy(using: &transform) ?? upper, lower.copy(using: &transform) ?? lower)
+    }
+
+    static func ribbonPath(in rect: CGRect) -> CGPath {
+        let paths = ribbonPaths(in: rect)
+        let path = CGMutablePath()
+        path.addPath(paths.upper)
+        path.addPath(paths.lower)
+        return path
     }
 
     private static let restingStatusImage = makeStatusLogo()
@@ -116,6 +126,16 @@ struct SottoDuoRibbon: Shape {
     func path(in rect: CGRect) -> Path { Path(SottoDuoBrand.ribbonPath(in: rect)) }
 }
 
+struct SottoDuoRibbonTurn: Shape {
+    enum Turn { case upper, lower }
+    let turn: Turn
+
+    func path(in rect: CGRect) -> Path {
+        let paths = SottoDuoBrand.ribbonPaths(in: rect)
+        return Path(turn == .upper ? paths.upper : paths.lower)
+    }
+}
+
 /// The warm app tile stays consistent with the Dock icon in either appearance.
 struct SottoDuoAppIcon: View {
     var size: CGFloat = 40
@@ -131,8 +151,11 @@ struct SottoDuoAppIcon: View {
                         .strokeBorder(.white.opacity(0.55), lineWidth: 0.5)
                 }
                 .padding(size * 12 / 512)
-            SottoDuoRibbon()
+            SottoDuoRibbonTurn(turn: .upper)
                 .fill(Color(red: 53 / 255, green: 45 / 255, blue: 58 / 255))
+                .frame(width: size * 0.675, height: size * 0.675)
+            SottoDuoRibbonTurn(turn: .lower)
+                .fill(Color(red: 170 / 255, green: 102 / 255, blue: 92 / 255))
                 .frame(width: size * 0.675, height: size * 0.675)
         }
         .frame(width: size, height: size)

@@ -5,28 +5,30 @@ let output = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
 // The SottoDuo ribbon icon, drawn directly with Core Graphics.
-// Keep these normalized ribbon curves in sync with SottoDuoBrand.ribbonPath(in:).
-func ribbonPath() -> CGPath {
-    let path = CGMutablePath()
-    path.move(to: CGPoint(x: 102, y: 18))
-    path.addLine(to: CGPoint(x: 62, y: 18))
-    path.addCurve(to: CGPoint(x: 22, y: 50), control1: CGPoint(x: 38, y: 18), control2: CGPoint(x: 22, y: 31))
-    path.addCurve(to: CGPoint(x: 49, y: 81), control1: CGPoint(x: 22, y: 67), control2: CGPoint(x: 33, y: 76))
-    path.addLine(to: CGPoint(x: 60, y: 59))
-    path.addCurve(to: CGPoint(x: 47, y: 48), control1: CGPoint(x: 50, y: 56), control2: CGPoint(x: 47, y: 53))
-    path.addCurve(to: CGPoint(x: 63, y: 40), control1: CGPoint(x: 47, y: 43), control2: CGPoint(x: 53, y: 40))
-    path.addLine(to: CGPoint(x: 102, y: 40))
-    path.closeSubpath()
-    path.move(to: CGPoint(x: 26, y: 110))
-    path.addLine(to: CGPoint(x: 66, y: 110))
-    path.addCurve(to: CGPoint(x: 106, y: 78), control1: CGPoint(x: 90, y: 110), control2: CGPoint(x: 106, y: 97))
-    path.addCurve(to: CGPoint(x: 79, y: 47), control1: CGPoint(x: 106, y: 61), control2: CGPoint(x: 95, y: 52))
-    path.addLine(to: CGPoint(x: 68, y: 69))
-    path.addCurve(to: CGPoint(x: 81, y: 80), control1: CGPoint(x: 78, y: 72), control2: CGPoint(x: 81, y: 75))
-    path.addCurve(to: CGPoint(x: 65, y: 88), control1: CGPoint(x: 81, y: 85), control2: CGPoint(x: 75, y: 88))
-    path.addLine(to: CGPoint(x: 26, y: 88))
-    path.closeSubpath()
-    return path
+// Keep these normalized ribbon curves in sync with SottoDuoBrand.ribbonPaths(in:).
+func ribbonPaths() -> (upper: CGPath, lower: CGPath) {
+    let upper = CGMutablePath()
+    upper.move(to: CGPoint(x: 102, y: 18))
+    upper.addLine(to: CGPoint(x: 62, y: 18))
+    upper.addCurve(to: CGPoint(x: 22, y: 50), control1: CGPoint(x: 38, y: 18), control2: CGPoint(x: 22, y: 31))
+    upper.addCurve(to: CGPoint(x: 49, y: 81), control1: CGPoint(x: 22, y: 67), control2: CGPoint(x: 33, y: 76))
+    upper.addLine(to: CGPoint(x: 60, y: 59))
+    upper.addCurve(to: CGPoint(x: 47, y: 48), control1: CGPoint(x: 50, y: 56), control2: CGPoint(x: 47, y: 53))
+    upper.addCurve(to: CGPoint(x: 63, y: 40), control1: CGPoint(x: 47, y: 43), control2: CGPoint(x: 53, y: 40))
+    upper.addLine(to: CGPoint(x: 102, y: 40))
+    upper.closeSubpath()
+
+    let lower = CGMutablePath()
+    lower.move(to: CGPoint(x: 26, y: 110))
+    lower.addLine(to: CGPoint(x: 66, y: 110))
+    lower.addCurve(to: CGPoint(x: 106, y: 78), control1: CGPoint(x: 90, y: 110), control2: CGPoint(x: 106, y: 97))
+    lower.addCurve(to: CGPoint(x: 79, y: 47), control1: CGPoint(x: 106, y: 61), control2: CGPoint(x: 95, y: 52))
+    lower.addLine(to: CGPoint(x: 68, y: 69))
+    lower.addCurve(to: CGPoint(x: 81, y: 80), control1: CGPoint(x: 78, y: 72), control2: CGPoint(x: 81, y: 75))
+    lower.addCurve(to: CGPoint(x: 65, y: 88), control1: CGPoint(x: 81, y: 85), control2: CGPoint(x: 75, y: 88))
+    lower.addLine(to: CGPoint(x: 26, y: 88))
+    lower.closeSubpath()
+    return (upper, lower)
 }
 
 func color(_ value: UInt32, alpha: CGFloat = 1) -> CGColor {
@@ -73,8 +75,12 @@ func makeIcon(pixels: Int) -> Data {
 
     graphics.translateBy(x: 83, y: 83)
     graphics.scaleBy(x: 2.7, y: 2.7)
+    let ribbon = ribbonPaths()
     graphics.setFillColor(color(0x352D3A))
-    graphics.addPath(ribbonPath())
+    graphics.addPath(ribbon.upper)
+    graphics.fillPath()
+    graphics.setFillColor(color(0xAA665C))
+    graphics.addPath(ribbon.lower)
     graphics.fillPath()
     NSGraphicsContext.restoreGraphicsState()
     return bitmap.representation(using: .png, properties: [:])!

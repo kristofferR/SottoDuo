@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="26" fill="#eee2de"/><path fill="#352d3a" d="M102 18H62C38 18 22 31 22 50c0 17 11 26 27 31l11-22c-10-3-13-6-13-11s6-8 16-8h39ZM26 110h40c24 0 40-13 40-32 0-17-11-26-27-31L68 69c10 3 13 6 13 11s-6 8-16 8H26Z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="paper" gradientUnits="userSpaceOnUse" x1="80" y1="20" x2="420" y2="500">
+      <stop stop-color="#fcf9f2"/>
+      <stop offset="1" stop-color="#e8d9d4"/>
+    </linearGradient>
+    <linearGradient id="edge" gradientUnits="userSpaceOnUse" x1="180" y1="0" x2="300" y2="512">
+      <stop stop-color="#fff" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#352d3a" stop-opacity=".12"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="488" height="488" rx="112" fill="url(#paper)"/>
+  <rect x="13" y="13" width="486" height="486" rx="111" fill="none" stroke="url(#edge)" stroke-width="2"/>
+  <g transform="translate(83 83) scale(2.7)">
+    <path fill="#352d3a" d="M102 18H62C38 18 22 31 22 50c0 17 11 26 27 31l11-22c-10-3-13-6-13-11s6-8 16-8h39Z"/>
+    <path fill="#aa665c" d="M26 110h40c24 0 40-13 40-32 0-17-11-26-27-31L68 69c10 3 13 6 13 11s-6 8-16 8H26Z"/>
+  </g>
+</svg>
