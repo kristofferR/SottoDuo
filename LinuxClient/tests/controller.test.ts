@@ -359,6 +359,32 @@ test("a lock after one-shot delivery begins preserves its insertion result", asy
   expect(f.controller.result?.delivery).toBe("inserted");
   expect(f.controller.activity.phase).toBe("completed");
 });
+test("a lock during the delivery receipt preserves completed insertion", async () => {
+  const f = await fixture();
+  const saveDelivery = f.api.delivery.bind(f.api);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  f.api.delivery = async (...args) => {
+    await gate;
+    return saveDelivery(...args);
+  };
+  try {
+    f.controller.start();
+    await until(() => f.controller.activity.phase === "recording");
+    f.controller.stop();
+    await until(() => f.controller.activity.phase === "completed");
+    f.lock();
+    await Bun.sleep(1100);
+    expect(f.controller.result?.delivery).toBe("inserted");
+    expect(f.controller.activity.phase).toBe("completed");
+  } finally {
+    release();
+  }
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
+});
 test("clipboard fallback and ambiguous insertion never retry delivery, even if receipt fails", async () => {
   for (const mode of ["preview", "uncertain"] as const) {
     const f = await fixture();

@@ -94,7 +94,7 @@ ApplicationWindow {
         bridge.request("test");
     }
     function syncMicrophoneTestStart() {
-        const terminalTest = activity.trigger === "test" && ["failed", "cancelled", "completed"].includes(activity.phase);
+        const terminalTest = activity.trigger === "test" && ["idle", "failed", "cancelled", "completed"].includes(activity.phase);
         if ((busy && activity.trigger === "test") || terminalTest)
             microphoneTestStarting = false;
     }

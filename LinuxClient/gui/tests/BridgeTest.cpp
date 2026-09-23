@@ -321,6 +321,11 @@ private slots:
         "activity", QVariantMap{{"phase", "failed"}, {"trigger", "test"}});
     QVERIFY(QMetaObject::invokeMethod(window, "syncMicrophoneTestStart"));
     QVERIFY(!window->property("microphoneTestStarting").toBool());
+    window->setProperty("microphoneTestStarting", true);
+    window->setProperty(
+        "activity", QVariantMap{{"phase", "idle"}, {"trigger", "test"}});
+    QVERIFY(QMetaObject::invokeMethod(window, "syncMicrophoneTestStart"));
+    QVERIFY(!window->property("microphoneTestStarting").toBool());
     window->setProperty("busy", true);
     window->setProperty(
         "activity", QVariantMap{{"phase", "recording"}, {"trigger", "test"}});
