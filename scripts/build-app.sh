@@ -41,7 +41,7 @@ cp Resources/swift-openapi-runtime-LICENSE.txt Resources/swift-http-types-LICENS
 swift scripts/make-icon.swift "$project_dir/.build/SottoDuo.iconset"
 iconutil -c icns .build/SottoDuo.iconset -o "$staged_app/Contents/Resources/SottoDuo.icns"
 
-signing_identity="${SOTTODUO_SIGNING_IDENTITY:-${SOTTO_SIGNING_IDENTITY:-}}"
+signing_identity="${SOTTODUO_SIGNING_IDENTITY:-}"
 if [[ -z "$signing_identity" ]]; then
     available_identities=$(security find-identity -v -p codesigning)
     identities=""

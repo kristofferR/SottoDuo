@@ -67,22 +67,13 @@ QString Bridge::connectionStatus() const {
     return "connecting";
   QString config = qEnvironmentVariable("SOTTODUO_CLIENT_CONFIG");
   if (!qEnvironmentVariableIsSet("SOTTODUO_CLIENT_CONFIG")) {
-    if (qEnvironmentVariableIsSet("SOTTO_CLIENT_CONFIG")) {
-      config = qEnvironmentVariable("SOTTO_CLIENT_CONFIG");
-    } else {
-      const QString xdgConfigHome = qEnvironmentVariable("XDG_CONFIG_HOME");
-      const QString configHome =
-          xdgConfigHome.isEmpty()
-              ? QStandardPaths::writableLocation(
-                    QStandardPaths::GenericConfigLocation)
-              : xdgConfigHome;
-      config = QDir(configHome).filePath("sottoduo/linux-client.json");
-      if (!QFileInfo::exists(config)) {
-        const QString legacy = QDir(configHome).filePath("sotto/linux-client.json");
-        if (QFileInfo::exists(legacy))
-          config = legacy;
-      }
-    }
+    const QString xdgConfigHome = qEnvironmentVariable("XDG_CONFIG_HOME");
+    const QString configHome =
+        xdgConfigHome.isEmpty()
+            ? QStandardPaths::writableLocation(
+                  QStandardPaths::GenericConfigLocation)
+            : xdgConfigHome;
+    config = QDir(configHome).filePath("sottoduo/linux-client.json");
   }
   return m_hasConnected || QFileInfo(config).isFile() ? "unavailable"
                                                       : "setupRequired";

@@ -1,6 +1,5 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
-import { existsSync } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { validateBody } from "../../Server/src/validation.ts";
@@ -16,11 +15,8 @@ export interface Config {
 }
 export const configPath = () => {
   if (process.env.SOTTODUO_CLIENT_CONFIG !== undefined) return process.env.SOTTODUO_CLIENT_CONFIG;
-  if (process.env.SOTTO_CLIENT_CONFIG !== undefined) return process.env.SOTTO_CLIENT_CONFIG;
   const home = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  const current = join(home, "sottoduo", "linux-client.json");
-  const legacy = join(home, "sotto", "linux-client.json");
-  return existsSync(current) || !existsSync(legacy) ? current : legacy;
+  return join(home, "sottoduo", "linux-client.json");
 };
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

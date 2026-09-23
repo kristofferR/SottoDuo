@@ -4,7 +4,7 @@ set -euo pipefail
 project_dir=$(cd "$(dirname "$0")/.." && pwd)
 cd "$project_dir"
 build_jobs="${SOTTODUO_BUILD_JOBS:-8}"
-skip_native="${SOTTODUO_SKIP_NATIVE:-${SOTTO_SKIP_NATIVE:-0}}"
+skip_native="${SOTTODUO_SKIP_NATIVE:-0}"
 server_platform=$(uname -s)
 server_architecture=$(uname -m)
 if [[ "$server_platform" != Darwin && "$server_platform" != Linux ]]; then
@@ -32,7 +32,7 @@ if [[ "$skip_native" != 1 && \
     git submodule update --init --recursive
 fi
 
-native_flags=(-DCMAKE_BUILD_TYPE=Release "-DSOTTODUO_CUDA=${SOTTODUO_CUDA:-${SOTTO_CUDA:-OFF}}")
+native_flags=(-DCMAKE_BUILD_TYPE=Release "-DSOTTODUO_CUDA=${SOTTODUO_CUDA:-OFF}")
 if [[ "$server_platform" == Darwin ]]; then
     if [[ "$server_architecture" != arm64 ]]; then
         printf 'The macOS server uses MLX and requires Apple Silicon.\n' >&2
@@ -40,23 +40,23 @@ if [[ "$server_platform" == Darwin ]]; then
     fi
     native_flags+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_OSX_ARCHITECTURES=arm64)
 fi
-cuda_architectures="${SOTTODUO_CUDA_ARCHITECTURES:-${SOTTO_CUDA_ARCHITECTURES:-}}"
+cuda_architectures="${SOTTODUO_CUDA_ARCHITECTURES:-}"
 if [[ -n "$cuda_architectures" ]]; then
     native_flags+=("-DCMAKE_CUDA_ARCHITECTURES=$cuda_architectures")
 fi
-native_optimization="${SOTTODUO_NATIVE:-${SOTTO_NATIVE:-}}"
+native_optimization="${SOTTODUO_NATIVE:-}"
 if [[ -n "$native_optimization" ]]; then
     native_flags+=("-DGGML_NATIVE=$native_optimization")
 fi
 if [[ "$skip_native" == 1 ]]; then
     # Reuse explicitly selected helpers without rebuilding or modifying them.
     # This is useful for isolated server development beside an installed app.
-    speech_helper="${SOTTODUO_ENGINE_PATH:-${SOTTO_ENGINE_PATH:-}}"
-    text_helper="${SOTTODUO_TEXT_ENGINE_PATH:-${SOTTO_TEXT_ENGINE_PATH:-}}"
-    vad_model="${SOTTODUO_VAD_PATH:-${SOTTO_VAD_PATH:-}}"
-    : "${speech_helper:?Set SOTTODUO_ENGINE_PATH (or SOTTO_ENGINE_PATH) when skipping native builds}"
-    : "${text_helper:?Set SOTTODUO_TEXT_ENGINE_PATH (or SOTTO_TEXT_ENGINE_PATH) when skipping native builds}"
-    : "${vad_model:?Set SOTTODUO_VAD_PATH (or SOTTO_VAD_PATH) when skipping native builds}"
+    : "${SOTTODUO_ENGINE_PATH:?Set SOTTODUO_ENGINE_PATH when skipping native builds}"
+    : "${SOTTODUO_TEXT_ENGINE_PATH:?Set SOTTODUO_TEXT_ENGINE_PATH when skipping native builds}"
+    : "${SOTTODUO_VAD_PATH:?Set SOTTODUO_VAD_PATH when skipping native builds}"
+    speech_helper="$SOTTODUO_ENGINE_PATH"
+    text_helper="$SOTTODUO_TEXT_ENGINE_PATH"
+    vad_model="$SOTTODUO_VAD_PATH"
     text_helper_dir=$(dirname "$text_helper")
 else
     cmake -S . -B .build/server-native "${native_flags[@]}"
@@ -86,7 +86,7 @@ mkdir -p "$staging_dir/helpers" "$staging_dir/resources"
 bun run --cwd Server build --outfile "$staging_dir/sottoduo-server"
 cp "$speech_helper" "$staging_dir/helpers/sottoduo-engine"
 cp "$text_helper" "$staging_dir/helpers/sottoduo-text-engine"
-if [[ "${SOTTODUO_BUILD_CAPTURE:-${SOTTO_BUILD_CAPTURE:-0}}" == 1 ]]; then
+if [[ "${SOTTODUO_BUILD_CAPTURE:-0}" == 1 ]]; then
     if [[ "$server_platform" != Linux ]]; then
         printf 'Optional PipeWire capture requires Linux.\n' >&2
         exit 1

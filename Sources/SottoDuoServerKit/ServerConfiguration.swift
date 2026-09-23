@@ -29,10 +29,7 @@ public struct ServerConfiguration: Sendable {
     public static func parse(arguments: [String] = Array(CommandLine.arguments.dropFirst()),
                              environment: [String: String] = ProcessInfo.processInfo.environment) throws -> Self {
         var options: [String: String] = [:]
-        func env(_ variable: String) -> String? {
-            environment[variable] ?? environment[variable.replacingOccurrences(of: "SOTTODUO_", with: "SOTTO_", options: .anchored)]
-        }
-        var development = env("SOTTODUO_DEV") == "1"
+        var development = environment["SOTTODUO_DEV"] == "1"
         let names: Set<String> = ["host", "port", "data-dir", "token-file", "speech-helper", "speech-model", "vad-model", "proof-helper", "proof-model"]
         var index = 0
         while index < arguments.count {
@@ -44,7 +41,7 @@ public struct ServerConfiguration: Sendable {
             options[String(argument.dropFirst(2))] = arguments[index + 1]
             index += 2
         }
-        func value(_ option: String, _ variable: String) -> String? { options[option] ?? env(variable) }
+        func value(_ option: String, _ variable: String) -> String? { options[option] ?? environment[variable] }
         func path(_ option: String, _ variable: String) throws -> URL {
             guard let value = value(option, variable), !value.isEmpty else {
                 throw ServerConfigurationError.invalid("Configure --\(option) or \(variable).")

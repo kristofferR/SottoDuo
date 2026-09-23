@@ -26,17 +26,6 @@ Closing settings keeps the live capsule available, including on desktops without
 
 Build the Linux client first, then install the GUI, matching client, destination helper and launcher with CMake's normal install command into an explicitly chosen prefix. The GUI sets up its own user service on request. It does not install receiver permissions or override an existing service. Login startup starts the GUI; the service starts independently after setup.
 
-When upgrading an earlier Sotto installation in the same prefix, remove its old install artifacts after installing SottoDuo. For a user install under `~/.local`, run:
-
-```sh
-rm -f "$HOME/.local/bin/sotto-gui" "$HOME/.local/bin/sotto" \
-  "$HOME/.local/bin/sotto-destination" \
-  "$HOME/.local/share/applications/sotto.desktop" \
-  "$HOME/.local/share/icons/hicolor/scalable/apps/sotto.svg"
-```
-
-Use the actual old prefix if it differs. These are the files from the former CMake install rules; package-managed installations should be upgraded through their package manager.
-
 ## Appearance
 
 Choose a theme in **This computer → Appearance**:

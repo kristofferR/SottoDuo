@@ -17,38 +17,6 @@ final class ServerConfigurationTests: XCTestCase {
         XCTAssertNoThrow(try ServerConfiguration(dataDirectory: directory, inference: inference()))
     }
 
-    func testParserAcceptsLegacyEnvironmentWithNewNamesTakingPrecedence() throws {
-        let tokenFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try "legacy-token".write(to: tokenFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tokenFile) }
-        let legacy = [
-            "SOTTO_DEV": "1", "SOTTO_SERVER_HOST": "localhost", "SOTTO_SERVER_PORT": "8493",
-            "SOTTO_SERVER_DATA_DIR": "/tmp/legacy-data", "SOTTO_SERVER_TOKEN_FILE": tokenFile.path,
-            "SOTTO_ENGINE_PATH": "/tmp/legacy-engine", "SOTTO_SPEECH_MODEL": "/tmp/legacy-speech",
-            "SOTTO_VAD_PATH": "/tmp/legacy-vad", "SOTTO_TEXT_ENGINE_PATH": "/tmp/legacy-text-engine",
-            "SOTTO_TEXT_MODEL": "/tmp/legacy-text-model"
-        ]
-        let configuration = try ServerConfiguration.parse(arguments: [], environment: legacy)
-        XCTAssertTrue(configuration.development)
-        XCTAssertEqual(configuration.host, "localhost")
-        XCTAssertEqual(configuration.port, 8493)
-        XCTAssertEqual(configuration.dataDirectory.path, "/tmp/legacy-data")
-        XCTAssertEqual(configuration.token, "legacy-token")
-        XCTAssertEqual(configuration.inference.speechHelper.path, "/tmp/legacy-engine")
-        XCTAssertEqual(configuration.inference.speechModel.path, "/tmp/legacy-speech")
-        XCTAssertEqual(configuration.inference.vadModel.path, "/tmp/legacy-vad")
-        XCTAssertEqual(configuration.inference.proofHelper.path, "/tmp/legacy-text-engine")
-        XCTAssertEqual(configuration.inference.proofModel.path, "/tmp/legacy-text-model")
-
-        let updated = try ServerConfiguration.parse(arguments: [], environment: legacy.merging([
-            "SOTTODUO_DEV": "0", "SOTTODUO_SERVER_PORT": "8494",
-            "SOTTODUO_SERVER_DATA_DIR": "/tmp/new-data"
-        ]) { _, new in new })
-        XCTAssertFalse(updated.development)
-        XCTAssertEqual(updated.port, 8494)
-        XCTAssertEqual(updated.dataDirectory.path, "/tmp/new-data")
-    }
-
     func testWaveHeaderPreservesSampleBytes() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

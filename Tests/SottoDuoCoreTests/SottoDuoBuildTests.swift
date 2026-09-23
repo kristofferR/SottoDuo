@@ -19,16 +19,9 @@ final class SottoDuoBuildTests: XCTestCase {
         XCTAssertTrue(development.isDevelopment)
     }
 
-    func testExistingSottoDataIsUsedUntilNewPreferencesExist() throws {
+    func testDataDirectoryUsesCurrentAppName() {
         let support = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: support) }
-        let old = support.appendingPathComponent("Sotto", isDirectory: true)
-        let current = support.appendingPathComponent("SottoDuo", isDirectory: true)
-        try FileManager.default.createDirectory(at: old, withIntermediateDirectories: true)
-        XCTAssertEqual(SottoDuoBuild.release.dataDirectory(in: support), old)
-        try FileManager.default.createDirectory(at: current, withIntermediateDirectories: true)
-        XCTAssertEqual(SottoDuoBuild.release.dataDirectory(in: support), old)
-        try Data("{}".utf8).write(to: current.appendingPathComponent("client.json"))
-        XCTAssertEqual(SottoDuoBuild.release.dataDirectory(in: support), current)
+        XCTAssertEqual(SottoDuoBuild.release.dataDirectory(in: support), support.appendingPathComponent("SottoDuo", isDirectory: true))
+        XCTAssertEqual(SottoDuoBuild.development.dataDirectory(in: support), support.appendingPathComponent("SottoDuo Dev", isDirectory: true))
     }
 }

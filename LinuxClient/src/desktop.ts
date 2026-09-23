@@ -293,7 +293,7 @@ export class HyprlandDesktop implements Desktop {
 }
 
 export function shortcutEvent(line: string): "start" | "stop" | "cancel" | "copy" | undefined {
-  const prefix = line.startsWith("custom>>sottoduo:") ? "custom>>sottoduo:" : "custom>>sotto:";
+  const prefix = "custom>>sottoduo:";
   if (!line.startsWith(prefix)) return undefined;
   const action = line.slice(prefix.length);
   return action === "start" || action === "stop" || action === "cancel" || action === "copy"

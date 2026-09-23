@@ -11,14 +11,7 @@
 
 namespace {
 const QByteArray marker = "# Managed by SottoDuo\n";
-const QByteArray legacyMarker = "# Managed by Sotto\n";
 const QByteArray serviceMarker = "# Managed by SottoDuo Linux GUI\n";
-const QByteArray legacyServiceMarker = "# Managed by Sotto Linux GUI\n";
-
-QString legacyEntryPath() {
-  return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-         "/autostart/org.sotto.Gui.desktop";
-}
 
 struct ServiceUnit {
   bool available = false;
@@ -112,22 +105,7 @@ DesktopIntegration::DesktopIntegration(bool preview, QObject *parent,
     : QObject(parent), m_preview(preview),
       m_clientExecutable(clientExecutable.isEmpty()
                              ? defaultClientExecutable(QCoreApplication::applicationDirPath())
-                             : clientExecutable) {
-  if (m_preview)
-    return;
-  QFile legacy(legacyEntryPath());
-  if (!legacy.open(QIODevice::ReadOnly))
-    return;
-  const auto data = legacy.readAll();
-  legacy.close();
-  if (!data.startsWith(legacyMarker))
-    return;
-  if (!QFileInfo::exists(entryPath()) && data.contains("\nHidden=false\n")) {
-    setLaunchAtLogin(true);
-  } else if (!legacy.remove()) {
-    m_error = "Couldn’t remove the previous login entry.";
-  }
-}
+                             : clientExecutable) {}
 
 QString DesktopIntegration::entryPath() const {
   return QStandardPaths::writableLocation(
@@ -161,14 +139,9 @@ void DesktopIntegration::refreshClientService() {
                                [this, refresh](ServiceUnit unit) {
                      if (refresh != m_serviceRefresh || m_clientServiceBusy)
                        return;
-                     QFile legacy(QStandardPaths::writableLocation(
-                                      QStandardPaths::GenericConfigLocation) +
-                                  "/systemd/user/sotto-client.service");
-                     const bool upgrade = legacy.open(QIODevice::ReadOnly) &&
-                                          legacy.readAll().startsWith(legacyServiceMarker);
                      m_clientService =
                          !unit.available ? "Systemd user service unavailable"
-                         : unit.loadState == "not-found" ? (upgrade ? "Upgrade available" : "Not installed")
+                         : unit.loadState == "not-found" ? "Not installed"
                                                          : "Stopped";
                      emit changed();
                    });
@@ -289,60 +262,18 @@ void DesktopIntegration::configureClientService(bool restartRunning) {
           },
           10000);
     };
-    auto migrateLegacy = [this, enable, fail] {
-      serviceUnit(this, "sotto-client.service",
-                  [this, enable, fail](ServiceUnit legacy) {
-        if (!legacy.available) {
-          fail("Couldn’t inspect the previous background service.");
-          return;
-        }
-        if (legacy.loadState == "not-found") {
-          enable();
-          return;
-        }
-        const QString path = QStandardPaths::writableLocation(
-                                 QStandardPaths::GenericConfigLocation) +
-                             "/systemd/user/sotto-client.service";
-        const QFileInfo file(path);
-        QFile contents(path);
-        if (file.isSymLink() || !file.isFile() ||
-            QFileInfo(legacy.fragment).absoluteFilePath() != file.absoluteFilePath() ||
-            !contents.open(QIODevice::ReadOnly) ||
-            !contents.readAll().startsWith(legacyServiceMarker)) {
-          fail("The previous background service is managed outside SottoDuo. "
-               "Update it through your desktop setup.");
-          return;
-        }
-        contents.close();
-        runSystemctl(this, {"--user", "disable", "--now", "sotto-client.service"},
-                     [this, path, enable, fail](ProcessResult result) {
-                       if (!result.available || result.exitCode != 0 ||
-                           !QFile::remove(path)) {
-                         fail("Couldn’t migrate the previous background service.");
-                         return;
-                       }
-                       runSystemctl(this, {"--user", "daemon-reload"},
-                                    [enable, fail](ProcessResult reload) {
-                                      if (reload.available && reload.exitCode == 0)
-                                        enable();
-                                      else
-                                        fail("Couldn’t reload background services.");
-                                    }, 10000);
-                     }, 10000);
-      });
-    };
     if (created)
       runSystemctl(
           this, {"--user", "daemon-reload"},
-          [migrateLegacy, complete](ProcessResult result) {
+          [enable, complete](ProcessResult result) {
             if (result.available && result.exitCode == 0)
-              migrateLegacy();
+              enable();
             else
               complete(result);
           },
           10000);
     else
-      migrateLegacy();
+      enable();
   });
 }
 
@@ -351,12 +282,9 @@ bool DesktopIntegration::launchAtLogin() const {
     return false;
   QFile entry(entryPath());
   if (!entry.open(QIODevice::ReadOnly))
-    entry.setFileName(legacyEntryPath());
-  if (!entry.isOpen() && !entry.open(QIODevice::ReadOnly))
     return false;
   const auto data = entry.readAll();
-  const auto expectedMarker = entry.fileName() == entryPath() ? marker : legacyMarker;
-  return data.startsWith(expectedMarker) && data.contains("\nHidden=false\n");
+  return data.startsWith(marker) && data.contains("\nHidden=false\n");
 }
 
 void DesktopIntegration::setLaunchAtLogin(bool enabled) {
@@ -411,15 +339,6 @@ void DesktopIntegration::setLaunchAtLogin(bool enabled) {
     fail("Couldn’t save login startup. Check the permissions of your startup "
          "folder.");
     return;
-  }
-  QFile legacy(legacyEntryPath());
-  if (legacy.open(QIODevice::ReadOnly)) {
-    const bool managed = legacy.readAll().startsWith(legacyMarker);
-    legacy.close();
-    if (managed && !legacy.remove()) {
-      fail("Couldn’t remove the previous login entry.");
-      return;
-    }
   }
   emit changed();
 }

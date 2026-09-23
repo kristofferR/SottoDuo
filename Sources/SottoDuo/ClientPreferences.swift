@@ -29,7 +29,7 @@ final class ClientPreferencesStore: ObservableObject {
         url = root.appendingPathComponent("client.json")
         credentialAccount = root.standardizedFileURL.path
         let saved = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(Settings.self, from: $0) }
-        let resolvedEndpoint = environment["SOTTODUO_SERVER_URL"] ?? environment["SOTTO_SERVER_URL"]
+        let resolvedEndpoint = environment["SOTTODUO_SERVER_URL"]
             ?? saved?.endpoint ?? "http://127.0.0.1:8391"
         endpoint = resolvedEndpoint
         deviceID = saved?.deviceID ?? UUID().uuidString.lowercased()
@@ -43,9 +43,7 @@ final class ClientPreferencesStore: ObservableObject {
             if let readCredential {
                 token = readCredential(account)
             } else {
-                token = Self.readToken(account: account, service: SottoDuoBuild.current.credentialService)
-                    ?? Self.readToken(account: account, service: SottoDuoBuild.current.legacyCredentialService)
-                    ?? ""
+                token = Self.readToken(account: account, service: SottoDuoBuild.current.credentialService) ?? ""
             }
             if saved == nil { persist() }
         } catch {
@@ -126,10 +124,7 @@ final class ClientPreferencesStore: ObservableObject {
         let query = keychainQuery(account: account)
         if token.isEmpty {
             let status = SecItemDelete(query as CFDictionary)
-            let legacyQuery = keychainQuery(account: account, service: SottoDuoBuild.current.legacyCredentialService)
-            let legacyStatus = SecItemDelete(legacyQuery as CFDictionary)
-            return (status == errSecSuccess || status == errSecItemNotFound)
-                && (legacyStatus == errSecSuccess || legacyStatus == errSecItemNotFound)
+            return status == errSecSuccess || status == errSecItemNotFound
         }
         let attributes: [String: Any] = [kSecValueData as String: Data(token.utf8)]
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)

@@ -57,29 +57,6 @@ test("CLI overrides environment and uses independent explicit model/data paths",
   await expect(parseConfiguration([], {})).rejects.toThrow("Configure");
 });
 
-test("deployed SOTTO environment names remain valid with new names taking precedence", async () => {
-  const old = Object.fromEntries(
-    Object.entries(environment).map(([name, value]) => [
-      name.replace("SOTTODUO_", "SOTTO_"),
-      value,
-    ]),
-  );
-  const config = await parseConfiguration([], {
-    ...old,
-    SOTTO_DEV: "1",
-    SOTTO_SERVER_PORT: "8392",
-  });
-  expect(config).toMatchObject({
-    development: true,
-    port: 8392,
-    dataDirectory: "/tmp/sottoduo-config",
-    inference: { speechHelper: "/tmp/speech", proofModel: "/tmp/proof-model" },
-  });
-  expect(
-    (await parseConfiguration([], { ...old, SOTTODUO_SERVER_DATA_DIR: "/tmp/new" })).dataDirectory,
-  ).toBe("/tmp/new");
-});
-
 test("remote listeners require a bounded regular UTF8 token file", async () => {
   await expect(parseConfiguration(["--host", "0.0.0.0"], environment)).rejects.toThrow(
     "requires a token",

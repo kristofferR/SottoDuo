@@ -39,7 +39,7 @@ final class SottoDuoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = ProcessInfo.processInfo.environment
-        let root = (environment["SOTTODUO_CLIENT_DATA_DIR"] ?? environment["SOTTO_CLIENT_DATA_DIR"])
+        let root = environment["SOTTODUO_CLIENT_DATA_DIR"]
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? SottoDuoBuild.current.dataDirectory
         let configuration = ConfigurationStore(

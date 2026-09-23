@@ -61,28 +61,6 @@ private slots:
     QVERIFY(entry.open(QIODevice::ReadOnly));
     QVERIFY(entry.readAll().contains("Hidden=true\n"));
   }
-  void managedLegacyLoginEntryMovesToSottoDuo() {
-    QTemporaryDir config;
-    QVERIFY(config.isValid());
-    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
-    QVERIFY(QDir().mkpath(config.path() + "/autostart"));
-    QFile legacy(config.path() + "/autostart/org.sotto.Gui.desktop");
-    QVERIFY(legacy.open(QIODevice::WriteOnly));
-    legacy.write("# Managed by Sotto\n[Desktop Entry]\nHidden=false\nExec=sotto-gui --background\n");
-    legacy.close();
-    DesktopIntegration preview(true);
-    QVERIFY(!preview.launchAtLogin());
-    QVERIFY(legacy.exists());
-    DesktopIntegration desktop(false);
-    QVERIFY2(desktop.error().isEmpty(), qPrintable(desktop.error()));
-    QVERIFY(desktop.launchAtLogin());
-    QVERIFY(!legacy.exists());
-    QFile current(config.path() + "/autostart/org.sottoduo.Gui.desktop");
-    QVERIFY(current.open(QIODevice::ReadOnly));
-    const auto data = current.readAll();
-    QVERIFY(data.startsWith("# Managed by SottoDuo\n"));
-    QVERIFY(data.contains("Hidden=false\n"));
-  }
   void externalLoginEntryAndWriteFailuresRemainVisible() {
     QTemporaryDir config;
     qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
@@ -121,18 +99,14 @@ private slots:
     fakeSystemctl.write(
         "#!/bin/sh\ncase \"$2\" in\n"
         "is-active) test -f \"$SOTTODUO_TEST_ACTIVE\" && echo active;;\n"
-        "show) if test \"$5\" = sotto-client.service && test -n "
-        "\"$SOTTODUO_TEST_LEGACY\"; then printf "
-        "'LoadState=loaded\\nFragmentPath=%s\\n' "
-        "\"$SOTTODUO_TEST_LEGACY\"; else printf "
+        "show) printf "
         "'LoadState=%s\\nFragmentPath=%s\\n' "
         "\"${SOTTODUO_TEST_LOAD_STATE:-not-found}\" "
-        "\"${SOTTODUO_TEST_FRAGMENT:-}\"; fi;;\n"
+        "\"${SOTTODUO_TEST_FRAGMENT:-}\";;\n"
         "daemon-reload) exit 0;;\n"
         "enable) case \" $* \" in *\" --now \"*) touch "
         "\"$SOTTODUO_TEST_ACTIVE\";; esac;;\n"
         "restart) touch \"$SOTTODUO_TEST_ACTIVE.restarted\";;\n"
-        "disable) touch \"$SOTTODUO_TEST_ACTIVE.disabled\";;\n"
         "start) touch \"$SOTTODUO_TEST_ACTIVE\";;\n"
         "esac\n");
     fakeSystemctl.close();
@@ -159,20 +133,6 @@ private slots:
     QVERIFY(installed.startsWith("# Managed by SottoDuo Linux GUI\n"));
     QVERIFY(installed.contains("ExecStart=\"" + client.fileName().toUtf8() +
                                "\" daemon\n"));
-    const QString legacyPath =
-        directory.path() + "/systemd/user/sotto-client.service";
-    QFile oldUnit(legacyPath);
-    QVERIFY(oldUnit.open(QIODevice::WriteOnly));
-    oldUnit.write("# Managed by Sotto Linux "
-                  "GUI\n[Service]\nExecStart=/old/sotto daemon\n");
-    oldUnit.close();
-    qputenv("SOTTODUO_TEST_LEGACY", legacyPath.toUtf8());
-    desktop.restartClientService();
-    QTRY_VERIFY_WITH_TIMEOUT(!desktop.clientServiceBusy(), 3000);
-    QVERIFY(desktop.error().isEmpty());
-    QVERIFY(!oldUnit.exists());
-    QVERIFY(QFile::exists(directory.path() + "/active.disabled"));
-    qunsetenv("SOTTODUO_TEST_LEGACY");
     QFile movedClient(directory.path() + "/moved-sottoduo");
     QVERIFY(movedClient.open(QIODevice::WriteOnly));
     movedClient.write("#!/bin/sh\nexit 0\n");

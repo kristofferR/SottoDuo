@@ -48,8 +48,7 @@ ENV SOTTODUO_TEXT_ENGINE_PATH=/opt/sottoduo/helpers/sottoduo-text-engine
 ENV SOTTODUO_VAD_PATH=/opt/sottoduo/resources/silero-vad.bin
 ENV SOTTODUO_SPEECH_MODEL=/models/ggml-large-v3-turbo.bin
 ENV SOTTODUO_TEXT_MODEL=/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
-# Keep the container secret mount stable for existing deployments.
-ENV SOTTODUO_SERVER_TOKEN_FILE=/run/secrets/sotto-token
+ENV SOTTODUO_SERVER_TOKEN_FILE=/run/secrets/sottoduo-token
 USER sottoduo
 WORKDIR /opt/sottoduo
 EXPOSE 8391

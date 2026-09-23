@@ -7,11 +7,10 @@ action="${1:-start}"
 if [[ "$action" == --skip-build ]]; then action=start; skip_build=true; else skip_build=false; fi
 if [[ "${2:-}" == --skip-build ]]; then skip_build=true; fi
 server_binary="$project_dir/build/server/sottoduo-server"
-legacy_server_binary="$project_dir/build/server/sotto-server"
 state_dir="$project_dir/.local"
 pid_file="$state_dir/server.pid"
 log_file="$state_dir/server.log"
-server_port="${SOTTODUO_SERVER_PORT:-${SOTTO_SERVER_PORT:-8391}}"
+server_port="${SOTTODUO_SERVER_PORT:-8391}"
 client_dir="$state_dir/client"
 mkdir -p "$state_dir"
 chmod 700 "$state_dir"
@@ -50,7 +49,6 @@ is_running() {
     server_command="$(ps -p "$server_pid" -o command=)" || return 1
     case "$server_command" in
         "$server_binary "*) running_binary="$server_binary"; return 0 ;;
-        "$legacy_server_binary "*) running_binary="$legacy_server_binary"; return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -131,8 +129,8 @@ if [[ ! -x "$server_binary" ]]; then
     exit 1
 fi
 
-speech_model="${SOTTODUO_SPEECH_MODEL:-${SOTTO_SPEECH_MODEL:-}}"
-proof_model="${SOTTODUO_TEXT_MODEL:-${SOTTO_TEXT_MODEL:-}}"
+speech_model="${SOTTODUO_SPEECH_MODEL:-}"
+proof_model="${SOTTODUO_TEXT_MODEL:-}"
 if [[ "$(uname -s)" == Darwin ]]; then
     # Reuse model weights only. User recordings, preferences, and credentials
     # are never imported from the installed app.
@@ -144,13 +142,13 @@ if [[ ! -f "$speech_model" || ! -e "$proof_model" ]]; then
     exit 1
 fi
 server_args=(--host 127.0.0.1 --port "$server_port" --dev
-    --data-dir "${SOTTODUO_SERVER_DATA_DIR:-${SOTTO_SERVER_DATA_DIR:-$state_dir/server}}"
-    --speech-helper "${SOTTODUO_ENGINE_PATH:-${SOTTO_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-engine}}"
+    --data-dir "${SOTTODUO_SERVER_DATA_DIR:-$state_dir/server}"
+    --speech-helper "${SOTTODUO_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-engine}"
     --speech-model "$speech_model"
-    --vad-model "${SOTTODUO_VAD_PATH:-${SOTTO_VAD_PATH:-$project_dir/build/server/resources/silero-vad.bin}}"
-    --proof-helper "${SOTTODUO_TEXT_ENGINE_PATH:-${SOTTO_TEXT_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-text-engine}}"
+    --vad-model "${SOTTODUO_VAD_PATH:-$project_dir/build/server/resources/silero-vad.bin}"
+    --proof-helper "${SOTTODUO_TEXT_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-text-engine}"
     --proof-model "$proof_model")
-token_file="${SOTTODUO_SERVER_TOKEN_FILE:-${SOTTO_SERVER_TOKEN_FILE:-}}"
+token_file="${SOTTODUO_SERVER_TOKEN_FILE:-}"
 if [[ -n "$token_file" ]]; then server_args+=(--token-file "$token_file"); fi
 umask 077
 nohup "$server_binary" "${server_args[@]}" >> "$log_file" 2>&1 < /dev/null &

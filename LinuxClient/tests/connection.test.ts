@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GenerationService } from "../../Server/src/generation-service.ts";
@@ -84,35 +84,6 @@ async function until(predicate: () => Promise<boolean>) {
   }
   throw new Error("Timed out");
 }
-
-test("legacy Linux config uses the renamed installed destination helper", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "sottoduo-legacy-helper-"));
-  cleanup.push(() => rm(dir, { recursive: true, force: true }));
-  const file = join(dir, "sotto", "linux-client.json");
-  const oldHelper = "/home/user/.local/opt/sotto-linux/current/sotto-destination";
-  const newHelper = "/home/user/.local/opt/sottoduo/current/sottoduo-destination";
-  const saved = parseConfig({
-    server: "http://localhost:8391",
-    tokenFile: "/private/token",
-    destinationHelper: oldHelper,
-    device: { id: "desktop", name: "Linux desktop" },
-    sources: {
-      server: "http://localhost:8391",
-      hostID: "desktop",
-      mode: "automatic",
-      priority: [],
-    },
-  });
-  await mkdir(join(dir, "sotto"));
-  await writeFile(file, JSON.stringify(saved));
-  const settings = await ConnectionSettings.open(newHelper, file);
-  expect(settings.config).toMatchObject({
-    destinationHelper: newHelper,
-    device: saved.device,
-    sources: saved.sources,
-  });
-  expect(JSON.parse(await readFile(file, "utf8")).destinationHelper).toBe(oldHelper);
-});
 
 test("first setup tests without recording, saves private credentials and starts a usable runtime", async () => {
   const f = await fixture();

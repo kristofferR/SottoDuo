@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { API, APIError } from "./api.ts";
 import { configPath, endpoint, parseConfig, token, type Config } from "./config.ts";
 import { ClientNotice } from "./errors.ts";
@@ -41,12 +41,6 @@ export class ConnectionSettings {
     if (this.disk !== undefined) {
       try {
         this.config = parseConfig(JSON.parse(this.disk));
-        if (
-          basename(dirname(file)) === "sotto" &&
-          basename(this.config.destinationHelper) === "sotto-destination"
-        ) {
-          this.config.destinationHelper = helper;
-        }
       } catch {
         /* Allow repair in setup. */
       }
