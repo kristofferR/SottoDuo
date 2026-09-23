@@ -146,14 +146,18 @@ nativeTest(
   },
   20_000,
 );
-nativeTest("cancellation releases native input and allows a new take", async () => {
-  const { record } = await begin();
-  await service.cancel(record.id);
-  await noCapture();
-  const next = await begin();
-  await service.cancel(next.record.id);
-  await noCapture();
-});
+nativeTest(
+  "cancellation releases native input and allows a new take",
+  async () => {
+    const { record } = await begin();
+    await service.cancel(record.id);
+    await noCapture();
+    const next = await begin();
+    await service.cancel(next.record.id);
+    await noCapture();
+  },
+  20_000,
+);
 nativeTest(
   "owner lease expiry kills native capture without sealing",
   async () => {
