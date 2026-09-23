@@ -15,10 +15,14 @@ ScrollView {
     property string revision: ""
     property bool dirty: false
     property bool pending: false
+    property bool conflicted: false
+    property bool awaitingSnapshot: false
+    property string submittedRevision: ""
+    property string submittedDraft: ""
     property string message: ""
     property var seenInputs: []
     readonly property bool scopeChanged: !!ui.snapshot.microphones && (draft.server !== ui.snapshot.microphones.value.server || draft.hostID !== ui.snapshot.microphones.value.hostID)
-    readonly property bool editable: bridge.connected && !bridge.preview && !ui.busy && !ui.snapshot.connectionChanging && !pending && !!revision && !scopeChanged
+    readonly property bool editable: bridge.connected && !bridge.preview && !ui.busy && !ui.snapshot.connectionChanging && !conflicted && !!revision && !scopeChanged
     readonly property var activeProfile: draft.profiles.find(p => p.id === draft.activeProfileID) || ({
             name: "Default",
             priority: []
@@ -67,6 +71,11 @@ ScrollView {
         draft = clone(saved.value);
         revision = saved.revision;
         dirty = false;
+        pending = false;
+        conflicted = false;
+        awaitingSnapshot = false;
+        submittedRevision = "";
+        submittedDraft = "";
         message = "";
         rememberInputs();
     }
@@ -78,6 +87,34 @@ ScrollView {
         draft = next;
         dirty = true;
         message = "";
+        saveChanges();
+    }
+    function saveChanges() {
+        if (!dirty || pending || awaitingSnapshot || !editable || (draft.mode === "fixed" && !draft.fixed))
+            return;
+        const current = ui.snapshot.microphones;
+        if (current && current.revision !== revision) {
+            conflicted = true;
+            message = "Microphone settings changed on another device. Reload the latest settings to continue.";
+            return;
+        }
+        rememberInputs();
+        let value = clone(draft);
+        const inputs = seenInputs.slice();
+        for (const input of value.knownInputs || [])
+            if (!inputs.some(x => key(x.identity) === key(input.identity)))
+                inputs.push(input);
+        const referenced = [];
+        for (const profile of value.profiles)
+            for (const id of profile.priority)
+                referenced.push(id);
+        if (value.fixed)
+            referenced.push(value.fixed);
+        value.knownInputs = inputs.filter(input => referenced.some(id => key(id) === key(input.identity)));
+        submittedRevision = revision;
+        submittedDraft = JSON.stringify(draft);
+        pending = true;
+        bridge.request("saveMicrophones", { value: value, revision: revision });
     }
     function selectProfile(id) {
         let next = clone(draft);
@@ -159,26 +196,69 @@ ScrollView {
         target: bridge
         function onReply(action, data) {
             if (action === "saveMicrophones" && root.pending) {
-                root.draft = root.clone(data.value);
+                if (root.scopeChanged) {
+                    root.loadSaved();
+                    return;
+                }
+                const unchanged = JSON.stringify(root.draft) === root.submittedDraft;
                 root.revision = data.revision;
-                root.dirty = false;
                 root.pending = false;
-                root.message = "Microphone settings saved. They apply to your next take.";
+                root.awaitingSnapshot = root.ui.snapshot.microphones?.revision !== root.revision;
+                if (unchanged) {
+                    root.draft = root.clone(data.value);
+                    root.dirty = false;
+                    root.message = "";
+                }
+                if (!root.awaitingSnapshot && root.dirty)
+                    root.saveChanges();
                 bridge.request("snapshot");
-                root.ui.refresh();
+                root.ui.refreshSources();
             }
         }
         function onFailed(action, message) {
-            if (action === "saveMicrophones") {
+            if (action === "saveMicrophones" && root.pending) {
                 root.pending = false;
+                if (root.scopeChanged) {
+                    root.loadSaved();
+                    return;
+                }
+                root.conflicted = message.startsWith("Microphone settings changed.");
                 root.message = message;
             }
         }
         function onSnapshotChanged() {
-            if (!bridge.connected)
-                root.pending = false;
+            if (!bridge.connected) {
+                root.awaitingSnapshot = false;
+                return;
+            }
+            if (root.scopeChanged && !root.pending) {
+                root.loadSaved();
+                return;
+            }
+            if (root.awaitingSnapshot) {
+                const current = root.ui.snapshot.microphones;
+                if (!current || current.revision === root.submittedRevision)
+                    return;
+                root.awaitingSnapshot = false;
+                if (current.revision !== root.revision) {
+                    root.conflicted = true;
+                    root.message = "Microphone settings changed on another device. Reload the latest settings to continue.";
+                    return;
+                }
+            }
             if (!root.dirty && !root.pending && !profileDialog.visible && !deleteDialog.visible && root.ui.snapshot.microphones && root.ui.snapshot.microphones.revision !== root.revision)
                 root.loadSaved();
+            else if (root.dirty && !root.pending && !root.message)
+                root.saveChanges();
+        }
+    }
+    Timer {
+        interval: 4000
+        running: root.dirty && !root.pending && !root.conflicted && bridge.connected && root.message.length > 0
+        repeat: false
+        onTriggered: {
+            root.message = "";
+            root.saveChanges();
         }
     }
     ColumnLayout {
@@ -220,7 +300,7 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Next dictation"
-                detail: root.dirty ? "Unsaved changes. The current settings stay active until you save." : root.ui.sources.reason || "Availability is checked again when dictation starts."
+                detail: root.pending ? "Saving microphone settings for your next dictation…" : root.ui.sources.reason || "Availability is checked again when dictation starts."
                 SLabel {
                     ui: root.ui
                     objectName: "nextMicrophone"
@@ -452,47 +532,19 @@ ScrollView {
             font.pixelSize: 13
             Layout.fillWidth: true
         }
-        SLabel {
-            ui: root.ui
-            text: "A recording keeps the microphone it started with. If that input is lost, start a new take to use a fallback. Pairing-button dictation always uses its receiver."
-            color: root.ui.c.muted
-            font.pixelSize: 13
-            Layout.fillWidth: true
-        }
-        SLabel {
-            ui: root.ui
-            text: root.scopeChanged ? "The server or capture host changed. Discard changes to reload microphone settings before editing." : root.message
-            visible: text.length > 0
-            Layout.fillWidth: true
-        }
         RowLayout {
-            SButton {
+            visible: root.message.length > 0 || root.conflicted
+            spacing: 12
+            SLabel {
                 ui: root.ui
-                objectName: "saveMicrophonesButton"
-                text: root.pending ? "Saving…" : "Save changes"
-                primary: true
-                enabled: root.dirty && root.editable && (root.draft.mode !== "fixed" || !!root.draft.fixed)
-                onClicked: {
-                    root.rememberInputs();
-                    let value = root.clone(root.draft);
-                    const inputs = root.seenInputs.slice();
-                    for (const input of value.knownInputs || [])
-                        if (!inputs.some(x => root.key(x.identity) === root.key(input.identity)))
-                            inputs.push(input);
-                    const referenced = value.profiles.flatMap(p => p.priority).concat(value.fixed ? [value.fixed] : []);
-                    value.knownInputs = inputs.filter(input => referenced.some(id => root.key(id) === root.key(input.identity)));
-                    root.pending = true;
-                    root.message = "";
-                    bridge.request("saveMicrophones", {
-                        value: value,
-                        revision: root.revision
-                    });
-                }
+                text: root.message
+                Layout.fillWidth: true
             }
             SButton {
                 ui: root.ui
-                text: "Discard changes"
-                enabled: root.dirty && !root.pending
+                objectName: "reloadMicrophoneSettings"
+                text: "Reload latest settings"
+                visible: root.conflicted
                 onClicked: root.loadSaved()
             }
         }
@@ -505,7 +557,7 @@ ScrollView {
     Dialog {
         id: profileDialog
         objectName: "microphoneProfileDialog"
-        onClosed: if (!root.dirty)
+        onClosed: if (!root.dirty && !root.pending && !root.awaitingSnapshot)
             root.loadSaved()
         property bool creating: true
         property string error: ""
@@ -547,7 +599,7 @@ ScrollView {
     }
     Dialog {
         id: deleteDialog
-        onClosed: if (!root.dirty)
+        onClosed: if (!root.dirty && !root.pending && !root.awaitingSnapshot)
             root.loadSaved()
         title: "Delete “" + root.activeProfile.name + "”?"
         parent: Overlay.overlay
@@ -557,7 +609,7 @@ ScrollView {
         contentItem: ColumnLayout {
             SLabel {
                 ui: root.ui
-                text: "This removes the saved list when you save changes. Another list will be selected. Microphones are not removed."
+                text: "This removes the saved list immediately. Another list will be selected. Microphones are not removed."
                 Layout.fillWidth: true
             }
             RowLayout {

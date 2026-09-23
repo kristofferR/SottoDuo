@@ -494,7 +494,7 @@ private slots:
     }
     QCOMPARE(warnings.count(), 0);
   }
-  void microphoneProfilesKeepEditsAndDisableChangesWhileBusy() {
+  void microphoneSettingsSaveImmediatelyAndKeepInputsCurrent() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
     QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
@@ -503,19 +503,51 @@ private slots:
     QFile fixture(":/qt/qml/Sotto/preview.json");
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
+    int saves = 0;
+    bool holdFirstSave = true;
+    bool failNextSave = false;
+    QLocalSocket *heldSocket = nullptr;
+    QJsonObject heldRequest;
+    auto completeSave = [&](QLocalSocket *socket, const QJsonObject &request) {
+      auto snapshot = sample["snapshot"].toObject();
+      auto microphones = snapshot["microphones"].toObject();
+      if (request["revision"] != microphones["revision"]) {
+        socket->write("{\"ok\":false,\"error\":\"Microphone settings changed. Reload the latest settings, then edit again.\"}\n");
+        return;
+      }
+      microphones["value"] = request["value"];
+      microphones["revision"] = QString("saved-%1").arg(++saves);
+      snapshot["microphones"] = microphones;
+      sample["snapshot"] = snapshot;
+      socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", microphones}})
+                        .toJson(QJsonDocument::Compact) + '\n');
+    };
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
       connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
         if (!socket->canReadLine())
           return;
-        const auto request =
-            QJsonDocument::fromJson(socket->readLine()).object();
+        const auto request = QJsonDocument::fromJson(socket->readLine()).object();
         const auto action = request["action"].toString();
+        if (action == "saveMicrophones") {
+          if (failNextSave) {
+            failNextSave = false;
+            socket->write("{\"ok\":false,\"error\":\"Microphone settings changed. Reload the latest settings, then edit again.\"}\n");
+            return;
+          }
+          if (holdFirstSave) {
+            holdFirstSave = false;
+            heldSocket = socket;
+            heldRequest = request;
+          } else {
+            completeSave(socket, request);
+          }
+          return;
+        }
         const auto data = sample.contains(action) ? sample[action]
                                                   : QJsonValue(QJsonObject());
         socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", data}})
-                          .toJson(QJsonDocument::Compact) +
-                      '\n');
+                          .toJson(QJsonDocument::Compact) + '\n');
       });
     });
     Bridge bridge(false);
@@ -530,171 +562,81 @@ private slots:
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
     window->setProperty("page", 2);
-    QTest::qWait(50);
+    auto *page = window->findChild<QQuickItem *>("microphonePage");
+    auto *mode = window->findChild<QQuickItem *>("microphoneMode");
     auto *picker = window->findChild<QQuickItem *>("microphoneProfilePicker");
     auto *create = window->findChild<QQuickItem *>("newMicrophoneProfile");
-    auto *save = window->findChild<QQuickItem *>("saveMicrophonesButton");
-    auto *remove = window->findChild<QQuickItem *>("deleteMicrophoneProfile");
-    QVERIFY(picker && create && save && remove);
-    QVERIFY(create->isEnabled());
-    QVERIFY(!remove->isEnabled());
-    QVERIFY(!save->isEnabled());
-    auto *page = window->findChild<QQuickItem *>("microphonePage");
-    QVERIFY(page);
-    auto *testButton = window->findChild<QQuickItem *>("microphonePageTestButton");
-    QVERIFY(testButton);
-    QCOMPARE(testButton->property("text").toString(), QString("Test microphone"));
-    const QString microphoneCapture = qEnvironmentVariable("SOTTO_GUI_MICROPHONE_CAPTURE");
-    if (!microphoneCapture.isEmpty()) {
+    QVERIFY(page && mode && picker && create);
+    QTRY_COMPARE(mode->property("count").toInt(), 4);
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_MICROPHONE_CAPTURE");
+    if (!capture.isEmpty()) {
       auto *content = page->property("contentItem").value<QQuickItem *>();
       QVERIFY(content);
-      content->setProperty("contentY", qMax(0.0, content->property("contentHeight").toReal() - content->height()));
+      content->setProperty("contentY",
+                           qMax(0.0, content->property("contentHeight").toReal() -
+                                         content->height()));
       QTest::qWait(50);
-      QVERIFY(window->grabWindow().save(microphoneCapture));
+      QVERIFY(window->grabWindow().save(capture));
       content->setProperty("contentY", 0);
     }
-    auto *mode = window->findChild<QQuickItem *>("microphoneMode");
-    QVERIFY(mode);
-    QTRY_COMPARE(mode->property("count").toInt(), 4);
+
+    // A second edit during the first write must persist the latest choice.
     QVERIFY(mode->setProperty("currentIndex", 3));
     QVERIFY(QMetaObject::invokeMethod(mode, "activated", Q_ARG(int, 3)));
-    QTRY_VERIFY(page->property("dirty").toBool());
-    auto fixedDraft = page->property("draft").value<QJSValue>().toVariant().toMap();
-    QCOMPARE(fixedDraft["mode"].toString(), QString("fixed"));
-    QCOMPARE(fixedDraft["fixed"].toMap()["id"].toString(), QString("airpods"));
+    QTRY_VERIFY(heldSocket);
+    QVERIFY(page->property("pending").toBool());
     auto *useList = window->findChild<QQuickItem *>("useMicrophonePriorityList");
     QVERIFY(useList && useList->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(useList, "clicked"));
-    auto automaticDraft = page->property("draft").value<QJSValue>().toVariant().toMap();
-    QCOMPARE(automaticDraft["mode"].toString(), QString("automatic"));
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
+    completeSave(heldSocket, heldRequest);
+    QTRY_COMPARE(saves, 2);
+    QTRY_VERIFY(!page->property("dirty").toBool() &&
+                !page->property("pending").toBool() &&
+                !page->property("awaitingSnapshot").toBool());
+    QCOMPARE(sample["snapshot"].toObject()["microphones"].toObject()["value"]
+                 .toObject()["mode"].toString(), QString("automatic"));
+
+    // Reordering and profile creation also persist on the action itself.
+    const QVariantMap dji{{"hostID", "desktop"}, {"id", "dji"}};
+    const QVariantMap airpods{{"hostID", "desktop"}, {"id", "airpods"}};
+    QVERIFY(QMetaObject::invokeMethod(page, "movePriority",
+                                      Q_ARG(QVariant, dji), Q_ARG(QVariant, airpods)));
+    QTRY_COMPARE(saves, 3);
+    QCOMPARE(sample["snapshot"].toObject()["microphones"].toObject()["value"]
+                 .toObject()["priority"].toArray().first().toObject()["id"].toString(),
+             QString("airpods"));
+    QVERIFY(QMetaObject::invokeMethod(page, "editName", Q_ARG(QVariant, true)));
+    auto *name = window->findChild<QQuickItem *>("microphoneProfileName");
+    QVERIFY(name);
+    name->setProperty("text", "Travel");
+    QVERIFY(QMetaObject::invokeMethod(page, "saveName"));
+    QTRY_COMPARE(saves, 4);
+    QTRY_COMPARE(picker->property("currentIndex").toInt(), 1);
+    QTRY_VERIFY(!page->property("dirty").toBool());
+
+    failNextSave = true;
+    QVERIFY(mode->setProperty("currentIndex", 1));
+    QVERIFY(QMetaObject::invokeMethod(mode, "activated", Q_ARG(int, 1)));
+    QTRY_VERIFY(page->property("conflicted").toBool());
+    QCOMPARE(page->property("draft").value<QJSValue>().toVariant().toMap()["mode"].toString(),
+             QString("systemDefault"));
+    auto *reload = window->findChild<QQuickItem *>("reloadMicrophoneSettings");
+    QVERIFY(reload && reload->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(reload, "clicked"));
+    QTRY_VERIFY(!page->property("dirty").toBool() &&
+                !page->property("conflicted").toBool());
     QCOMPARE(mode->property("currentIndex").toInt(), 0);
-    auto findItem = [&](auto &&self, QQuickItem *parent,
-                        const QString &name) -> QQuickItem * {
-      for (auto *child : parent->childItems()) {
-        if (child->objectName() == name)
-          return child;
-        if (auto *found = self(self, child, name))
-          return found;
-      }
-      return nullptr;
-    };
-    auto *rowActions = findItem(findItem, window->contentItem(),
-                                "microphonePriorityActions1");
-    QVERIFY(rowActions);
-    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
-                      rowActions->mapToScene(QPointF(rowActions->width() / 2,
-                                                     rowActions->height() / 2)).toPoint());
-    auto *priorityMenu = rowActions->findChild<QObject *>("microphonePriorityMenu1");
-    QVERIFY(priorityMenu);
-    QTRY_VERIFY(priorityMenu->property("visible").toBool());
-    auto *moveTop = priorityMenu->findChild<QObject *>("microphoneMoveTop1");
-    QVERIFY(moveTop);
-    QVERIFY(QMetaObject::invokeMethod(moveTop, "triggered"));
-    QTRY_VERIFY(page->property("dirty").toBool());
-    auto viaMenu = page->property("draft").value<QJSValue>().toVariant().toMap();
-    QCOMPARE(viaMenu["priority"].toList().first().toMap()["id"].toString(),
-             QString("airpods"));
-    QVERIFY(QMetaObject::invokeMethod(priorityMenu, "close"));
-    QTRY_VERIFY(!priorityMenu->property("visible").toBool());
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
-    QTest::qWait(50);
-    auto *firstHandle = findItem(findItem, window->contentItem(),
-                                 "microphoneReorderHandle0");
-    auto *secondHandle = findItem(findItem, window->contentItem(),
-                                  "microphoneReorderHandle1");
-    QVERIFY(firstHandle && secondHandle);
-    const auto start = firstHandle->mapToScene(QPointF(firstHandle->width() / 2,
-                                                       firstHandle->height() / 2)).toPoint();
-    const auto end = secondHandle->mapToScene(QPointF(secondHandle->width() / 2,
-                                                      secondHandle->height() / 2)).toPoint();
-    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
-    for (int step = 1; step <= 6; ++step)
-      QTest::mouseMove(window, start + (end - start) * step / 6, 20);
-    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
-    QTRY_VERIFY(page->property("dirty").toBool());
-    auto reordered = page->property("draft").value<QJSValue>().toVariant().toMap();
-    if (reordered.isEmpty())
-      reordered = page->property("draft").toMap();
-    QCOMPARE(reordered["priority"].toList().first().toMap()["id"].toString(),
-             QString("airpods"));
-    QCOMPARE(reordered["profiles"].toList().first().toMap()["priority"].toList()
-                 .first().toMap()["id"].toString(), QString("airpods"));
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
-    QVERIFY(!save->isEnabled());
-    auto draft = page->property("draft").value<QJSValue>().toVariant().toMap();
-    if (draft.isEmpty())
-      draft = page->property("draft").toMap();
-    auto profiles = draft["profiles"].toList();
-    profiles.append(QVariantMap{
-        {"id", "travel"}, {"name", "Travel"}, {"priority", QVariantList{}}});
-    draft["profiles"] = profiles;
-    page->setProperty("draft", draft);
-    QVERIFY(QMetaObject::invokeMethod(page, "selectProfile",
-                                      Q_ARG(QVariant, "travel")));
-    QVERIFY(page->property("dirty").toBool());
-    QVERIFY(save->isEnabled());
-    QCOMPARE(picker->property("currentIndex").toInt(), 1);
-    window->setProperty("page", 0);
-    window->setProperty("page", 2);
-    QCOMPARE(window->findChild<QQuickItem *>("microphonePage"), page);
-    QCOMPARE(picker->property("currentIndex").toInt(), 1);
-    QVERIFY(page->property("dirty").toBool());
-    // A changed server snapshot cannot replace an unsaved profile choice.
-    auto polledSnapshot = sample["snapshot"].toObject();
-    auto polledMicrophones = polledSnapshot["microphones"].toObject();
-    polledMicrophones["revision"] = "poll-update";
-    polledSnapshot["microphones"] = polledMicrophones;
-    sample["snapshot"] = polledSnapshot;
-    QSignalSpy snapshotChanged(&bridge, &Bridge::snapshotChanged);
-    bridge.request("snapshot");
-    QTRY_VERIFY(snapshotChanged.count() > 0);
-    QCOMPARE(bridge.snapshot()["microphones"].toMap()["revision"].toString(),
-             QString("poll-update"));
-    QCOMPARE(picker->property("currentIndex").toInt(), 1);
-    auto changedValue = polledMicrophones["value"].toObject();
-    changedValue["hostID"] = "other-host";
-    polledMicrophones["value"] = changedValue;
-    polledSnapshot["microphones"] = polledMicrophones;
-    sample["snapshot"] = polledSnapshot;
-    bridge.request("snapshot");
-    QTRY_COMPARE(bridge.snapshot()["microphones"].toMap()["value"].toMap()["hostID"].toString(),
-                 QString("other-host"));
-    QVERIFY(page->property("dirty").toBool());
-    QVERIFY(!save->isEnabled());
-    QVERIFY(!create->isEnabled());
-    QVERIFY(!picker->isEnabled());
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
-    QVERIFY(create->isEnabled());
-    QVERIFY(!page->property("dirty").toBool());
-    auto snapshot = bridge.snapshot();
+
+    auto snapshot = sample["snapshot"].toObject();
     snapshot["busy"] = true;
-    window->setProperty("snapshot", snapshot);
-    QVERIFY(!save->isEnabled());
-    QVERIFY(!create->isEnabled());
-    QVERIFY(!picker->isEnabled());
-    snapshot["busy"] = false;
-    window->setProperty("snapshot", snapshot);
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
-    QVERIFY(!page->property("dirty").toBool());
-    QCOMPARE(picker->property("currentIndex").toInt(), 0);
-    QVERIFY(
-        QMetaObject::invokeMethod(page, "editName", Q_ARG(QVariant, false)));
-    auto *dialog = window->findChild<QObject *>("microphoneProfileDialog");
-    QVERIFY(dialog);
-    const auto revision = page->property("revision").toString();
-    auto microphones = snapshot["microphones"].toMap();
-    microphones["revision"] = "external-change";
-    snapshot["microphones"] = microphones;
-    sample["snapshot"] = QJsonObject::fromVariantMap(snapshot);
+    sample["snapshot"] = snapshot;
     bridge.request("snapshot");
-    QTRY_COMPARE(
-        bridge.snapshot()["microphones"].toMap()["revision"].toString(),
-        QString("external-change"));
-    QCOMPARE(page->property("revision").toString(), revision);
-    QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
-    QTRY_COMPARE(page->property("revision").toString(),
-                 QString("external-change"));
+    QTRY_VERIFY(!create->isEnabled() && !picker->isEnabled());
+    snapshot["busy"] = false;
+    sample["snapshot"] = snapshot;
+    bridge.request("snapshot");
+    QTRY_VERIFY(create->isEnabled() && picker->isEnabled());
+
     auto reportedSources = sample["sources"].toObject();
     auto liveInputs = reportedSources["items"].toArray();
     liveInputs.append(QJsonObject{

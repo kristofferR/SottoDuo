@@ -177,7 +177,7 @@ export function createGUIHandler(
           throw new ClientNotice("Finish dictation before changing microphone lists.");
         if (request.revision !== microphoneSnapshot(config.sources).revision)
           throw new ClientNotice(
-            "Microphone settings changed. Use Discard changes to reload them, then edit again.",
+            "Microphone settings changed. Reload the latest settings, then edit again.",
           );
         if (
           !object(request.value) ||
