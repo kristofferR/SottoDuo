@@ -20,6 +20,7 @@ type Take = {
   cancelled: boolean;
   startedAt: number;
   sealed: boolean;
+  sealMayHaveSucceeded: boolean;
   button?: { ticket: string; source: SourceID };
   completed?: boolean;
 };
@@ -58,6 +59,7 @@ export class Controller {
       cancelled: false,
       startedAt: Date.now(),
       sealed: false,
+      sealMayHaveSucceeded: false,
       button,
     };
     this.take = take;
@@ -123,7 +125,8 @@ export class Controller {
   private async cancelTake(take: Take) {
     take.cancelled = true;
     take.destination?.close();
-    if (take.id && !take.sealed) await this.api.cancel(take.id, take.owner).catch(() => {});
+    if (take.id && !take.sealed && !take.sealMayHaveSucceeded)
+      await this.api.cancel(take.id, take.owner).catch(() => {});
     // An admission with an unknown ID loses its server lease within five seconds.
   }
   private async watch(take: Take) {
@@ -157,6 +160,7 @@ export class Controller {
         }
       }
     } catch {
+      if (take.sealMayHaveSucceeded) return;
       if (this.live(take)) {
         await this.cancelTake(take);
         this.setState("Connection lost; dictation cancelled.");
@@ -219,6 +223,7 @@ export class Controller {
     while (this.live(take) && !take.released) await Bun.sleep(40);
     if (!this.live(take)) return;
     this.setState("processing");
+    take.sealMayHaveSucceeded = true;
     let record = await this.api.stop(take.id, take.owner);
     this.verify(record, take);
     if (record.capture?.state !== "sealed") throw new Error("Capture was not sealed.");

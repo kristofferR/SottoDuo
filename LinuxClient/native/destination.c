@@ -145,8 +145,8 @@ int main(int argc, char **argv) {
   if (!pid || pid > G_MAXUINT || *end) return 2;
   pid_t parent = getppid();
   if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent) return 2;
-  /* Allow 174 s capture, drain, 120 s processing and bounded delivery RPCs. */
-  alarm(330);
+  /* Allow capture, drain, cold model loading, full processing and delivery. */
+  alarm(600);
   if (atspi_init()) { reply("preview"); return 0; }
   atspi_set_timeout(100, 100);
   deadline = g_get_monotonic_time() + 1000000;
