@@ -368,6 +368,32 @@ test("duplicate starts share pending readiness; a lost source before ready cance
   expect((await f.service.get(f.provider.options!.generation.id)).status).toBe("cancelled");
 });
 
+test("a pending retry cannot change the selected source or mode", async () => {
+  const f = await fixture();
+  let ready!: () => void;
+  f.provider.gate = new Promise((resolve) => {
+    ready = resolve;
+  });
+  const first = f.start();
+  await until(() => f.provider.calls === 1);
+  for (const change of [
+    { source: { hostID: "host-stable", id: "another-mic" } },
+    { mode: "test" as const },
+  ]) {
+    const retry = await f.app.inject({
+      method: "POST",
+      url: "/v1/captures",
+      headers: f.headers,
+      payload: { ...f.request, ...change },
+    });
+    expect(retry.statusCode).toBe(409);
+    expect(retry.json().code).toBe("conflicting_request");
+  }
+  ready();
+  expect((await first).statusCode).toBe(201);
+  expect(f.provider.calls).toBe(1);
+});
+
 test("original retention is frozen at admission and disabled originals are not required", async () => {
   const f = await fixture();
   const preferences = await f.service.getPreferences();
