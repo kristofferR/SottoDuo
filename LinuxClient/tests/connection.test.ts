@@ -146,6 +146,50 @@ test("first setup tests without recording, saves private credentials and starts 
   expect(settings.config?.sources).toEqual(sourcePreferences);
 });
 
+test("runtime handles a delayed shortcut press before its release and permits release while locked", async () => {
+  const f = await fixture();
+  const settings = await ConnectionSettings.open("/sotto-destination", f.file);
+  const checked = await settings.test({
+    server: f.server,
+    name: "Desktop",
+    accessToken: "fixture-secret",
+  });
+  settings.commit(checked.ticket, checked.hostID);
+  let allowPress: (() => void) | undefined;
+  const pressCheck = new Promise<void>((resolve) => {
+    allowPress = resolve;
+  });
+  let checks = 0;
+  f.desktop.unlocked = async () => {
+    if (++checks === 1) {
+      await pressCheck;
+      return true;
+    }
+    return checks === 2;
+  };
+  const runtime = new ClientRuntime(settings, f.desktop);
+  cleanup.push(() => runtime.close());
+  runtime.start();
+  const actions: string[] = [];
+  const controller = runtime["current"]!.controller;
+  controller.start = () => {
+    actions.push("start");
+    return true;
+  };
+  controller.stop = () => {
+    actions.push("stop");
+  };
+  const press = runtime.gui({ version: 1, action: "start" });
+  const release = runtime.gui({ version: 1, action: "stop" });
+  await Bun.sleep(0);
+  expect(checks).toBe(1);
+  expect(actions).toEqual([]);
+  allowPress?.();
+  await Promise.all([press, release]);
+  expect(checks).toBe(2);
+  expect(actions).toEqual(["start", "stop"]);
+});
+
 test("failed authentication and edited or expired proposals preserve config; new origins require a new token", async () => {
   const f = await fixture();
   const settings = await ConnectionSettings.open("/sotto-destination", f.file);

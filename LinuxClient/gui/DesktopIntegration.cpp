@@ -6,6 +6,8 @@
 #include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
+#include <functional>
 
 namespace {
 const QByteArray marker = "# Managed by Sotto\n";
@@ -17,26 +19,56 @@ struct ServiceUnit {
   QString fragment;
 };
 
-ServiceUnit serviceUnit() {
-  QProcess process;
-  process.start("systemctl", {"--user", "show", "--property=LoadState",
-                               "--property=FragmentPath", "sotto-client.service"});
-  if (!process.waitForStarted(1000) || !process.waitForFinished(1500)) {
-    process.kill();
-    process.waitForFinished(1000);
-    return {};
-  }
-  if (process.exitCode() != 0)
-    return {};
-  ServiceUnit unit;
-  unit.available = true;
-  for (const auto &line : process.readAllStandardOutput().split('\n')) {
-    if (line.startsWith("LoadState="))
-      unit.loadState = QString::fromUtf8(line.mid(10));
-    else if (line.startsWith("FragmentPath="))
-      unit.fragment = QString::fromUtf8(line.mid(13));
-  }
-  return unit;
+struct ProcessResult {
+  bool available = false;
+  int exitCode = -1;
+  QByteArray output;
+};
+
+void runSystemctl(QObject *owner, const QStringList &arguments,
+                  std::function<void(ProcessResult)> done,
+                  int timeoutMs = 2500) {
+  auto *process = new QProcess(owner);
+  auto complete = [process, done](ProcessResult result) {
+    if (process->property("completed").toBool())
+      return;
+    process->setProperty("completed", true);
+    done(result);
+    process->deleteLater();
+  };
+  QObject::connect(process, &QProcess::errorOccurred, owner,
+                   [complete](QProcess::ProcessError) { complete({}); });
+  QObject::connect(process, &QProcess::finished, owner,
+                   [process, complete](int code, QProcess::ExitStatus status) {
+                     complete({status == QProcess::NormalExit, code,
+                               process->readAllStandardOutput()});
+                   });
+  QTimer::singleShot(timeoutMs, process, [process, complete] {
+    process->kill();
+    complete({});
+  });
+  process->start("systemctl", arguments);
+}
+
+void serviceUnit(QObject *owner, std::function<void(ServiceUnit)> done) {
+  runSystemctl(owner,
+               {"--user", "show", "--property=LoadState",
+                "--property=FragmentPath", "sotto-client.service"},
+               [done](ProcessResult result) {
+                 if (!result.available || result.exitCode != 0) {
+                   done({});
+                   return;
+                 }
+                 ServiceUnit unit;
+                 unit.available = true;
+                 for (const auto &line : result.output.split('\n')) {
+                   if (line.startsWith("LoadState="))
+                     unit.loadState = QString::fromUtf8(line.mid(10));
+                   else if (line.startsWith("FragmentPath="))
+                     unit.fragment = QString::fromUtf8(line.mid(13));
+                 }
+                 done(unit);
+               });
 }
 
 QString quotedExecutable(QString path) {
@@ -78,126 +110,151 @@ QString DesktopIntegration::servicePath() const {
 }
 
 void DesktopIntegration::refreshClientService() {
-  if (m_preview)
+  if (m_preview || m_clientServiceBusy)
     return;
-  QProcess check;
-  check.start("systemctl", {"--user", "is-active", "sotto-client.service"});
-  if (!check.waitForStarted(1000) || !check.waitForFinished(1500)) {
-    check.kill();
-    check.waitForFinished(1000);
-    m_clientService = "Systemd user service unavailable";
-  } else if (check.exitCode() == 0 &&
-             check.readAllStandardOutput().trimmed() == "active") {
-    m_clientService = "Running";
-  } else {
-    const auto unit = serviceUnit();
-    m_clientService = !unit.available ? "Systemd user service unavailable"
-                      : unit.loadState == "not-found" ? "Not installed"
-                      : "Stopped";
-  }
-  emit changed();
+  const auto refresh = ++m_serviceRefresh;
+  runSystemctl(this, {"--user", "is-active", "sotto-client.service"},
+               [this, refresh](ProcessResult result) {
+                 if (refresh != m_serviceRefresh || m_clientServiceBusy)
+                   return;
+                 if (!result.available) {
+                   m_clientService = "Systemd user service unavailable";
+                   emit changed();
+                 } else if (result.exitCode == 0 &&
+                            result.output.trimmed() == "active") {
+                   m_clientService = "Running";
+                   emit changed();
+                 } else {
+                   serviceUnit(this, [this, refresh](ServiceUnit unit) {
+                     if (refresh != m_serviceRefresh || m_clientServiceBusy)
+                       return;
+                     m_clientService =
+                         !unit.available ? "Systemd user service unavailable"
+                         : unit.loadState == "not-found" ? "Not installed"
+                                                         : "Stopped";
+                     emit changed();
+                   });
+                 }
+               });
 }
 
 void DesktopIntegration::setUpClientService() {
   if (m_preview || m_clientServiceBusy)
     return;
+  ++m_serviceRefresh;
+  m_clientServiceBusy = true;
+  m_clientService = "Starting…";
   m_error.clear();
+  emit changed();
   auto fail = [this](const QString &message) {
     m_error = message;
     m_clientServiceBusy = false;
+    emit changed();
     refreshClientService();
   };
-  const QString path = servicePath();
-  QFileInfo unit(path);
-  const auto loaded = serviceUnit();
-  if (!loaded.available) {
-    fail("Couldn’t inspect the background service. Check your user service manager.");
-    return;
-  }
-  if (loaded.loadState != "not-found" &&
-      (loaded.fragment.isEmpty() ||
-       QFileInfo(loaded.fragment).absoluteFilePath() != unit.absoluteFilePath())) {
-    fail("An existing background service is managed outside Sotto. Update it through your desktop setup.");
-    return;
-  }
-  bool created = false;
-  if (unit.isSymLink()) {
-    fail("The background service is a symlink. Manage it through your desktop setup.");
-    return;
-  }
-  {
-    QFile existing(path);
-    QByteArray previous;
-    if (unit.exists()) {
-      if (!existing.open(QIODevice::ReadOnly) ||
-          !(previous = existing.readAll()).startsWith(serviceMarker)) {
-        fail("An existing background service is managed outside Sotto. Update it through your desktop setup.");
-        return;
-      }
-    }
-    const QFileInfo executable(m_clientExecutable);
-    if (!executable.isFile() || !executable.isExecutable() ||
-        m_clientExecutable.contains(QChar('\n')) ||
-        m_clientExecutable.contains(QChar('\r'))) {
-      fail("Install the Sotto background client beside this GUI, then try again.");
+  serviceUnit(this, [this, fail](ServiceUnit loaded) {
+    const QString path = servicePath();
+    QFileInfo unit(path);
+    if (!loaded.available) {
+      fail("Couldn’t inspect the background service. Check your user service "
+           "manager.");
       return;
     }
-    const QByteArray data =
-        serviceMarker +
-        ("[Unit]\nDescription=Sotto desktop dictation client\n"
-         "PartOf=graphical-session.target\nAfter=graphical-session.target\n\n"
-         "[Service]\nType=simple\nExecStart=" +
-         quotedServiceExecutable(executable.absoluteFilePath()) +
-         " daemon\nRestart=on-failure\nRestartSec=3\nUMask=0077\n"
-         "NoNewPrivileges=yes\n\n[Install]\n"
-         "WantedBy=graphical-session.target\n")
-            .toUtf8();
-    if (previous != data) {
-      if (!QDir().mkpath(unit.absolutePath())) {
-        fail("Couldn’t create the background-service folder.");
-        return;
-      }
-      QSaveFile output(path);
-      if (!output.open(QIODevice::WriteOnly) || output.write(data) != data.size() ||
-          !output.commit()) {
-        fail("Couldn’t install the background service. Check the folder permissions.");
-        return;
-      }
-      created = true;
+    if (loaded.loadState != "not-found" &&
+        (loaded.fragment.isEmpty() ||
+         QFileInfo(loaded.fragment).absoluteFilePath() !=
+             unit.absoluteFilePath())) {
+      fail("An existing background service is managed outside Sotto. Update it "
+           "through your desktop setup.");
+      return;
     }
-  }
-  m_clientServiceBusy = true;
-  m_clientService = "Starting…";
-  emit changed();
-  auto *process = new QProcess(this);
-  connect(process, &QProcess::errorOccurred, this,
-          [fail, process](QProcess::ProcessError) {
-            fail("Couldn’t run the background service manager.");
-            process->deleteLater();
-          });
-  connect(process, &QProcess::finished, this,
-          [this, process, fail, created](int code, QProcess::ExitStatus status) {
-            if (!m_clientServiceBusy)
-              return;
-            if (status != QProcess::NormalExit || code != 0) {
-              fail("Couldn’t start background dictation. Check your user service status.");
-              process->deleteLater();
-              return;
+    bool created = false;
+    const bool updated = unit.exists();
+    if (unit.isSymLink()) {
+      fail("The background service is a symlink. Manage it through your "
+           "desktop setup.");
+      return;
+    }
+    {
+      QFile existing(path);
+      QByteArray previous;
+      if (unit.exists()) {
+        if (!existing.open(QIODevice::ReadOnly) ||
+            !(previous = existing.readAll()).startsWith(serviceMarker)) {
+          fail("An existing background service is managed outside Sotto. "
+               "Update it through your desktop setup.");
+          return;
+        }
+      }
+      const QFileInfo executable(m_clientExecutable);
+      if (!executable.isFile() || !executable.isExecutable() ||
+          m_clientExecutable.contains(QChar('\n')) ||
+          m_clientExecutable.contains(QChar('\r'))) {
+        fail("Install the Sotto background client beside this GUI, then try "
+             "again.");
+        return;
+      }
+      const QByteArray data =
+          serviceMarker +
+          ("[Unit]\nDescription=Sotto desktop dictation client\n"
+           "PartOf=graphical-session.target\nAfter=graphical-session.target\n\n"
+           "[Service]\nType=simple\nExecStart=" +
+           quotedServiceExecutable(executable.absoluteFilePath()) +
+           " daemon\nRestart=on-failure\nRestartSec=3\nUMask=0077\n"
+           "NoNewPrivileges=yes\n\n[Install]\n"
+           "WantedBy=graphical-session.target\n")
+              .toUtf8();
+      if (previous != data) {
+        if (!QDir().mkpath(unit.absolutePath())) {
+          fail("Couldn’t create the background-service folder.");
+          return;
+        }
+        QSaveFile output(path);
+        if (!output.open(QIODevice::WriteOnly) ||
+            output.write(data) != data.size() || !output.commit()) {
+          fail("Couldn’t install the background service. Check the folder "
+               "permissions.");
+          return;
+        }
+        created = true;
+      }
+    }
+    auto complete = [this, fail](ProcessResult result) {
+      if (!result.available || result.exitCode != 0) {
+        fail("Couldn’t start background dictation. Check your user service "
+             "status.");
+        return;
+      }
+      m_clientServiceBusy = false;
+      refreshClientService();
+    };
+    auto enable = [this, complete, updated, created] {
+      runSystemctl(
+          this, {"--user", "enable", "--now", "sotto-client.service"},
+          [this, complete, updated, created](ProcessResult result) {
+            if (result.available && result.exitCode == 0 && created &&
+                updated) {
+              runSystemctl(this, {"--user", "restart", "sotto-client.service"},
+                           complete, 10000);
+            } else {
+              complete(result);
             }
-            if (created && process->property("reloaded").isNull()) {
-              process->setProperty("reloaded", true);
-              process->start("systemctl", {"--user", "enable", "--now",
-                                          "sotto-client.service"});
-              return;
-            }
-            m_clientServiceBusy = false;
-            refreshClientService();
-            process->deleteLater();
-          });
-  process->start("systemctl", created
-                                  ? QStringList{"--user", "daemon-reload"}
-                                  : QStringList{"--user", "enable", "--now",
-                                                "sotto-client.service"});
+          },
+          10000);
+    };
+    if (created)
+      runSystemctl(
+          this, {"--user", "daemon-reload"},
+          [enable, complete](ProcessResult result) {
+            if (result.available && result.exitCode == 0)
+              enable();
+            else
+              complete(result);
+          },
+          10000);
+    else
+      enable();
+  });
 }
 
 bool DesktopIntegration::launchAtLogin() const {

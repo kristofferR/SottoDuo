@@ -74,13 +74,18 @@ private slots:
     qputenv("SOTTO_TEST_ACTIVE", (directory.path() + "/active").toUtf8());
     QFile fakeSystemctl(directory.path() + "/systemctl");
     QVERIFY(fakeSystemctl.open(QIODevice::WriteOnly));
-    fakeSystemctl.write("#!/bin/sh\ncase \"$2\" in\n"
-                        "is-active) test -f \"$SOTTO_TEST_ACTIVE\" && echo active;;\n"
-                        "show) printf 'LoadState=%s\\nFragmentPath=%s\\n' \"${SOTTO_TEST_LOAD_STATE:-not-found}\" \"${SOTTO_TEST_FRAGMENT:-}\";;\n"
-                        "daemon-reload) exit 0;;\n"
-                        "enable) case \" $* \" in *\" --now \"*) touch \"$SOTTO_TEST_ACTIVE\";; esac;;\n"
-                        "start) touch \"$SOTTO_TEST_ACTIVE\";;\n"
-                        "esac\n");
+    fakeSystemctl.write(
+        "#!/bin/sh\ncase \"$2\" in\n"
+        "is-active) test -f \"$SOTTO_TEST_ACTIVE\" && echo active;;\n"
+        "show) printf 'LoadState=%s\\nFragmentPath=%s\\n' "
+        "\"${SOTTO_TEST_LOAD_STATE:-not-found}\" "
+        "\"${SOTTO_TEST_FRAGMENT:-}\";;\n"
+        "daemon-reload) exit 0;;\n"
+        "enable) case \" $* \" in *\" --now \"*) touch "
+        "\"$SOTTO_TEST_ACTIVE\";; esac;;\n"
+        "restart) touch \"$SOTTO_TEST_ACTIVE.restarted\";;\n"
+        "start) touch \"$SOTTO_TEST_ACTIVE\";;\n"
+        "esac\n");
     fakeSystemctl.close();
     QVERIFY(fakeSystemctl.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
                                          QFile::ExeOwner));
@@ -106,23 +111,25 @@ private slots:
     movedClient.close();
     QVERIFY(movedClient.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
                                        QFile::ExeOwner));
-    QVERIFY(QFile::remove(directory.path() + "/active"));
     DesktopIntegration moved(false, nullptr, movedClient.fileName());
     moved.setUpClientService();
     QTRY_VERIFY_WITH_TIMEOUT(!moved.clientServiceBusy(), 3000);
     QVERIFY(moved.error().isEmpty());
     QVERIFY(QFile::exists(directory.path() + "/active"));
+    QVERIFY(QFile::exists(directory.path() + "/active.restarted"));
     unit.close();
     QVERIFY(unit.open(QIODevice::ReadOnly));
-    QVERIFY(unit.readAll().contains("ExecStart=\"" + movedClient.fileName().toUtf8() +
-                                    "\" daemon\n"));
+    QVERIFY(unit.readAll().contains(
+        "ExecStart=\"" + movedClient.fileName().toUtf8() + "\" daemon\n"));
     unit.close();
     QVERIFY(unit.remove());
     QVERIFY(QFile::remove(directory.path() + "/active"));
     qputenv("SOTTO_TEST_LOAD_STATE", "loaded");
-    qputenv("SOTTO_TEST_FRAGMENT", "/usr/lib/systemd/user/sotto-client.service");
+    qputenv("SOTTO_TEST_FRAGMENT",
+            "/usr/lib/systemd/user/sotto-client.service");
     DesktopIntegration external(false, nullptr, client.fileName());
     external.setUpClientService();
+    QTRY_VERIFY_WITH_TIMEOUT(!external.clientServiceBusy(), 3000);
     QVERIFY(!external.error().isEmpty());
     QVERIFY(!unit.exists());
     qunsetenv("SOTTO_TEST_LOAD_STATE");

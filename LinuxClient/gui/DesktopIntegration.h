@@ -30,5 +30,6 @@ private:
   QString m_clientExecutable;
   QString m_clientService;
   bool m_clientServiceBusy = false;
+  unsigned m_serviceRefresh = 0;
   QString m_error;
 };
