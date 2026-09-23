@@ -847,7 +847,7 @@ private slots:
     auto *dictionary = page->findChild<QQuickItem *>("dictionaryEditor");
     auto *readiness = page->findChild<QQuickItem *>("speechModelReadiness");
     QVERIFY(cleanup && vocabulary && reset && save && dictionary && readiness);
-    QTRY_COMPARE(readiness->property("text").toString(), "Ready");
+    QTRY_COMPARE(readiness->property("status").toString(), "Ready");
     QTRY_VERIFY(!page->property("defaultPrompt").toString().isEmpty());
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Keep my wording.");

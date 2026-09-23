@@ -67,13 +67,6 @@ ColumnLayout {
             read(true);
     }
 
-    function modelDetail(model) {
-        if (!model)
-            return "Checking server models…";
-
-        return model.modelID + " · " + model.backend + (model.message ? "\n" + model.message : "");
-    }
-
     objectName: "processingSettings"
     Component.onCompleted: {
         read(false);
@@ -158,15 +151,9 @@ ColumnLayout {
 
     SLabel {
         ui: root.ui
-        text: "Server preferences"
-        font.pixelSize: 28
+        text: "Sotto · Server preferences"
+        font.pixelSize: 18
         font.weight: Font.DemiBold
-    }
-
-    SLabel {
-        ui: root.ui
-        text: "Shared by every computer using this server."
-        color: root.ui.c.muted
     }
 
     RowLayout {
@@ -194,13 +181,19 @@ ColumnLayout {
             elide: Text.ElideMiddle
             Layout.preferredWidth: Math.min(220, root.width * 0.35)
         }
-    }
-
-    RowLayout {
+        Item { Layout.fillWidth: true }
+        SButton {
+            ui: root.ui
+            objectName: "reloadProcessingSettings"
+            text: root.changedRemotely ? "Reload" : "Discard changes"
+            visible: root.dirty || root.changedRemotely
+            enabled: !root.reading && !root.saving && bridge.connected
+            onClicked: root.reload()
+        }
         SButton {
             ui: root.ui
             objectName: "saveProcessingSettings"
-            text: root.saving ? "Saving…" : "Save changes"
+            text: root.saving ? "Saving…" : "Save shared preferences"
             primary: true
             enabled: root.editable && root.dirty && !root.changedRemotely
             onClicked: {
@@ -212,15 +205,6 @@ ColumnLayout {
                 });
             }
         }
-
-        SButton {
-            ui: root.ui
-            objectName: "reloadProcessingSettings"
-            text: root.reading ? "Checking…" : root.dirty ? "Discard and reload" : "Reload from server"
-            enabled: !root.reading && !root.saving && bridge.connected
-            onClicked: root.reload()
-        }
-
     }
 
     SLabel {
@@ -237,6 +221,7 @@ ColumnLayout {
         objectName: "processingScroll"
         Layout.fillWidth: true
         Layout.fillHeight: true
+        Layout.topMargin: 28
         contentWidth: availableWidth
         clip: true
 
@@ -250,27 +235,67 @@ ColumnLayout {
 
                 Setting {
                     ui: root.ui
-                    title: "Speech recognition"
-                    detail: root.modelDetail(root.health ? root.health.speech : null)
+                    title: "Voice"
 
-                    SLabel {
-                        ui: root.ui
-                        objectName: "speechModelReadiness"
-                        text: root.health && root.health.speech ? root.health.speech.ready ? "Ready" : "Not ready" : "Unavailable"
-                        color: root.ui.c.muted
+                    RowLayout {
+                        spacing: 8
+                        ColumnLayout {
+                            spacing: 2
+                            SLabel {
+                                ui: root.ui
+                                text: root.health && root.health.speech ? root.health.speech.modelID : "Checking…"
+                                Layout.alignment: Qt.AlignRight
+                            }
+                            SLabel {
+                                ui: root.ui
+                                text: root.health && root.health.speech ? (root.health.speech.message || root.health.speech.backend) : ""
+                                color: root.ui.c.muted
+                                font.pixelSize: 13
+                                Layout.alignment: Qt.AlignRight
+                            }
+                        }
+                        Rectangle {
+                            objectName: "speechModelReadiness"
+                            property string status: root.health && root.health.speech ? root.health.speech.ready ? "Ready" : "Not ready" : "Unavailable"
+                            Accessible.name: "Voice " + status
+                            Layout.preferredWidth: 8
+                            Layout.preferredHeight: 8
+                            radius: 4
+                            color: root.health && root.health.speech && root.health.speech.ready ? "#4ade80" : "#fbbf24"
+                        }
                     }
 
                 }
 
                 Setting {
                     ui: root.ui
-                    title: "Text cleanup"
-                    detail: root.modelDetail(root.health ? root.health.proofreading : null)
+                    title: "Proofreading"
 
-                    SLabel {
-                        ui: root.ui
-                        text: root.health && root.health.proofreading ? root.health.proofreading.ready ? "Ready" : "Not ready" : "Unavailable"
-                        color: root.ui.c.muted
+                    RowLayout {
+                        spacing: 8
+                        ColumnLayout {
+                            spacing: 2
+                            SLabel {
+                                ui: root.ui
+                                text: root.health && root.health.proofreading ? root.health.proofreading.modelID : "Checking…"
+                                Layout.alignment: Qt.AlignRight
+                            }
+                            SLabel {
+                                ui: root.ui
+                                text: root.health && root.health.proofreading ? (root.health.proofreading.message || root.health.proofreading.backend) : ""
+                                color: root.ui.c.muted
+                                font.pixelSize: 13
+                                Layout.alignment: Qt.AlignRight
+                            }
+                        }
+                        Rectangle {
+                            property string status: root.health && root.health.proofreading ? root.health.proofreading.ready ? "Ready" : "Not ready" : "Unavailable"
+                            Accessible.name: "Proofreading " + status
+                            Layout.preferredWidth: 8
+                            Layout.preferredHeight: 8
+                            radius: 4
+                            color: root.health && root.health.proofreading && root.health.proofreading.ready ? "#4ade80" : "#fbbf24"
+                        }
                     }
 
                 }
@@ -279,16 +304,16 @@ ColumnLayout {
 
             Group {
                 ui: root.ui
-                title: "Transcription"
+                title: "Processing"
                 enabled: root.editable
 
                 Setting {
                     ui: root.ui
-                    title: "Recognition"
+                    title: "Speech recognition"
 
                     ComboBox {
-                        implicitWidth: 245
-                        model: ["Automatic", "Cloud", "Local"]
+                        implicitWidth: 330
+                        model: ["Automatic (Soniox, with Whisper fallback)", "Cloud only (Soniox)", "Local only (Whisper)"]
                         currentIndex: root.draft ? ["automatic", "cloud", "local"].indexOf(root.draft.preferences.recognitionMode || "automatic") : 0
                         onActivated: root.edit("recognitionMode", ["automatic", "cloud", "local"][currentIndex])
                     }
@@ -310,21 +335,13 @@ ColumnLayout {
 
                 }
 
-            }
-
-            Group {
-                ui: root.ui
-                title: "Text cleanup"
-                enabled: root.editable
-
                 Setting {
                     ui: root.ui
-                    title: "Text cleanup"
-                    detail: "Apply these instructions to new dictations."
+                    title: "Proofread with Qwen"
 
                     Switch {
                         checked: root.draft ? root.draft.preferences.textCorrectionEnabled : false
-                        Accessible.name: "Text cleanup"
+                        Accessible.name: "Proofread with Qwen"
                         onClicked: root.edit("textCorrectionEnabled", checked)
                     }
 
@@ -333,7 +350,6 @@ ColumnLayout {
                 Setting {
                     ui: root.ui
                     title: "Cleanup instructions"
-                    detail: "Up to 4 KB. Reset changes your draft until you save."
 
                     SButton {
                         ui: root.ui
@@ -355,7 +371,7 @@ ColumnLayout {
                 ScrollView {
                     Layout.fillWidth: true
                     Layout.margins: 12
-                    Layout.preferredHeight: 240
+                    Layout.preferredHeight: 320
 
                     TextArea {
                         id: cleanup
@@ -375,17 +391,9 @@ ColumnLayout {
 
                 }
 
-            }
-
-            Group {
-                ui: root.ui
-                title: "Vocabulary · shared"
-                enabled: root.editable
-
                 Setting {
                     ui: root.ui
-                    title: "Words and phrases"
-                    detail: "Names and terms to help recognition, up to 16 KB."
+                    title: "Recognition vocabulary"
                 }
 
                 ScrollView {
@@ -421,15 +429,22 @@ ColumnLayout {
 
                 Setting {
                     ui: root.ui
-                    title: "Keep original audio"
-                    detail: "Save original recordings alongside shared dictation history."
+                    title: "Keep original microphone audio"
 
                     Switch {
                         checked: root.draft ? root.draft.preferences.keepOriginalAudio : false
-                        Accessible.name: "Keep original audio"
+                        Accessible.name: "Keep original microphone audio"
                         onClicked: root.edit("keepOriginalAudio", checked)
                     }
 
+                }
+                SLabel {
+                    ui: root.ui
+                    text: "Whisper audio is always kept. This also saves the original microphone audio for future dictations."
+                    color: root.ui.c.muted
+                    font.pixelSize: 13
+                    Layout.fillWidth: true
+                    Layout.margins: 14
                 }
 
             }
