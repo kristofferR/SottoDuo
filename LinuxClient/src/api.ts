@@ -4,6 +4,9 @@ import type { SourceID } from "./sources.ts";
 export type Generation = components["schemas"]["GenerationRecord"];
 export type Device = components["schemas"]["DeviceIdentity"];
 export type CaptureMode = components["schemas"]["StartCaptureRequest"]["mode"];
+function object(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 export class APIError extends Error {
   constructor(
     readonly status: number,
@@ -167,6 +170,7 @@ export class API {
         Accept: "application/x-ndjson",
         "X-Sotto-Capture": "capture-v1",
         "X-Sotto-Recognition": "streaming-v1",
+        "X-Sotto-Feedback": "compact-v1",
       },
     });
     if (!response.ok || !response.body) {
@@ -176,6 +180,7 @@ export class API {
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8", { fatal: true });
     let pending = "";
+    let previous: Generation | undefined;
     try {
       while (true) {
         const { value, done } = await reader.read();
@@ -188,8 +193,24 @@ export class API {
           pending = pending.slice(newline + 1);
           if (!line.trim()) continue;
           signal.throwIfAborted();
-          const record = validateBody("GenerationRecord", JSON.parse(line));
+          const value: unknown = JSON.parse(line);
+          const delta = object(value) && "feedbackDelta" in value ? value : undefined;
+          if (delta && (delta.feedbackDelta !== 1 || !previous || delta.id !== id))
+            throw new Error("Invalid feedback update.");
+          const record = validateBody(
+            "GenerationRecord",
+            delta
+              ? {
+                  ...previous,
+                  status: delta.status,
+                  capture: delta.capture ?? undefined,
+                  recognition: delta.recognition ?? undefined,
+                  progress: delta.progress ?? undefined,
+                }
+              : value,
+          );
           if (record.id !== id) throw new Error("Mismatched feedback record.");
+          previous = record;
           update(record);
           if (["completed", "failed", "cancelled"].includes(record.status)) return;
         }

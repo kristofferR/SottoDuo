@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHTTPServer, isLoopbackAuthority } from "../src/http-server.ts";
+import { compactFeedback, createHTTPServer, isLoopbackAuthority } from "../src/http-server.ts";
 import { GenerationService } from "../src/generation-service.ts";
 import { validateBody } from "../src/validation.ts";
 import { FakeInference } from "./support.ts";
@@ -315,4 +315,22 @@ test("v1 responses negotiate recognition fields across preferences, history and 
     expect(current.body).toContain('"recognition"');
     expect(current.body).toContain('"recognitionMode":"local"');
   }
+});
+
+test("compact feedback omits immutable generation settings", async () => {
+  const { app, service } = await fixture();
+  const created = await app.inject({
+    method: "POST",
+    url: "/v1/generations",
+    payload: {
+      requestID: randomUUID(),
+      device: { id: "linux", name: "Linux" },
+      mode: "test",
+    },
+  });
+  const record = await service.get(created.json().id);
+  const delta = compactFeedback(record);
+  expect(delta.id).toBe(record.id);
+  expect(JSON.stringify(delta)).not.toContain("settings");
+  expect(JSON.stringify(delta).length).toBeLessThan(JSON.stringify(record).length / 2);
 });

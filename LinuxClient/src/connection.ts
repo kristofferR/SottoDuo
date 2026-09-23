@@ -124,6 +124,9 @@ export class ConnectionSettings {
           "This server uses an incompatible API version. Update Sotto on both computers.",
         );
       hosts = [...new Set((await api.sources()).map((source) => source.identity.hostID))].sort();
+      const savedHost = this.config?.server === server ? this.config.sources.hostID : undefined;
+      if (savedHost && !hosts.includes(savedHost)) hosts.push(savedHost);
+      hosts.sort();
     } catch (error) {
       if (error instanceof ClientNotice) throw error;
       if (error instanceof APIError && [401, 403].includes(error.status))

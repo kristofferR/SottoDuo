@@ -20,6 +20,7 @@ async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), "sotto-connection-"));
   cleanup.push(() => rm(dir, { recursive: true, force: true }));
   let starts = 0;
+  let reportedHost = "desktop";
   const service = await GenerationService.open(
     {
       dataDirectory: join(dir, "server"),
@@ -27,7 +28,7 @@ async function fixture() {
       captureProvider: {
         sources: (): Source[] => [
           {
-            identity: { hostID: "desktop", id: "mic" },
+            identity: { hostID: reportedHost, id: "mic" },
             name: "Mic",
             transport: "usb",
             present: true,
@@ -71,6 +72,9 @@ async function fixture() {
       unlocked = true;
     },
     starts: () => starts,
+    reportHost: (host: string) => {
+      reportedHost = host;
+    },
   };
 }
 async function until(predicate: () => Promise<boolean>) {
@@ -207,7 +211,10 @@ test("switching servers resets scoped inputs and never replaces a shared token",
   const file = join(f.dir, "config.json");
   await writeFile(file, JSON.stringify(config), { mode: 0o600 });
   const settings = await ConnectionSettings.open("/sotto-destination", file);
+  f.reportHost("temporary");
   const same = await settings.test({ server: f.server, name: "Renamed", accessToken: "" });
+  expect(same.hosts).toEqual(["desktop", "temporary"]);
+  expect(same.hostID).toBe("desktop");
   settings.commit(same.ticket, "desktop");
   expect(settings.config?.sources).toEqual(config.sources);
   const next = await settings.test({
