@@ -24,14 +24,19 @@
 
 SottoDuo is an MIT-licensed fork of [Sotto](https://github.com/davis7dotsh/sotto)
 with a Linux desktop client, Soniox streaming, and shared microphone support.
-Local recognition and cleanup run on hardware you control, with no required
-service account, subscription, or word quota. Cloud recognition is optional;
-recordings and history are stored on your own server.
 
-The native Swift and Qt Quick clients connect to a self-hosted macOS or Linux
-server. Run everything on one machine, or offload inference from your laptop to
-a separate server. Dictionaries, cleanup settings, and history are shared across
-clients, so vocabulary and cleanup changes only need to be made once.
+[Voxtype](https://github.com/peteonrails/voxtype) and
+[HyperWhisper](https://github.com/ray-amjad/hyperwhisper-app) already offer local
+transcription and text processing. Sotto gives this fork a shared dictation
+server: the models, correction rules, settings, and history live together, with
+desktop clients handling recording and insertion. A laptop can use the desktop's
+GPU without keeping its own models loaded, and both computers use the same
+dictionary and cleanup behavior.
+
+SottoDuo extends that design across Mac and Linux with native Swift and Qt Quick
+clients. A microphone connected to the Linux server can serve either computer;
+the DJI button follows your selected destination. Switching computers does not
+mean moving the receiver or maintaining a second dictation setup.
 
 ## Changes from upstream Sotto
 
@@ -53,6 +58,10 @@ imported records.
 
 ## Recognition and privacy
 
+Sotto supplies a fully self-hosted Whisper and Qwen pipeline, with no required
+service account, subscription, or word quota. SottoDuo adds Soniox as an optional
+recognition provider while retaining that local pipeline.
+
 | Mode | How speech is recognized |
 | --- | --- |
 | **Automatic** | Uses Soniox when a server API key is configured, otherwise Whisper. A cloud failure falls back to Whisper using the complete recording. Requires local Whisper to be ready. |
@@ -65,16 +74,26 @@ Cloud recognition sends normalized speech audio and vocabulary hints to Soniox.
 Optional Qwen proofreading runs on your own server in every mode, so using cloud
 recognition does not require cloud cleanup too.
 
-Cleanup is configurable: edit the full prompt, set exact phrase replacements,
-or disable Qwen while keeping dictionary corrections. Validation checks can
-reject rewrites that alter quantities, negations, or too much of the original
-wording. History exposes the original transcript, cleanup outcome, and model
-details so you can investigate errors rather than seeing only the final text.
+Where [Voxtype's advanced cleanup](https://github.com/peteonrails/voxtype#post-processing-command-advanced)
+runs an external command, Sotto includes proofreading and validation in the
+pipeline. Qwen's output is checked for altered quantities, negations, list
+markers, and excessive rewriting. A response can be rejected even if the model
+completed successfully; the text from before proofreading is kept instead.
+These inherited checks provide more control over unintended edits than a cleanup
+prompt alone. The full prompt and phrase replacements are editable, and Qwen can
+be disabled without losing dictionary corrections.
 
-History and retained recordings live in the server's data directory. Original
-microphone audio is kept by default; **Keep original microphone audio** controls
-its retention for future takes. Back up that directory to preserve your history.
-The desktop apps always need a reachable server, including in Local only mode.
+Sotto's shared history also carries across to both desktops. For comparison,
+[HyperWhisper's vocabulary sync](https://github.com/ray-amjad/hyperwhisper-app/blob/main/mintlify-help/vocabulary-cloud-sync.mdx)
+uses iCloud for vocabulary while leaving transcripts, recordings, and other
+settings on each device. SottoDuo clients read the same server archive, including
+original text, cleanup outcomes, model details, and retained audio, across Mac
+and Linux.
+
+Original microphone audio is kept by default; **Keep original microphone audio**
+controls its retention for future takes. Back up the server data directory to
+preserve history. The desktop apps always need a reachable server, including in
+Local only mode.
 
 See [Soniox setup and fallback behavior](docs/soniox-streaming.md) and
 [server storage](docs/architecture.md#storage).
