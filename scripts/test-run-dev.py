@@ -98,6 +98,17 @@ def main():
             assert not pid_file.exists()
             tracked_pid = None
 
+            environment["SOTTO_SPEECH_MODEL"] = str(model)
+            environment["SOTTO_TEXT_MODEL"] = str(model)
+            del environment["SOTTODUO_SPEECH_MODEL"]
+            del environment["SOTTODUO_TEXT_MODEL"]
+            run("start", "8493")
+            tracked_pid = int(pid_file.read_text().split()[0])
+            command = subprocess.check_output(["ps", "-p", str(tracked_pid), "-o", "command="], text=True)
+            assert f"--speech-model {model}" in command and f"--proof-model {model}" in command, command
+            run("stop")
+            tracked_pid = None
+
             legacy_binary = root / "build/server/sotto-server"
             subprocess.run(["cc", str(c_source), "-o", str(legacy_binary)], check=True)
             legacy = subprocess.Popen([

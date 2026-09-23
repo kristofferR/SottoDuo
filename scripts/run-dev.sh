@@ -131,8 +131,8 @@ if [[ ! -x "$server_binary" ]]; then
     exit 1
 fi
 
-speech_model="${SOTTODUO_SPEECH_MODEL:-}"
-proof_model="${SOTTODUO_TEXT_MODEL:-}"
+speech_model="${SOTTODUO_SPEECH_MODEL:-${SOTTO_SPEECH_MODEL:-}}"
+proof_model="${SOTTODUO_TEXT_MODEL:-${SOTTO_TEXT_MODEL:-}}"
 if [[ "$(uname -s)" == Darwin ]]; then
     # Reuse model weights only. User recordings, preferences, and credentials
     # are never imported from the installed app.

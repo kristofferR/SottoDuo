@@ -126,7 +126,10 @@ final class ClientPreferencesStore: ObservableObject {
         let query = keychainQuery(account: account)
         if token.isEmpty {
             let status = SecItemDelete(query as CFDictionary)
-            return status == errSecSuccess || status == errSecItemNotFound
+            let legacyQuery = keychainQuery(account: account, service: SottoDuoBuild.current.legacyCredentialService)
+            let legacyStatus = SecItemDelete(legacyQuery as CFDictionary)
+            return (status == errSecSuccess || status == errSecItemNotFound)
+                && (legacyStatus == errSecSuccess || legacyStatus == errSecItemNotFound)
         }
         let attributes: [String: Any] = [kSecValueData as String: Data(token.utf8)]
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)

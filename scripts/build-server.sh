@@ -43,8 +43,9 @@ cuda_architectures="${SOTTODUO_CUDA_ARCHITECTURES:-${SOTTO_CUDA_ARCHITECTURES:-}
 if [[ -n "$cuda_architectures" ]]; then
     native_flags+=("-DCMAKE_CUDA_ARCHITECTURES=$cuda_architectures")
 fi
-if [[ -n "${SOTTODUO_NATIVE:-}" ]]; then
-    native_flags+=("-DGGML_NATIVE=$SOTTODUO_NATIVE")
+native_optimization="${SOTTODUO_NATIVE:-${SOTTO_NATIVE:-}}"
+if [[ -n "$native_optimization" ]]; then
+    native_flags+=("-DGGML_NATIVE=$native_optimization")
 fi
 if [[ "${SOTTODUO_SKIP_NATIVE:-0}" == 1 ]]; then
     # Reuse explicitly selected helpers without rebuilding or modifying them.
