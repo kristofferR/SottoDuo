@@ -237,7 +237,7 @@ ScrollView {
         }
         Group {
             ui: root.ui
-            title: "Priority lists · only this computer"
+            title: "Input priority"
             Setting {
                 ui: root.ui
                 title: "Saved list"
@@ -250,28 +250,53 @@ ScrollView {
                     enabled: root.editable
                     onActivated: root.selectProfile(root.draft.profiles[currentIndex].id)
                 }
-            }
-            RowLayout {
-                Layout.margins: 12
                 SButton {
                     ui: root.ui
-                    text: "New list"
+                    objectName: "useMicrophonePriorityList"
+                    text: root.draft.mode === "automatic" ? "In use" : "Use list"
+                    enabled: root.editable && root.draft.mode !== "automatic"
+                    onClicked: {
+                        let next = root.clone(root.draft);
+                        next.mode = "automatic";
+                        root.edited(next);
+                    }
+                }
+                SButton {
+                    ui: root.ui
+                    text: "+"
                     objectName: "newMicrophoneProfile"
+                    Accessible.name: "New priority list"
+                    Layout.preferredWidth: 44
+                    horizontalPadding: 10
                     enabled: root.editable && root.draft.profiles.length < 16
                     onClicked: root.editName(true)
                 }
                 SButton {
+                    id: profileActions
                     ui: root.ui
-                    text: "Rename"
+                    text: "⋯"
+                    objectName: "microphoneProfileOptions"
+                    Accessible.name: "Priority list options"
+                    Layout.preferredWidth: 44
+                    horizontalPadding: 10
                     enabled: root.editable
-                    onClicked: root.editName(false)
-                }
-                SButton {
-                    ui: root.ui
-                    text: "Delete"
-                    objectName: "deleteMicrophoneProfile"
-                    enabled: root.editable && root.draft.profiles.length > 1
-                    onClicked: deleteDialog.open()
+                    onClicked: profileMenu.open()
+                    Menu {
+                        id: profileMenu
+                        objectName: "microphoneProfileMenu"
+                        y: profileActions.height
+                        MenuItem {
+                            text: "Rename list…"
+                            enabled: root.editable
+                            onTriggered: root.editName(false)
+                        }
+                        MenuItem {
+                            objectName: "deleteMicrophoneProfile"
+                            text: "Delete list…"
+                            enabled: root.editable && root.draft.profiles.length > 1
+                            onTriggered: deleteDialog.open()
+                        }
+                    }
                 }
             }
             Repeater {
@@ -322,24 +347,42 @@ ScrollView {
                             Drag.hotSpot.y: height / 2
                         }
                         SButton {
+                            id: priorityActions
                             ui: root.ui
-                            text: "↑"
-                            Accessible.name: "Move " + root.nameFor(priorityRow.identity) + " up"
-                            enabled: root.editable && priorityRow.index > 0
-                            onClicked: root.changePriority(priorityRow.identity, "up")
-                        }
-                        SButton {
-                            ui: root.ui
-                            text: "↓"
-                            Accessible.name: "Move " + root.nameFor(priorityRow.identity) + " down"
-                            enabled: root.editable && priorityRow.index < root.draft.priority.length - 1
-                            onClicked: root.changePriority(priorityRow.identity, "down")
-                        }
-                        SButton {
-                            ui: root.ui
-                            text: "Remove"
+                            objectName: "microphonePriorityActions" + priorityRow.index
+                            text: "⋯"
+                            Accessible.name: "Actions for " + root.nameFor(priorityRow.identity)
+                            Layout.preferredWidth: 44
+                            horizontalPadding: 10
                             enabled: root.editable
-                            onClicked: root.changePriority(priorityRow.identity, "remove")
+                            onClicked: priorityMenu.open()
+                            Menu {
+                                id: priorityMenu
+                                objectName: "microphonePriorityMenu" + priorityRow.index
+                                y: priorityActions.height
+                                MenuItem {
+                                    text: "Move up"
+                                    enabled: root.editable && priorityRow.index > 0
+                                    onTriggered: root.changePriority(priorityRow.identity, "up")
+                                }
+                                MenuItem {
+                                    text: "Move down"
+                                    enabled: root.editable && priorityRow.index < root.draft.priority.length - 1
+                                    onTriggered: root.changePriority(priorityRow.identity, "down")
+                                }
+                                MenuItem {
+                                    objectName: "microphoneMoveTop" + priorityRow.index
+                                    text: "Move to top"
+                                    enabled: root.editable && priorityRow.index > 0
+                                    onTriggered: root.movePriority(priorityRow.identity, root.draft.priority[0])
+                                }
+                                MenuSeparator {}
+                                MenuItem {
+                                    text: "Remove from priority list"
+                                    enabled: root.editable
+                                    onTriggered: root.changePriority(priorityRow.identity, "remove")
+                                }
+                            }
                         }
                     }
                     Rectangle {
@@ -364,19 +407,21 @@ ScrollView {
             }
             Setting {
                 ui: root.ui
-                title: "Drag a handle to reorder. Disconnected microphones keep their place."
+                visible: root.draft.priority.length === 0
+                title: "No priorities yet"
+                detail: "Add a microphone from the connected inputs below."
             }
-            Setting {
+            SLabel {
                 ui: root.ui
-                title: "System fallback"
-                detail: "After preferred inputs, Sotto uses an eligible microphone on the configured capture host. An empty list uses this fallback directly."
+                visible: root.ui.sources.items.some(source => root.rank(source.identity) < 0)
+                text: "Available inputs"
+                color: root.ui.c.muted
+                font.pixelSize: 13
+                Layout.leftMargin: 14
+                Layout.topMargin: 12
             }
-        }
-        Group {
-            ui: root.ui
-            title: "Available inputs"
             Repeater {
-                model: root.ui.sources.items
+                model: root.ui.sources.items.filter(source => root.rank(source.identity) < 0)
                 Setting {
                     required property var modelData
                     ui: root.ui
@@ -384,16 +429,12 @@ ScrollView {
                     detail: modelData.identity.hostID + " · " + (modelData.eligible ? "Available · " + modelData.transport : modelData.unavailableReason || "Unavailable or not ready")
                     SButton {
                         ui: root.ui
-                        text: root.draft.mode === "fixed" ? (root.draft.fixed && root.key(root.draft.fixed) === root.key(modelData.identity) ? "Selected" : "Choose") : root.rank(modelData.identity) >= 0 ? "In priority list" : "Add to list"
-                        enabled: root.editable && (root.draft.mode === "fixed" || (root.rank(modelData.identity) < 0 && root.draft.priority.length < 32))
-                        onClicked: {
-                            if (root.draft.mode === "fixed") {
-                                let next = root.clone(root.draft);
-                                next.fixed = modelData.identity;
-                                root.edited(next);
-                            } else
-                                root.changePriority(modelData.identity, "add");
-                        }
+                        text: "+"
+                        Accessible.name: "Add " + modelData.name + " to priority list"
+                        Layout.preferredWidth: 44
+                        horizontalPadding: 10
+                        enabled: root.editable && root.draft.priority.length < 32
+                        onClicked: root.changePriority(modelData.identity, "add")
                     }
                 }
             }
@@ -403,6 +444,13 @@ ScrollView {
                 title: "No inputs reported"
                 detail: "Saved microphones stay in their lists. Check the server connection, then refresh."
             }
+        }
+        SLabel {
+            ui: root.ui
+            text: "Drag a handle to reorder. Disconnected microphones keep their place. After this list, Sotto uses an available microphone on the capture computer."
+            color: root.ui.c.muted
+            font.pixelSize: 13
+            Layout.fillWidth: true
         }
         SLabel {
             ui: root.ui

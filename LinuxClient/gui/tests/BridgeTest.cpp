@@ -530,6 +530,11 @@ private slots:
     auto fixedDraft = page->property("draft").value<QJSValue>().toVariant().toMap();
     QCOMPARE(fixedDraft["mode"].toString(), QString("fixed"));
     QCOMPARE(fixedDraft["fixed"].toMap()["id"].toString(), QString("airpods"));
+    auto *useList = window->findChild<QQuickItem *>("useMicrophonePriorityList");
+    QVERIFY(useList && useList->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(useList, "clicked"));
+    auto automaticDraft = page->property("draft").value<QJSValue>().toVariant().toMap();
+    QCOMPARE(automaticDraft["mode"].toString(), QString("automatic"));
     QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
     QCOMPARE(mode->property("currentIndex").toInt(), 0);
     auto findItem = [&](auto &&self, QQuickItem *parent,
@@ -542,6 +547,26 @@ private slots:
       }
       return nullptr;
     };
+    auto *rowActions = findItem(findItem, window->contentItem(),
+                                "microphonePriorityActions1");
+    QVERIFY(rowActions);
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                      rowActions->mapToScene(QPointF(rowActions->width() / 2,
+                                                     rowActions->height() / 2)).toPoint());
+    auto *priorityMenu = rowActions->findChild<QObject *>("microphonePriorityMenu1");
+    QVERIFY(priorityMenu);
+    QTRY_VERIFY(priorityMenu->property("visible").toBool());
+    auto *moveTop = priorityMenu->findChild<QObject *>("microphoneMoveTop1");
+    QVERIFY(moveTop);
+    QVERIFY(QMetaObject::invokeMethod(moveTop, "triggered"));
+    QTRY_VERIFY(page->property("dirty").toBool());
+    auto viaMenu = page->property("draft").value<QJSValue>().toVariant().toMap();
+    QCOMPARE(viaMenu["priority"].toList().first().toMap()["id"].toString(),
+             QString("airpods"));
+    QVERIFY(QMetaObject::invokeMethod(priorityMenu, "close"));
+    QTRY_VERIFY(!priorityMenu->property("visible").toBool());
+    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
+    QTest::qWait(50);
     auto *firstHandle = findItem(findItem, window->contentItem(),
                                  "microphoneReorderHandle0");
     auto *secondHandle = findItem(findItem, window->contentItem(),
@@ -860,34 +885,45 @@ private slots:
     // A reset must retain the text binding for later edits and reloads.
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Final cleanup.");
-    dictionary->setProperty("selectedIndex", 0);
-    auto *listName = dictionary->findChild<QQuickItem *>("dictionaryListName");
+    auto findVisual = [&](const QString &name) -> QQuickItem * {
+      QList<QQuickItem *> pending{window->contentItem()};
+      while (!pending.isEmpty()) {
+        auto *item = pending.takeLast();
+        if (item->objectName() == name)
+          return item;
+        for (auto *child : item->childItems())
+          pending.append(child);
+      }
+      return nullptr;
+    };
+    auto *firstToggle = findVisual("dictionaryListToggle_personal");
+    QVERIFY(firstToggle);
+    QVERIFY(QMetaObject::invokeMethod(firstToggle, "clicked"));
+    auto *listName = findVisual("dictionaryListName_personal");
     QVERIFY(listName);
+    QVERIFY(listName->isVisible());
     listName->forceActiveFocus();
     listName->setProperty("text", "Edited personal");
     QVERIFY(QMetaObject::invokeMethod(listName, "textEdited"));
     QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
-    QCOMPARE(listName->property("text").toString(), "New list");
-    QList<QQuickItem *> pending{window->contentItem()};
-    QList<QQuickItem *> listToggles;
-    while (!pending.isEmpty()) {
-      auto *item = pending.takeLast();
-      if (item->objectName() == "dictionaryListToggle")
-        listToggles.append(item);
-      for (auto *child : item->childItems())
-        pending.append(child);
-    }
-    QCOMPARE(listToggles.size(), 2);
-    dictionary->setProperty("selectedIndex", 0);
+    const auto lists = dictionary->property("lists").value<QJSValue>().toVariant().toList();
+    QCOMPARE(lists.size(), 2);
+    const auto newID = lists.last().toMap()["id"].toString();
+    listName = findVisual("dictionaryListName_personal");
+    auto *newName = findVisual("dictionaryListName_" + newID);
+    QVERIFY(listName && newName);
     QCOMPARE(listName->property("text").toString(), "Edited personal");
-    auto *firstList = listToggles.last();
-    QVERIFY(QMetaObject::invokeMethod(firstList, "clicked"));
-    QCOMPARE(dictionary->property("selectedIndex").toInt(), -1);
-    QVERIFY(!listName->isVisible());
-    QVERIFY(QMetaObject::invokeMethod(firstList, "clicked"));
-    QCOMPARE(dictionary->property("selectedIndex").toInt(), 0);
+    QCOMPARE(newName->property("text").toString(), "New list");
     QVERIFY(listName->isVisible());
-    auto *words = dictionary->findChild<QQuickItem *>("dictionaryWords");
+    QVERIFY(newName->isVisible());
+    firstToggle = findVisual("dictionaryListToggle_personal");
+    QVERIFY(firstToggle);
+    QVERIFY(QMetaObject::invokeMethod(firstToggle, "clicked"));
+    QVERIFY(!listName->isVisible());
+    QVERIFY(newName->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(firstToggle, "clicked"));
+    QVERIFY(listName->isVisible());
+    auto *words = findVisual("dictionaryWords_personal");
     QVERIFY(words);
     auto *word = words->property("currentItem").value<QQuickItem *>();
     QVERIFY(word);
@@ -925,7 +961,8 @@ private slots:
     QCOMPARE(page->property("message").toString(), "Check the dictionary replacement phrases.");
     const QString capture = qEnvironmentVariable("SOTTO_GUI_PROCESSING_CAPTURE");
     if (!capture.isEmpty()) {
-      dictionary->setProperty("selectedIndex", -1);
+      const auto expanded = dictionary->property("expandedIDs");
+      dictionary->setProperty("expandedIDs", QVariantList{});
       for (auto *parent = dictionary->parentItem(); parent; parent = parent->parentItem()) {
         if (parent->property("contentY").isValid()) {
           parent->setProperty("contentY", dictionary->mapToItem(parent, QPointF()).y() + parent->property("contentY").toReal());
@@ -934,7 +971,7 @@ private slots:
       }
       QTest::qWait(50);
       QVERIFY(window->grabWindow().save(capture));
-      dictionary->setProperty("selectedIndex", 0);
+      dictionary->setProperty("expandedIDs", expanded);
     }
     auto legacy = newer;
     auto legacyPreferences = legacy["preferences"].toObject();
