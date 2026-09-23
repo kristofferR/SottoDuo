@@ -675,9 +675,12 @@ private slots:
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
     auto items = sample["history"].toObject()["items"].toArray();
+    auto olderItem = items[1].toObject();
+    olderItem["id"] = "preview-older";
     QJsonObject deleted, audio;
     QString requestedSource;
     int reads = 0;
+    int olderReads = 0;
     bool correlate = true;
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
@@ -688,8 +691,10 @@ private slots:
         auto data = sample.value(action);
         if (action == "history") {
           ++reads;
+          const bool older = !request["before"].toString().isEmpty();
+          if (older) ++olderReads;
           requestedSource = request["source"].toString();
-          data = QJsonObject{{"items", items}, {"nextCursor", "older"}, {"queryID",correlate ? request["queryID"] : QJsonValue()}, {"server",sample["snapshot"].toObject()["server"]}};
+          data = QJsonObject{{"items", older ? QJsonArray{olderItem} : items}, {"nextCursor", older ? QJsonValue() : QJsonValue("older")}, {"queryID",correlate ? request["queryID"] : QJsonValue()}, {"server",sample["snapshot"].toObject()["server"]}};
         } else if (action == "deleteHistory") {
           deleted = request;
           items.removeAt(0);
@@ -716,16 +721,17 @@ private slots:
     window->setProperty("page",1);
     auto *page = window->findChild<QQuickItem *>("historyPage");
     QVERIFY(page);
-    QTRY_COMPARE(page->property("records").toList().size(), 2);
+    QTRY_COMPARE(page->property("records").toList().size(), 3);
+    QTRY_VERIFY(olderReads > 0);
+    QTRY_VERIFY(!page->property("loading").toBool());
     QCOMPARE(page->property("selectedID").toString(), "");
     page->setProperty("selectedID", "preview");
-    auto *older = page->findChild<QQuickItem *>("olderHistory");
     auto *remove = page->findChild<QQuickItem *>("deleteHistory");
     auto *copy = page->findChild<QQuickItem *>("copyHistory");
     auto *date = page->findChild<QQuickItem *>("historyDetailDate");
     auto *open = page->findChild<QQuickItem *>("openHistoryAudio");
     auto *transcript = page->findChild<QQuickItem *>("historyTranscript");
-    QVERIFY(older && remove && copy && date && open && transcript);
+    QVERIFY(remove && copy && date && open && transcript);
     QVERIFY(!date->property("text").toString().isEmpty());
     QVERIFY(QMetaObject::invokeMethod(copy, "clicked"));
     QCOMPARE(copy->property("text").toString(), QString("Copied"));
@@ -737,12 +743,10 @@ private slots:
     QTRY_VERIFY(page->property("message").toString().contains("no longer available"));
     page->setProperty("selectedID","preview-2");
     QCOMPARE(copy->property("text").toString(), QString("Copy"));
-    QVERIFY(QMetaObject::invokeMethod(older,"clicked"));
-    QTRY_VERIFY(!page->property("loading").toBool());
     QCOMPARE(page->property("selectedID").toString(),"preview-2");
     auto *list = page->findChild<QQuickItem *>("historyList");
     QVERIFY(list);
-    QCOMPARE(list->property("count").toInt(),2);
+    QCOMPARE(list->property("count").toInt(),3);
     auto *handle = window->findChild<QQuickItem *>("historyResizeHandle");
     QVERIFY(handle);
     const auto originalWidth = list->width();
@@ -771,7 +775,7 @@ private slots:
     QCOMPARE(deleted["id"].toString(),"preview");
     QTRY_VERIFY(!page->property("loading").toBool());
     QCOMPARE(page->property("selectedID").toString(),"preview-2");
-    QCOMPARE(list->property("count").toInt(),1);
+    QTRY_COMPARE(list->property("count").toInt(),2);
     QVERIFY(QMetaObject::invokeMethod(page,"filterSource",Q_ARG(QVariant,"wispr-flow")));
     QTRY_COMPARE(requestedSource, "wispr-flow");
     QTRY_VERIFY(!page->property("loading").toBool());

@@ -83,6 +83,14 @@ ColumnLayout {
         bridge.request("history", args);
     }
 
+    function maybeLoadOlder() {
+        if (!visible || !cursor || loading || acting || !available)
+            return;
+
+        if (historyList.contentY + historyList.height >= historyList.contentHeight - 48)
+            load(true);
+    }
+
     function filterSource(value) {
         if (loading || acting)
             return ;
@@ -134,6 +142,7 @@ ColumnLayout {
     objectName: "historyPage"
     spacing: 14
     onFilteredChanged: reconcile()
+    onVisibleChanged: if (visible) Qt.callLater(maybeLoadOlder)
     Component.onCompleted: {
         server = bridge.snapshot.server || "";
         load(false);
@@ -162,9 +171,10 @@ ColumnLayout {
                     seen.add(r.id);
                     return true;
                 });
-                root.cursor = data.nextCursor || "";
+                root.cursor = root.append && (data.nextCursor === root.cursor || data.items.length === 0) ? "" : data.nextCursor || "";
                 root.loading = false;
                 root.reconcile();
+                Qt.callLater(root.maybeLoadOlder);
             }
             if (action === "deleteHistory") {
                 root.deleting = false;
@@ -322,6 +332,7 @@ ColumnLayout {
         }
 
         ListView {
+            id: historyList
             objectName: "historyList"
             SplitView.preferredWidth: Math.max(225, root.width * 0.38)
             SplitView.minimumWidth: 220
@@ -330,12 +341,15 @@ ColumnLayout {
             clip: true
             model: root.filtered
             spacing: 0
+            onContentYChanged: root.maybeLoadOlder()
+            onContentHeightChanged: root.maybeLoadOlder()
+            onHeightChanged: root.maybeLoadOlder()
 
             SLabel {
                 ui: root.ui
                 anchors.centerIn: parent
                 width: parent.width
-                text: root.loading ? "Loading history…" : root.cursor ? "No matching entries loaded. Try Load older." : "No dictations to show."
+                text: root.loading ? "Loading history…" : "No dictations to show."
                 visible: root.filtered.length === 0
                 color: root.ui.c.muted
             }
@@ -417,16 +431,15 @@ ColumnLayout {
         Layout.fillWidth: true
         SLabel {
             ui: root.ui
-            text: root.records.length + " sessions loaded"
+            text: root.records.length + (root.cursor ? " sessions loaded" : " sessions")
             color: root.ui.c.muted
             Layout.fillWidth: true
         }
-        SButton {
+        SLabel {
             ui: root.ui
-            objectName: "olderHistory"
-            text: root.loading ? "Loading…" : "Load older"
-            enabled: root.cursor.length > 0 && !root.loading && !root.acting && root.available
-            onClicked: root.load(true)
+            text: "Loading older…"
+            color: root.ui.c.muted
+            visible: root.loading && root.append
         }
     }
 
