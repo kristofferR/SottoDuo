@@ -223,7 +223,8 @@ export class Controller {
     this.verify(record, take);
     if (record.capture?.state !== "sealed") throw new Error("Capture was not sealed.");
     take.sealed = true;
-    const deadline = Date.now() + 120000;
+    // Include cold model loading plus the server's speech and proofreading limits.
+    const deadline = Date.now() + 360_000;
     while (this.live(take) && !["completed", "failed", "cancelled"].includes(record.status)) {
       if (Date.now() >= deadline) throw new Error("Processing timed out.");
       await Bun.sleep(300);
