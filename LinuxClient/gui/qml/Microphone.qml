@@ -442,7 +442,7 @@ ScrollView {
                 ui: root.ui
                 visible: root.ui.sources.items.length === 0
                 title: "No inputs reported"
-                detail: "Saved microphones stay in their lists. Check the server connection, then refresh."
+                detail: "Saved microphones stay in their lists. Inputs update automatically while connected."
             }
         }
         SLabel {
@@ -494,11 +494,6 @@ ScrollView {
                 text: "Discard changes"
                 enabled: root.dirty && !root.pending
                 onClicked: root.loadSaved()
-            }
-            SButton {
-                ui: root.ui
-                text: "Refresh inputs"
-                onClicked: root.ui.refresh()
             }
         }
         MicrophoneTestButton {

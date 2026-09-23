@@ -695,6 +695,19 @@ private slots:
     QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
     QTRY_COMPARE(page->property("revision").toString(),
                  QString("external-change"));
+    auto reportedSources = sample["sources"].toObject();
+    auto liveInputs = reportedSources["items"].toArray();
+    liveInputs.append(QJsonObject{
+        {"identity", QJsonObject{{"hostID", "desktop"}, {"id", "webcam"}}},
+        {"name", "Webcam microphone"}, {"transport", "usb"},
+        {"eligible", true}});
+    reportedSources["items"] = liveInputs;
+    sample["sources"] = reportedSources;
+    QTRY_COMPARE_WITH_TIMEOUT(mode->property("count").toInt(), 5, 6000);
+    liveInputs.removeLast();
+    reportedSources["items"] = liveInputs;
+    sample["sources"] = reportedSources;
+    QTRY_COMPARE_WITH_TIMEOUT(mode->property("count").toInt(), 4, 6000);
     QCOMPARE(warnings.count(), 0);
   }
   void historyKeepsSelectionAndScopesConfirmedActions() {

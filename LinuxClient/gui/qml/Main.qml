@@ -18,6 +18,8 @@ ApplicationWindow {
     onVisibleChanged: {
         if (!visible)
             finishShortcutCheck();
+        else if (bridge.connected)
+            refresh();
     }
     property bool startHidden: false
     visible: !startHidden
@@ -60,6 +62,7 @@ ApplicationWindow {
     property string notice: ""
     property bool serverReady: false
     property var pages: ["Dictation", "History", "Microphone", "Server preferences", "This computer"]
+    onPageChanged: if (page === 2) refreshSources()
     palette.window: c.canvas
     palette.windowText: c.ink
     palette.base: c.surface
@@ -80,9 +83,13 @@ ApplicationWindow {
         if (snapshot.setupRequired)
             return;
         bridge.request("connection");
-        bridge.request("sources");
+        refreshSources();
         if (!portalShortcuts.plasma)
             bridge.request("shortcuts");
+    }
+    function refreshSources() {
+        if (bridge.connected && !snapshot.setupRequired)
+            bridge.request("sources");
     }
     function startMicrophoneTest() {
         microphoneTestStarting = true;
@@ -212,6 +219,12 @@ ApplicationWindow {
         running: app.visible && bridge.connected
         repeat: true
         onTriggered: app.refresh()
+    }
+    Timer {
+        interval: 2000
+        running: app.visible && app.page === 2 && bridge.connected && !app.snapshot.setupRequired
+        repeat: true
+        onTriggered: app.refreshSources()
     }
     RowLayout {
         anchors.fill: parent
