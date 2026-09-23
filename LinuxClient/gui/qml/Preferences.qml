@@ -372,6 +372,12 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.margins: 12
                     Layout.preferredHeight: 320
+                    background: Rectangle {
+                        color: root.ui.c.canvas
+                        radius: 6
+                        border.width: cleanup.activeFocus ? 2 : 1
+                        border.color: cleanup.activeFocus ? root.ui.c.accent : root.ui.c.line
+                    }
 
                     TextArea {
                         id: cleanup
@@ -379,6 +385,11 @@ ColumnLayout {
                         objectName: "cleanupInstructions"
                         text: root.draft ? (root.draft.preferences.proofreadingPrompt !== undefined ? root.draft.preferences.proofreadingPrompt : root.defaultPrompt) : ""
                         Accessible.name: "Cleanup instructions"
+                        color: root.ui.c.ink
+                        selectionColor: root.ui.c.accent
+                        selectedTextColor: root.ui.c.onAccent
+                        padding: 12
+                        background: null
                         textFormat: TextEdit.PlainText
                         wrapMode: TextEdit.Wrap
                         selectByMouse: true
@@ -400,6 +411,12 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.margins: 12
                     Layout.preferredHeight: 110
+                    background: Rectangle {
+                        color: root.ui.c.canvas
+                        radius: 6
+                        border.width: vocabulary.activeFocus ? 2 : 1
+                        border.color: vocabulary.activeFocus ? root.ui.c.accent : root.ui.c.line
+                    }
 
                     TextArea {
                         id: vocabulary
@@ -408,6 +425,11 @@ ColumnLayout {
                         text: root.draft ? root.draft.preferences.vocabulary : ""
                         placeholderText: "Sotto, PipeWire, names you use often…"
                         placeholderTextColor: root.ui.c.muted
+                        color: root.ui.c.ink
+                        selectionColor: root.ui.c.accent
+                        selectedTextColor: root.ui.c.onAccent
+                        padding: 12
+                        background: null
                         textFormat: TextEdit.PlainText
                         wrapMode: TextEdit.Wrap
                         selectByMouse: true
