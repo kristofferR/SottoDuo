@@ -83,7 +83,7 @@ ColumnLayout {
         radius: 12
         color: root.ui.c.surface
         border.color: root.ui.c.line
-        visible: !root.ui.busy && !root.ui.sources.next
+        visible: !root.ui.busy
         RowLayout {
             id: route
             anchors.fill: parent

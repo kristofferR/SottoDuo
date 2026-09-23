@@ -415,12 +415,15 @@ ScrollView {
                                 id: reorderDrag
                                 enabled: root.editable && root.draft.priority.length > 1
                                 xAxis.enabled: false
-                                onActiveChanged: if (!active) {
-                                    reorderHandle.Drag.drop();
-                                    reorderHandle.y = 0;
+                                onActiveChanged: {
+                                    if (active) {
+                                        reorderHandle.Drag.start();
+                                    } else {
+                                        reorderHandle.Drag.drop();
+                                        reorderHandle.y = 0;
+                                    }
                                 }
                             }
-                            Drag.active: reorderDrag.active
                             Drag.source: priorityRow
                             Drag.keys: ["sotto/microphone-priority"]
                             Drag.hotSpot.x: width / 2

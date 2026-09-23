@@ -119,7 +119,10 @@ int main(int argc, char **argv) {
       window->requestActivate();
     }
   };
-  menu.addAction("Quit Sotto feedback (dictation stays running)", &app, quit);
+  menu.addAction(portalShortcuts.plasma()
+                     ? "Quit Sotto feedback (Plasma shortcut stops)"
+                     : "Quit Sotto feedback (dictation stays running)",
+                 &app, quit);
   QObject::connect(bridge.desktop(), &DesktopIntegration::quitRequested, &app,
                    quit);
   tray.setToolTip("Sotto");

@@ -11,6 +11,34 @@ namespace {
 const QByteArray marker = "# Managed by Sotto\n";
 const QByteArray serviceMarker = "# Managed by Sotto Linux GUI\n";
 
+struct ServiceUnit {
+  bool available = false;
+  QString loadState;
+  QString fragment;
+};
+
+ServiceUnit serviceUnit() {
+  QProcess process;
+  process.start("systemctl", {"--user", "show", "--property=LoadState",
+                               "--property=FragmentPath", "sotto-client.service"});
+  if (!process.waitForStarted(1000) || !process.waitForFinished(1500)) {
+    process.kill();
+    process.waitForFinished(1000);
+    return {};
+  }
+  if (process.exitCode() != 0)
+    return {};
+  ServiceUnit unit;
+  unit.available = true;
+  for (const auto &line : process.readAllStandardOutput().split('\n')) {
+    if (line.startsWith("LoadState="))
+      unit.loadState = QString::fromUtf8(line.mid(10));
+    else if (line.startsWith("FragmentPath="))
+      unit.fragment = QString::fromUtf8(line.mid(13));
+  }
+  return unit;
+}
+
 QString quotedExecutable(QString path) {
   // Desktop Exec quoting, followed by the desktop-entry string escaping.
   path.replace('%', "%%");
@@ -62,7 +90,10 @@ void DesktopIntegration::refreshClientService() {
              check.readAllStandardOutput().trimmed() == "active") {
     m_clientService = "Running";
   } else {
-    m_clientService = QFileInfo::exists(servicePath()) ? "Stopped" : "Not installed";
+    const auto unit = serviceUnit();
+    m_clientService = !unit.available ? "Systemd user service unavailable"
+                      : unit.loadState == "not-found" ? "Not installed"
+                      : "Stopped";
   }
   emit changed();
 }
@@ -78,21 +109,37 @@ void DesktopIntegration::setUpClientService() {
   };
   const QString path = servicePath();
   QFileInfo unit(path);
+  const auto loaded = serviceUnit();
+  if (!loaded.available) {
+    fail("Couldn’t inspect the background service. Check your user service manager.");
+    return;
+  }
+  if (loaded.loadState != "not-found" &&
+      (loaded.fragment.isEmpty() ||
+       QFileInfo(loaded.fragment).absoluteFilePath() != unit.absoluteFilePath())) {
+    fail("An existing background service is managed outside Sotto. Update it through your desktop setup.");
+    return;
+  }
   bool created = false;
   if (unit.isSymLink()) {
     fail("The background service is a symlink. Manage it through your desktop setup.");
     return;
   }
-  if (!unit.exists()) {
+  {
+    QFile existing(path);
+    QByteArray previous;
+    if (unit.exists()) {
+      if (!existing.open(QIODevice::ReadOnly) ||
+          !(previous = existing.readAll()).startsWith(serviceMarker)) {
+        fail("An existing background service is managed outside Sotto. Update it through your desktop setup.");
+        return;
+      }
+    }
     const QFileInfo executable(m_clientExecutable);
     if (!executable.isFile() || !executable.isExecutable() ||
         m_clientExecutable.contains(QChar('\n')) ||
         m_clientExecutable.contains(QChar('\r'))) {
       fail("Install the Sotto background client beside this GUI, then try again.");
-      return;
-    }
-    if (!QDir().mkpath(unit.absolutePath())) {
-      fail("Couldn’t create the background-service folder.");
       return;
     }
     const QByteArray data =
@@ -105,13 +152,19 @@ void DesktopIntegration::setUpClientService() {
          "NoNewPrivileges=yes\n\n[Install]\n"
          "WantedBy=graphical-session.target\n")
             .toUtf8();
-    QSaveFile output(path);
-    if (!output.open(QIODevice::WriteOnly) || output.write(data) != data.size() ||
-        !output.commit()) {
-      fail("Couldn’t install the background service. Check the folder permissions.");
-      return;
+    if (previous != data) {
+      if (!QDir().mkpath(unit.absolutePath())) {
+        fail("Couldn’t create the background-service folder.");
+        return;
+      }
+      QSaveFile output(path);
+      if (!output.open(QIODevice::WriteOnly) || output.write(data) != data.size() ||
+          !output.commit()) {
+        fail("Couldn’t install the background service. Check the folder permissions.");
+        return;
+      }
+      created = true;
     }
-    created = true;
   }
   m_clientServiceBusy = true;
   m_clientService = "Starting…";

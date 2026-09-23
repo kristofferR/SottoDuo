@@ -226,7 +226,7 @@ void Bridge::request(const QString &action, const QVariantMap &arguments) {
     timeout = 35000;
   else if (action == "history")
     timeout = 70000;
-  else if (action == "historyAudio")
+  else if (action == "historyAudio" || action == "historyArtifact")
     timeout = 300000;
   timer->start(timeout);
   const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");

@@ -6,7 +6,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Widgets Network Sv
 find_package(LayerShellQt 6.6 REQUIRED)
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
-  pkg_check_modules(LIBPORTAL QUIET IMPORTED_TARGET libportal)
+  pkg_check_modules(LIBPORTAL QUIET IMPORTED_TARGET "libportal>=0.11")
 endif()
 qt_standard_project_setup(REQUIRES 6.8)
 qt_add_executable(sotto-gui main.cpp Bridge.cpp Bridge.h HudSurface.cpp HudSurface.h DesktopIntegration.cpp DesktopIntegration.h GuiInstance.cpp GuiInstance.h PortalShortcuts.cpp PortalShortcuts.h)

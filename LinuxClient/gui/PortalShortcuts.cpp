@@ -245,7 +245,13 @@ void PortalShortcuts::configured(void *result) {
           static_cast<XdpGlobalShortcutsSession *>(m_session),
           static_cast<GAsyncResult *>(result), &error)) {
     g_clear_error(&error);
-    setStatus(false, {}, "Plasma shortcut configuration was cancelled or unavailable.");
+    QMetaObject::invokeMethod(
+        this,
+        [this] {
+          m_message = "Plasma shortcut configuration was cancelled or unavailable.";
+          emit changed();
+        },
+        Qt::QueuedConnection);
   }
 #else
   (void)result;

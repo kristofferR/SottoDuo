@@ -22,7 +22,7 @@ Closing settings keeps the live capsule available, including on desktops without
 
 **This computer → Launch at login** writes Sotto’s own XDG autostart entry and starts the GUI with `--background`, without opening settings. Run the installed copy when enabling it, so startup uses a durable executable path. Disabling writes a hidden entry; it does not stop the current GUI or the separate dictation service. Existing entries managed outside Sotto are preserved, and save failures appear beside the switch. Preview mode cannot change startup.
 
-**This computer → Quit Sotto feedback** (also in the optional tray menu) exits the GUI and removes the live capsule. Shortcut and pairing-button dictation remain with the separate client. The window still asks you to finish or cancel an active microphone test before closing or quitting.
+**This computer → Quit Sotto feedback** (also in the optional tray menu) exits the GUI and removes the live capsule. On Plasma, its portal shortcut stops until Sotto is reopened; pairing-button dictation remains with the separate client. On Omarchy, shortcut dictation also remains available. The window still asks you to finish or cancel an active microphone test before closing or quitting.
 
 Build the Linux client first, then install the GUI, matching client, destination helper and launcher with CMake's normal install command into an explicitly chosen prefix. The GUI sets up its own user service on request. It does not install receiver permissions or override an existing service. Login startup starts the GUI; the service starts independently after setup.
 

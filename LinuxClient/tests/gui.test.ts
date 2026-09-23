@@ -8,6 +8,60 @@ import { createGUIHandler } from "../src/gui.ts";
 import { parseConfig } from "../src/config.ts";
 import { ButtonDestinationClient } from "../src/buttons.ts";
 
+test("GUI shortcut release waits for the preceding press check", async () => {
+  const config = parseConfig({
+    server: "http://localhost:8394",
+    tokenFile: "/private/token",
+    destinationHelper: "/private/helper",
+    device: { id: "desktop", name: "Desktop" },
+    sources: {
+      server: "http://localhost:8394",
+      hostID: "desktop",
+      mode: "automatic",
+      priority: [],
+    },
+  });
+  let allowPress: (() => void) | undefined;
+  const pressCheck = new Promise<void>((resolve) => {
+    allowPress = resolve;
+  });
+  let checks = 0;
+  const actions: string[] = [];
+  const desktop: Desktop = {
+    unlocked: async () => {
+      if (++checks === 1) await pressCheck;
+      return true;
+    },
+    capture: async () => {
+      throw new Error("not used");
+    },
+    defaultInput: async () => undefined,
+    notify() {},
+  };
+  const controller = new Controller(
+    new API(config.server, "test-token"),
+    desktop,
+    config.device,
+    config.sources,
+  );
+  controller.start = () => {
+    actions.push("start");
+    return true;
+  };
+  controller.stop = () => {
+    actions.push("stop");
+  };
+  const gui = createGUIHandler(new API(config.server, "test-token"), controller, desktop, config);
+  const press = gui({ version: 1, action: "start" });
+  const release = gui({ version: 1, action: "stop" });
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  expect(checks).toBe(1);
+  expect(actions).toEqual([]);
+  allowPress?.();
+  await Promise.all([press, release]);
+  expect(actions).toEqual(["start", "stop"]);
+});
+
 test("GUI requests are versioned and scoped; source preferences persist without losing private configuration", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sotto-gui-"));
   const previous = process.env.SOTTO_CLIENT_CONFIG;

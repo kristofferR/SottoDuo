@@ -331,7 +331,7 @@ ApplicationWindow {
                     ui: app
                     anchors.fill: parent
                     anchors.margins: 12
-                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.desktop.clientService !== "Running" ? "Background dictation is stopped. Open This computer to set it up and start it." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
+                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.desktop.clientService === "Systemd user service unavailable" ? "Background dictation is unavailable. Start the Sotto client with your desktop’s startup tools." : bridge.desktop.clientService !== "Running" ? "Background dictation is stopped. Open This computer to set it up and start it." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
                 }
             }
             Rectangle {

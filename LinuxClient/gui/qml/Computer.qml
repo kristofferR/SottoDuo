@@ -92,7 +92,7 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Background dictation"
-                detail: bridge.desktop.clientService === "Running" ? "Running. Shortcuts and pairing-button dictation keep working when this window closes." : bridge.desktop.clientService === "Systemd user service unavailable" ? "This desktop does not provide a systemd user service. Start the Sotto client with your desktop's startup tools." : "Install and start the background client for keyboard and pairing-button dictation."
+                detail: bridge.desktop.clientService === "Running" ? portalShortcuts.plasma ? "Running. Keep Sotto feedback open in the background for Plasma shortcuts; pairing-button dictation runs in the service." : "Running. Shortcuts and pairing-button dictation keep working when this window closes." : bridge.desktop.clientService === "Systemd user service unavailable" ? "This desktop does not provide a systemd user service. Start the Sotto client with your desktop's startup tools." : "Install and start the background client for keyboard and pairing-button dictation."
                 SLabel {
                     ui: root.ui
                     text: bridge.desktop.clientService
@@ -109,7 +109,7 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Quit Sotto feedback"
-                detail: "Hides the live indicator until you reopen Sotto. Keyboard and pairing-button dictation stay running."
+                detail: portalShortcuts.plasma ? "Hides the live indicator and disables the Plasma keyboard shortcut until you reopen Sotto. Pairing-button dictation stays running." : "Hides the live indicator until you reopen Sotto. Keyboard and pairing-button dictation stay running."
                 SButton {
                     ui: root.ui
                     text: "Quit"

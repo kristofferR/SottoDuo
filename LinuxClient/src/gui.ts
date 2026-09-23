@@ -25,6 +25,7 @@ export function createGUIHandler(
   file = configPath(),
 ) {
   let config = initial;
+  let shortcutQueue: Promise<unknown> = Promise.resolve();
   const history = new HistoryTools(api);
   const saveConfig = (next: Config) => {
     // Synchronous compare-and-replace keeps new takes and settings writes ordered.
@@ -43,7 +44,7 @@ export function createGUIHandler(
     config = next;
     onConfigSaved?.(next);
   };
-  return async (request: unknown): Promise<unknown> => {
+  const handle = async (request: unknown): Promise<unknown> => {
     if (!object(request) || request.version !== 1 || typeof request.action !== "string")
       throw new ClientNotice("Unsupported GUI request.");
     if (request.action === "snapshot")
@@ -205,5 +206,13 @@ export function createGUIHandler(
       default:
         throw new ClientNotice("Unknown GUI action.");
     }
+  };
+  return (request: unknown): Promise<unknown> => {
+    if (object(request) && (request.action === "start" || request.action === "stop")) {
+      const next = shortcutQueue.then(() => handle(request));
+      shortcutQueue = next.catch(() => {});
+      return next;
+    }
+    return handle(request);
   };
 }

@@ -300,19 +300,21 @@ Group {
                 }
             }
         }
-        SLabel {
-            ui: root.ui
-            objectName: "connectionSetupMessage"
-            Layout.fillWidth: true
-            visible: text.length > 0
-            text: !bridge.connected ? "Start the installed background dictation service, then reconnect. In a terminal: systemctl --user start sotto-client.service" : root.message || root.ui.snapshot.setupMessage || ""
-            Accessible.role: Accessible.AlertMessage
-        }
-        SButton {
-            ui: root.ui
-            visible: !bridge.connected
-            text: "Reconnect"
-            onClicked: bridge.request("snapshot")
-        }
+    }
+    SLabel {
+        ui: root.ui
+        objectName: "connectionSetupMessage"
+        Layout.fillWidth: true
+        Layout.margins: 12
+        visible: text.length > 0
+        text: !bridge.connected ? "Start the installed background dictation service, then reconnect. In a terminal: systemctl --user start sotto-client.service" : root.message || root.ui.snapshot.setupMessage || ""
+        Accessible.role: Accessible.AlertMessage
+    }
+    SButton {
+        ui: root.ui
+        Layout.margins: 12
+        visible: !bridge.connected
+        text: "Reconnect"
+        onClicked: bridge.request("snapshot")
     }
 }
