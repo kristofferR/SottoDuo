@@ -85,6 +85,7 @@ async function fixture() {
   let unlocked = true;
   let deliveries = 0;
   let mode: "inserted" | "preview" | "uncertain" = "inserted";
+  let deliveryGate: Promise<void> | undefined;
   const notices: string[] = [];
   const desktop: Desktop = {
     unlocked: async () => unlocked,
@@ -92,6 +93,7 @@ async function fixture() {
       close() {},
       deliver: async () => {
         deliveries++;
+        await deliveryGate;
         return mode;
       },
     }),
@@ -125,6 +127,9 @@ async function fixture() {
     },
     delivery: (value: typeof mode) => {
       mode = value;
+    },
+    waitForDelivery: (gate: Promise<void>) => {
+      deliveryGate = gate;
     },
     level: (peak: number) => level(peak),
   };
@@ -318,6 +323,41 @@ test("lock and heartbeat failure cancel capture without delivery", async () => {
     expect(f.deliveries()).toBe(0);
     expect(f.controller.result).toBeUndefined();
   }
+});
+test("a lock after one-shot delivery begins preserves its insertion result", async () => {
+  const f = await fixture();
+  const owner = "a".repeat(64);
+  const registration = crypto.randomUUID();
+  const source = { hostID: "desktop", id: "dji" };
+  f.service.buttons.input(source, "test-monitor");
+  await f.api.buttonRequest("", owner, {
+    id: registration,
+    device: { id: "desktop-client", name: "Omarchy" },
+  });
+  await f.api.buttonRequest(`/${registration}/select`, owner, {});
+  f.service.buttons.press("test-monitor", 1);
+  const ticket = f.service.buttons.state(registration).command!.takeID;
+  let release!: () => void;
+  f.waitForDelivery(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  try {
+    expect(f.controller.startButton(ticket, source)).toBe(true);
+    await until(() => f.controller.activity.phase === "recording");
+    f.controller.stopButton(ticket);
+    await until(() => f.controller.activity.phase === "delivering");
+    f.lock();
+    await f.controller.cancelButton(ticket);
+    await Bun.sleep(1100);
+  } finally {
+    release();
+  }
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
+  expect(f.controller.result?.delivery).toBe("inserted");
+  expect(f.controller.activity.phase).toBe("completed");
 });
 test("clipboard fallback and ambiguous insertion never retry delivery, even if receipt fails", async () => {
   for (const mode of ["preview", "uncertain"] as const) {

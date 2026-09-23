@@ -41,6 +41,7 @@ jobs:
       # The private synthetic PipeWire daemon occasionally stalls on Ubuntu runners.
       - name: Exercise private PipeWire integration
         continue-on-error: true
+        timeout-minutes: 5
         run: bash scripts/test-capture.sh pipewire
       - run: bun run generate:api --check --typescript-only
 

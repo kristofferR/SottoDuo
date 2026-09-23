@@ -106,9 +106,9 @@ async function fixture(provider: FakeCapture | undefined = new FakeCapture()) {
     start: () => app.inject({ method: "POST", url: "/v1/captures", headers, payload: request }),
   };
 }
-async function until(predicate: () => boolean) {
-  const deadline = Date.now() + 1_000;
-  while (!predicate()) {
+async function until(predicate: () => boolean | Promise<boolean>, timeoutMs = 1_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await predicate())) {
     if (Date.now() > deadline) throw Error("Condition timed out");
     await Bun.sleep(5);
   }
@@ -337,9 +337,9 @@ test("owner lease expiry cancels recording even while source status remains fres
   ).toBe(204);
   await Bun.sleep(3_000);
   expect(f.provider.options!.signal.aborted).toBe(false);
-  await Bun.sleep(3_300);
+  await until(() => f.provider.options!.signal.aborted, 7_000);
   expect(f.provider.options!.signal.aborted).toBe(true);
-  expect((await f.service.get(id)).status).toBe("cancelled");
+  await until(async () => (await f.service.get(id)).status === "cancelled");
   expect(
     (
       await f.app.inject({
