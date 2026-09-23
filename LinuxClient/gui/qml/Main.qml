@@ -13,7 +13,7 @@ ApplicationWindow {
             close.accepted = false;
             quitRequested = false;
             page = 0;
-            notice = "Finish or cancel the microphone test before closing Sotto.";
+            notice = "Finish or cancel the microphone test before closing SottoDuo.";
         } else if (quitRequested && (portalShortcuts.plasma || shortcutCheckPending || shortcut.check && shortcut.check.active || endingShortcutCheck)) {
             close.accepted = false;
             if (portalShortcuts.plasma && !portalReleasePending) {
@@ -31,7 +31,7 @@ ApplicationWindow {
     }
     property bool startHidden: false
     visible: !startHidden
-    title: bridge.preview ? "Sotto · Preview" : "Sotto"
+    title: bridge.preview ? "SottoDuo · Preview" : "SottoDuo"
     color: c.canvas
     property var c: bridge.colors
     objectName: "mainWindow"
@@ -285,7 +285,7 @@ ApplicationWindow {
                     }
                     SLabel {
                         ui: app
-                        text: "Sotto"
+                        text: "SottoDuo"
                         font.family: "Serif"
                         font.pixelSize: 37
                         font.weight: Font.DemiBold
@@ -368,7 +368,7 @@ ApplicationWindow {
                     ui: app
                     anchors.fill: parent
                     anchors.margins: 12
-                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.desktop.clientService === "Systemd user service unavailable" ? "Background dictation is unavailable. Start the Sotto client with your desktop’s startup tools." : bridge.desktop.clientService !== "Running" ? "Background dictation is stopped. Open This computer to set it up and start it." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
+                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.desktop.clientService === "Systemd user service unavailable" ? "Background dictation is unavailable. Start the SottoDuo client with your desktop’s startup tools." : bridge.desktop.clientService !== "Running" ? "Background dictation is stopped. Open This computer to set it up and start it." : "Dictation is unavailable. SottoDuo couldn’t connect to its background service. Try reconnecting in This computer."
                 }
             }
             Rectangle {

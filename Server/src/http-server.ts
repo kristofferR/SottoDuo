@@ -65,13 +65,13 @@ const encodeFor = (request: FastifyRequest) => {
     JSON.stringify(value, (key, item) => {
       if (
         (key === "recognitionMode" || key === "recognition") &&
-        request.headers["x-sotto-recognition"] !== "streaming-v1"
+        request.headers["x-sottoduo-recognition"] !== "streaming-v1"
       )
         return undefined;
       if (
         key === "capture" &&
         typeof item === "object" &&
-        request.headers["x-sotto-capture"] !== "capture-v1" &&
+        request.headers["x-sottoduo-capture"] !== "capture-v1" &&
         path !== "/v1/captures" &&
         !path.includes("/capture/")
       )
@@ -88,7 +88,7 @@ export const compactFeedback = (record: GenerationRecord) => ({
   progress: record.progress ?? null,
 });
 const captureOwner = (request: FastifyRequest) => {
-  const value = request.headers["x-sotto-capture-owner"];
+  const value = request.headers["x-sottoduo-capture-owner"];
   return typeof value === "string" ? value : undefined;
 };
 export function createHTTPServer(
@@ -163,7 +163,7 @@ export function createHTTPServer(
   app.get("/v1/health", () => service.health());
   app.get("/v1/audio-sources", () => service.captures.sources());
   const destinationOwner = (request: FastifyRequest) => {
-    const value = request.headers["x-sotto-destination-owner"];
+    const value = request.headers["x-sottoduo-destination-owner"];
     return typeof value === "string" ? value : undefined;
   };
   app.get("/v1/button-destinations", () => service.buttons.state());
@@ -303,7 +303,7 @@ export function createHTTPServer(
   app.get<{ Params: IDParams }>("/v1/generations/:id/events", async (request, reply) => {
     const events = await service.events(identifier(request.params.id));
     const encode = encodeFor(request);
-    const compact = request.headers["x-sotto-feedback"] === "compact-v1";
+    const compact = request.headers["x-sottoduo-feedback"] === "compact-v1";
     const source = Readable.from(
       (async function* () {
         let first = true;

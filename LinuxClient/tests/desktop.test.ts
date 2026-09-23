@@ -28,15 +28,15 @@ test("Omarchy lock checks reject pending, orphan and rapid lock/unlock even with
 
 test("only exact namespaced compositor events control dictation", async () => {
   const { shortcutEvent } = await import("../src/desktop.ts");
-  expect(["custom>>sotto:start", "custom>>sotto:stop"].map(shortcutEvent)).toEqual([
+  expect(["custom>>sottoduo:start", "custom>>sottoduo:stop"].map(shortcutEvent)).toEqual([
     "start",
     "stop",
   ]);
   for (const event of [
     "custom>>other:start",
-    "custom>>sotto:start\nstop",
-    "windowtitle>>sotto:start",
-    "custom>>sotto:status",
+    "custom>>sottoduo:start\nstop",
+    "windowtitle>>sottoduo:start",
+    "custom>>sottoduo:status",
   ])
     expect(shortcutEvent(event)).toBeUndefined();
 });

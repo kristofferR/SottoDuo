@@ -425,7 +425,7 @@ ScrollView {
                                 }
                             }
                             Drag.source: priorityRow
-                            Drag.keys: ["sotto/microphone-priority"]
+                            Drag.keys: ["sottoduo/microphone-priority"]
                             Drag.hotSpot.x: width / 2
                             Drag.hotSpot.y: height / 2
                         }
@@ -478,7 +478,7 @@ ScrollView {
                     DropArea {
                         id: dropArea
                         anchors.fill: parent
-                        keys: ["sotto/microphone-priority"]
+                        keys: ["sottoduo/microphone-priority"]
                         onDropped: drop => {
                             if (root.editable && drop.source && drop.source !== priorityRow) {
                                 root.movePriority(drop.source.identity, priorityRow.identity);
@@ -530,7 +530,7 @@ ScrollView {
         }
         SLabel {
             ui: root.ui
-            text: "Drag a handle to reorder. Disconnected microphones keep their place. After this list, Sotto uses an available microphone on the capture computer."
+            text: "Drag a handle to reorder. Disconnected microphones keep their place. After this list, SottoDuo uses an available microphone on the capture computer."
             color: root.ui.c.muted
             font.pixelSize: 13
             Layout.fillWidth: true

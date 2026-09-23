@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Sotto.Native 1.0
+import SottoDuo.Native 1.0
 
 Window {
     id: hud
@@ -64,7 +64,7 @@ Window {
                 }
                 SLabel {
                     ui: hud.ui
-                    text: (hud.ui.feedback.elapsedSeconds !== undefined ? hud.ui.duration(hud.ui.feedback.elapsedSeconds) + " · " : "") + (hud.ui.activity.source || "Sotto")
+                    text: (hud.ui.feedback.elapsedSeconds !== undefined ? hud.ui.duration(hud.ui.feedback.elapsedSeconds) + " · " : "") + (hud.ui.activity.source || "SottoDuo")
                     color: hud.ui.c.muted
                     font.pixelSize: 11
                     Layout.fillWidth: true

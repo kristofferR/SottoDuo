@@ -1,6 +1,6 @@
 # Remote capture sessions
 
-Ref [#5](https://github.com/kristofferR/sottoniox/issues/5). This implements the session boundary for a microphone attached to the server's host. A trusted local `CaptureProvider` supplies audio; the optional [Linux PipeWire/DJI provider](pipewire-capture.md) implements that boundary for #6. With no provider, discovery returns an empty list and the existing local-upload API works unchanged.
+Ref [#5](https://github.com/kristofferR/sottoduo/issues/5). This implements the session boundary for a microphone attached to the server's host. A trusted local `CaptureProvider` supplies audio; the optional [Linux PipeWire/DJI provider](pipewire-capture.md) implements that boundary for #6. With no provider, discovery returns an empty list and the existing local-upload API works unchanged.
 
 ## Source and destination
 
@@ -12,7 +12,7 @@ Inference readiness remains `/v1/health` and existing generation admission. Shar
 
 ## Control protocol
 
-All routes retain server bearer authentication and Host/Origin policy. The initiating client also generates a random 32-byte secret, encoded as 64 lowercase hexadecimal characters. Send it as `X-Sotto-Capture-Owner`, never in a URL. Use a new secret for every new request ID and retain it for retries and delivery. Device IDs and names are attribution, not authorization.
+All routes retain server bearer authentication and Host/Origin policy. The initiating client also generates a random 32-byte secret, encoded as 64 lowercase hexadecimal characters. Send it as `X-SottoDuo-Capture-Owner`, never in a URL. Use a new secret for every new request ID and retain it for retries and delivery. Device IDs and names are attribution, not authorization.
 
 | Operation | Behavior |
 | --- | --- |
@@ -41,7 +41,7 @@ Cancellation, source loss, timeout or shutdown moves an unsealed capture to `sto
 - Once audio is sealed, processing may finish without heartbeats or a connected client. Reconnecting/history viewing never authorizes insertion. Only the original client with its live target checks may deliver and report a receipt; the server cannot inspect a remote screen lock or caret.
 - Destination lock/sleep cancels through the client; abrupt network/process loss is bounded by lease expiry. **Capture-host screen lock alone does not cancel another computer's owned take.** Host sleep, provider/device loss and server shutdown do. The desktop's local client must cancel only its own take. Client integration and OS lifecycle validation belong to #7/#8.
 
-NDJSON generation events carry capture transitions and bounded peak-level updates (at most 10 Hz), with existing recognition previews and terminal results. Use `X-Sotto-Capture: capture-v1` to receive `capture` in existing generation/history/event routes. Without it, the new object is omitted for strict legacy clients, independently of `X-Sotto-Recognition: streaming-v1`. New capture-control routes include it automatically. Peak updates are ephemeral and do not refresh durable upload expiry. NDJSON subscription/disconnection does not renew or terminate an owner lease.
+NDJSON generation events carry capture transitions and bounded peak-level updates (at most 10 Hz), with existing recognition previews and terminal results. Use `X-SottoDuo-Capture: capture-v1` to receive `capture` in existing generation/history/event routes. Without it, the new object is omitted for strict legacy clients, independently of `X-SottoDuo-Recognition: streaming-v1`. New capture-control routes include it automatically. Peak updates are ephemeral and do not refresh durable upload expiry. NDJSON subscription/disconnection does not renew or terminate an owner lease.
 
 ## Validation and remaining integration
 

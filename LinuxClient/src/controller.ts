@@ -330,7 +330,7 @@ export class Controller {
         ? "Text inserted"
         : delivery === "uncertain"
           ? "Insertion uncertain. Check the field before copying."
-          : "Text ready. Use sotto result or sotto copy.",
+          : "Text ready. Use sottoduo result or sottoduo copy.",
       "completed",
     );
     take.completed =

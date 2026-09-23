@@ -179,14 +179,14 @@ export class ClientRuntime {
       return "Shortcut detected. No recording or clipboard action was performed.";
     if (this.changing) return "The connection is changing. Try again in a moment.";
     const current = this.current;
-    if (!current) return "Set up your server connection in Sotto → This computer first.";
+    if (!current) return "Set up your server connection in SottoDuo → This computer first.";
     const { controller, buttons } = current;
     this.mutations++;
     try {
       switch (action) {
         case "arm":
           if (!buttons.enabled)
-            return "Enable pairing-button dictation in Sotto → This computer first.";
+            return "Enable pairing-button dictation in SottoDuo → This computer first.";
           await buttons.select();
           return "DJI pairing button destination selected: this computer.";
         case "disarm":

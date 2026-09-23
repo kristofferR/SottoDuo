@@ -6,7 +6,7 @@ import { GenerationService } from "../../src/generation-service.ts";
 import { createHTTPServer } from "../../src/http-server.ts";
 import { FakeInference } from "../support.ts";
 
-const directory = await mkdtemp(join(tmpdir(), "sotto-streaming-client-"));
+const directory = await mkdtemp(join(tmpdir(), "sottoduo-streaming-client-"));
 const service = await GenerationService.open(
   {
     dataDirectory: directory,
@@ -39,12 +39,12 @@ const service = await GenerationService.open(
 const preferences = await service.getPreferences();
 preferences.preferences.textCorrectionEnabled = false;
 await service.updatePreferences(preferences);
-const app = createHTTPServer(service, "sotto-native-streaming-test-token-2026");
+const app = createHTTPServer(service, "sottoduo-native-streaming-test-token-2026");
 app.addHook("onRequest", async (request, reply) => {
-  if (request.url.endsWith("/stream") && request.headers["x-sotto-test-block-upgrade"] === "1")
+  if (request.url.endsWith("/stream") && request.headers["x-sottoduo-test-block-upgrade"] === "1")
     return reply.code(426).send({ message: "Fixture proxy does not forward WebSocket upgrades." });
 });
-const address = await app.listen({ host: process.env.SOTTO_TEST_HOST ?? "127.0.0.1", port: 0 });
+const address = await app.listen({ host: process.env.SOTTODUO_TEST_HOST ?? "127.0.0.1", port: 0 });
 console.log(address);
 for (const signal of ["SIGTERM", "SIGINT"] as const)
   process.once(signal, () => {

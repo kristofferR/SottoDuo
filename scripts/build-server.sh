@@ -3,11 +3,12 @@ set -euo pipefail
 
 project_dir=$(cd "$(dirname "$0")/.." && pwd)
 cd "$project_dir"
-build_jobs="${SOTTO_BUILD_JOBS:-8}"
+build_jobs="${SOTTODUO_BUILD_JOBS:-8}"
+skip_native="${SOTTODUO_SKIP_NATIVE:-0}"
 server_platform=$(uname -s)
 server_architecture=$(uname -m)
 if [[ "$server_platform" != Darwin && "$server_platform" != Linux ]]; then
-    printf 'The Sotto server supports macOS and Linux.\n' >&2
+    printf 'The SottoDuo server supports macOS and Linux.\n' >&2
     exit 1
 fi
 if [[ "$server_platform" == Linux && "$server_architecture" != x86_64 && \
@@ -16,7 +17,7 @@ if [[ "$server_platform" == Linux && "$server_architecture" != x86_64 && \
     exit 1
 fi
 dependencies=(bun)
-if [[ "${SOTTO_SKIP_NATIVE:-0}" != 1 ]]; then
+if [[ "$skip_native" != 1 ]]; then
     dependencies+=(cmake)
     if [[ "$server_platform" == Darwin ]]; then dependencies+=(swift); fi
 fi
@@ -26,12 +27,12 @@ for dependency in "${dependencies[@]}"; do
         exit 1
     fi
 done
-if [[ "${SOTTO_SKIP_NATIVE:-0}" != 1 && \
+if [[ "$skip_native" != 1 && \
       ( ! -f vendor/whisper.cpp/include/whisper.h || ! -f vendor/llama.cpp/include/llama.h ) ]]; then
     git submodule update --init --recursive
 fi
 
-native_flags=(-DCMAKE_BUILD_TYPE=Release "-DSOTTO_CUDA=${SOTTO_CUDA:-OFF}")
+native_flags=(-DCMAKE_BUILD_TYPE=Release "-DSOTTODUO_CUDA=${SOTTODUO_CUDA:-OFF}")
 if [[ "$server_platform" == Darwin ]]; then
     if [[ "$server_architecture" != arm64 ]]; then
         printf 'The macOS server uses MLX and requires Apple Silicon.\n' >&2
@@ -39,36 +40,38 @@ if [[ "$server_platform" == Darwin ]]; then
     fi
     native_flags+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_OSX_ARCHITECTURES=arm64)
 fi
-if [[ -n "${SOTTO_CUDA_ARCHITECTURES:-}" ]]; then
-    native_flags+=("-DCMAKE_CUDA_ARCHITECTURES=$SOTTO_CUDA_ARCHITECTURES")
+cuda_architectures="${SOTTODUO_CUDA_ARCHITECTURES:-}"
+if [[ -n "$cuda_architectures" ]]; then
+    native_flags+=("-DCMAKE_CUDA_ARCHITECTURES=$cuda_architectures")
 fi
-if [[ -n "${SOTTO_NATIVE:-}" ]]; then
-    native_flags+=("-DGGML_NATIVE=$SOTTO_NATIVE")
+native_optimization="${SOTTODUO_NATIVE:-}"
+if [[ -n "$native_optimization" ]]; then
+    native_flags+=("-DGGML_NATIVE=$native_optimization")
 fi
-if [[ "${SOTTO_SKIP_NATIVE:-0}" == 1 ]]; then
+if [[ "$skip_native" == 1 ]]; then
     # Reuse explicitly selected helpers without rebuilding or modifying them.
     # This is useful for isolated server development beside an installed app.
-    : "${SOTTO_ENGINE_PATH:?Set SOTTO_ENGINE_PATH when SOTTO_SKIP_NATIVE=1}"
-    : "${SOTTO_TEXT_ENGINE_PATH:?Set SOTTO_TEXT_ENGINE_PATH when SOTTO_SKIP_NATIVE=1}"
-    : "${SOTTO_VAD_PATH:?Set SOTTO_VAD_PATH when SOTTO_SKIP_NATIVE=1}"
-    speech_helper="$SOTTO_ENGINE_PATH"
-    text_helper="$SOTTO_TEXT_ENGINE_PATH"
+    : "${SOTTODUO_ENGINE_PATH:?Set SOTTODUO_ENGINE_PATH when skipping native builds}"
+    : "${SOTTODUO_TEXT_ENGINE_PATH:?Set SOTTODUO_TEXT_ENGINE_PATH when skipping native builds}"
+    : "${SOTTODUO_VAD_PATH:?Set SOTTODUO_VAD_PATH when skipping native builds}"
+    speech_helper="$SOTTODUO_ENGINE_PATH"
+    text_helper="$SOTTODUO_TEXT_ENGINE_PATH"
+    vad_model="$SOTTODUO_VAD_PATH"
     text_helper_dir=$(dirname "$text_helper")
-    vad_model="$SOTTO_VAD_PATH"
 else
     cmake -S . -B .build/server-native "${native_flags[@]}"
-    cmake --build .build/server-native --target sotto-engine --parallel "$build_jobs"
+    cmake --build .build/server-native --target sottoduo-engine --parallel "$build_jobs"
     if [[ "$server_platform" == Darwin ]]; then
         ./scripts/build-text-engine.sh
         text_helper_dir="$project_dir/.build/text-native"
     else
         cmake -S TextEngine -B .build/server-llama "${native_flags[@]}"
-        cmake --build .build/server-llama --target sotto-text-engine --parallel "$build_jobs"
+        cmake --build .build/server-llama --target sottoduo-text-engine --parallel "$build_jobs"
         text_helper_dir="$project_dir/.build/server-llama"
     fi
     ./scripts/download-vad.sh
-    speech_helper="$project_dir/.build/server-native/Engine/sotto-engine"
-    text_helper="$text_helper_dir/sotto-text-engine"
+    speech_helper="$project_dir/.build/server-native/Engine/sottoduo-engine"
+    text_helper="$text_helper_dir/sottoduo-text-engine"
     vad_model="$project_dir/.build/models/silero-vad.bin"
 fi
 test -x "$speech_helper"
@@ -80,16 +83,16 @@ mkdir -p build
 staging_dir=$(mktemp -d "$project_dir/build/.server.XXXXXX")
 trap 'rm -rf "$staging_dir"' EXIT
 mkdir -p "$staging_dir/helpers" "$staging_dir/resources"
-bun run --cwd Server build --outfile "$staging_dir/sotto-server"
-cp "$speech_helper" "$staging_dir/helpers/sotto-engine"
-cp "$text_helper" "$staging_dir/helpers/sotto-text-engine"
-if [[ "${SOTTO_BUILD_CAPTURE:-0}" == 1 ]]; then
+bun run --cwd Server build --outfile "$staging_dir/sottoduo-server"
+cp "$speech_helper" "$staging_dir/helpers/sottoduo-engine"
+cp "$text_helper" "$staging_dir/helpers/sottoduo-text-engine"
+if [[ "${SOTTODUO_BUILD_CAPTURE:-0}" == 1 ]]; then
     if [[ "$server_platform" != Linux ]]; then
         printf 'Optional PipeWire capture requires Linux.\n' >&2
         exit 1
     fi
-    bash "$project_dir/scripts/build-capture.sh" "$staging_dir/helpers/sotto-capture"
-    bash "$project_dir/scripts/build-button.sh" "$staging_dir/helpers/sotto-dji-button"
+    bash "$project_dir/scripts/build-capture.sh" "$staging_dir/helpers/sottoduo-capture"
+    bash "$project_dir/scripts/build-button.sh" "$staging_dir/helpers/sottoduo-dji-button"
     cp -R Server/packaging "$staging_dir/packaging"
     cp docs/pipewire-capture.md "$staging_dir/CAPTURE.md"
 fi
@@ -99,15 +102,15 @@ if [[ "$server_platform" == Darwin ]]; then
         [[ -d "$bundle" ]] || continue
         ditto "$bundle" "$staging_dir/helpers/$(basename "$bundle")"
     done
-    codesign --force --sign - "$staging_dir/helpers/sotto-engine"
-    codesign --force --sign - "$staging_dir/helpers/sotto-text-engine"
+    codesign --force --sign - "$staging_dir/helpers/sottoduo-engine"
+    codesign --force --sign - "$staging_dir/helpers/sottoduo-text-engine"
     # Preserve Bun's JIT permissions when signing the bundled runtime.
-    codesign --force --sign - --entitlements Server/entitlements.plist "$staging_dir/sotto-server"
+    codesign --force --sign - --entitlements Server/entitlements.plist "$staging_dir/sottoduo-server"
 fi
 cp "$vad_model" "$staging_dir/resources/silero-vad.bin"
 for library in whisper llama; do
     license_path="$project_dir/vendor/$library.cpp/LICENSE"
-    if [[ ! -f "$license_path" && "${SOTTO_SKIP_NATIVE:-0}" == 1 ]]; then
+    if [[ ! -f "$license_path" && "$skip_native" == 1 ]]; then
         license_path="$(dirname "$vad_model")/$library-LICENSE.txt"
     fi
     if [[ ! -f "$license_path" ]]; then

@@ -7,7 +7,7 @@ import { GenerationService } from "../../src/generation-service.ts";
 import { createHTTPServer } from "../../src/http-server.ts";
 import { FakeInference } from "../support.ts";
 
-const directory = await mkdtemp(join(tmpdir(), "sotto-capture-client-"));
+const directory = await mkdtemp(join(tmpdir(), "sottoduo-capture-client-"));
 const provider: CaptureProvider = {
   sources: () =>
     [
@@ -96,7 +96,7 @@ preferences.preferences.textCorrectionEnabled = false;
 await service.updatePreferences(preferences);
 let discoveryUnavailable = false;
 const droppedHeartbeats = new Set<string>();
-const app = createHTTPServer(service, "sotto-native-capture-test-token-2026", (app) => {
+const app = createHTTPServer(service, "sottoduo-native-capture-test-token-2026", (app) => {
   app.addHook("onRequest", async (request, reply) => {
     if (request.url === "/v1/audio-sources" && discoveryUnavailable)
       return reply
@@ -127,7 +127,7 @@ app.post<{ Body: { unavailable: boolean } }>("/fixture/discovery", async (reques
   discoveryUnavailable = request.body.unavailable === true;
   return reply.code(204).send();
 });
-console.log(await app.listen({ host: process.env.SOTTO_TEST_HOST ?? "127.0.0.1", port: 0 }));
+console.log(await app.listen({ host: process.env.SOTTODUO_TEST_HOST ?? "127.0.0.1", port: 0 }));
 for (const signal of ["SIGTERM", "SIGINT"] as const)
   process.once(signal, () => {
     void (async () => {

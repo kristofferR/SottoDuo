@@ -28,11 +28,11 @@ private slots:
   void initTestCase() {
     QQuickStyle::setStyle("Basic");
     qmlRegisterSingletonType<HudSurface>(
-        "Sotto.Native", 1, 0, "HudSurface",
+        "SottoDuo.Native", 1, 0, "HudSurface",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new HudSurface; });
   }
   void waylandOverlayLifecycle() {
-    if (!qEnvironmentVariableIsSet("SOTTO_GUI_TEST_WAYLAND"))
+    if (!qEnvironmentVariableIsSet("SOTTODUO_GUI_TEST_WAYLAND"))
       QSKIP("Opt-in compositor test; run this slot alone on Wayland.");
     QVERIFY(QGuiApplication::platformName().startsWith("wayland"));
     Bridge bridge(true);
@@ -60,7 +60,7 @@ private slots:
     QScopedPointer<QObject> ui(model.create());
     QVERIFY2(ui, qPrintable(model.errorString()));
     QQmlComponent component(
-        &engine, QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Hud.qml"));
+        &engine, QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Hud.qml"));
     QScopedPointer<QObject> object(component.createWithInitialProperties(
         {{"ui", QVariant::fromValue(ui.data())}}));
     QVERIFY2(object, qPrintable(component.errorString()));
@@ -71,7 +71,7 @@ private slots:
       QVERIFY(QTest::qWaitForWindowExposed(hud));
       QTest::qWait(2000);
       QVERIFY(!hud->isActive());
-      const QString capture = qEnvironmentVariable("SOTTO_GUI_TEST_CAPTURE");
+      const QString capture = qEnvironmentVariable("SOTTODUO_GUI_TEST_CAPTURE");
       if (!capture.isEmpty())
         QVERIFY(hud->grabWindow().save(capture));
       hud->hide();
@@ -112,9 +112,9 @@ private slots:
   void privateSocketReceivesStructuredSnapshot() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
     QByteArray input;
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
@@ -140,9 +140,9 @@ private slots:
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
     QStringList edges;
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
@@ -173,7 +173,7 @@ private slots:
   void offlinePagesShareOneConnectionNotice() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    qputenv("SOTTO_CLIENT_CONFIG",
+    qputenv("SOTTODUO_CLIENT_CONFIG",
             (directory.path() + "/client.json").toUtf8());
     Bridge bridge(false);
     QQmlApplicationEngine engine;
@@ -181,7 +181,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -203,10 +203,10 @@ private slots:
     QCOMPARE(offlineDot->property("color").value<QColor>(), QColor("#fb923c"));
     QVERIFY(key->width() > 0 && key->height() > 0);
     QVERIFY(!window->property("sourcesChecked").toBool());
-    const QString capture = qEnvironmentVariable("SOTTO_GUI_TEST_CAPTURE");
+    const QString capture = qEnvironmentVariable("SOTTODUO_GUI_TEST_CAPTURE");
     if (!capture.isEmpty())
       QVERIFY(window->grabWindow().save(capture));
-    QFile config(qEnvironmentVariable("SOTTO_CLIENT_CONFIG"));
+    QFile config(qEnvironmentVariable("SOTTODUO_CLIENT_CONFIG"));
     QVERIFY(config.open(QIODevice::WriteOnly));
     config.close();
     bridge.request("snapshot");
@@ -214,7 +214,7 @@ private slots:
     QVERIFY(banner->isVisible());
     QVERIFY(!notice->isVisible());
     QCOMPARE(warnings.count(), 0);
-    qunsetenv("SOTTO_CLIENT_CONFIG");
+    qunsetenv("SOTTODUO_CLIENT_CONFIG");
   }
   void connectionStatusDotsCoverEachPage() {
     Bridge bridge(true);
@@ -222,7 +222,7 @@ private slots:
     engine.rootContext()->setContextProperty("bridge", &bridge);
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -247,9 +247,9 @@ private slots:
   void djiSettingsGuardDestinationAndRetainSaveErrors() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
       connect(socket, &QLocalSocket::readyRead, socket, [socket] {
@@ -281,7 +281,7 @@ private slots:
     QVERIFY2(ui, qPrintable(model.errorString()));
     QQmlComponent component(
         &engine,
-        QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/DjiSettings.qml"));
+        QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/DjiSettings.qml"));
     QScopedPointer<QObject> settings(component.createWithInitialProperties(
         {{"ui", QVariant::fromValue(ui.data())}}));
     QVERIFY2(settings, qPrintable(component.errorString()));
@@ -320,7 +320,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -334,7 +334,7 @@ private slots:
       QTest::qWait(50);
       QVERIFY(!window->grabWindow().isNull());
     }
-    const QString djiCapture = qEnvironmentVariable("SOTTO_GUI_DJI_CAPTURE");
+    const QString djiCapture = qEnvironmentVariable("SOTTODUO_GUI_DJI_CAPTURE");
     if (!djiCapture.isEmpty()) {
       auto *dji = window->findChild<QQuickItem *>("djiSettings");
       QVERIFY(dji);
@@ -363,7 +363,7 @@ private slots:
       }
     }
     QTest::qWait(50);
-    const QString capture = qEnvironmentVariable("SOTTO_GUI_SETTINGS_CAPTURE");
+    const QString capture = qEnvironmentVariable("SOTTODUO_GUI_SETTINGS_CAPTURE");
     if (!capture.isEmpty())
       QVERIFY(window->grabWindow().save(capture));
     QCOMPARE(warnings.count(), 0);
@@ -377,7 +377,7 @@ private slots:
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     engine.setInitialProperties({{"startHidden", true}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -424,7 +424,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -448,14 +448,14 @@ private slots:
     QCOMPARE(limit->property("text").toString(), "Recording stops in 0:27");
     QCOMPARE(text->property("text").toString(), "A provisional sentence");
     QTest::qWait(100);
-    const QString capture = qEnvironmentVariable("SOTTO_GUI_LIVE_CAPTURE");
+    const QString capture = qEnvironmentVariable("SOTTODUO_GUI_LIVE_CAPTURE");
     if (!capture.isEmpty())
       QVERIFY(window->grabWindow().save(capture));
     auto *hud = window->findChild<QQuickWindow *>("dictationHud");
     QVERIFY(hud);
     QVERIFY(hud->flags().testFlag(Qt::WindowDoesNotAcceptFocus));
     QVERIFY(hud->flags().testFlag(Qt::WindowTransparentForInput));
-    const QString hudCapture = qEnvironmentVariable("SOTTO_GUI_HUD_CAPTURE");
+    const QString hudCapture = qEnvironmentVariable("SOTTODUO_GUI_HUD_CAPTURE");
     if (!hudCapture.isEmpty()) {
       hud->show();
       QTest::qWait(50);
@@ -484,7 +484,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -518,7 +518,7 @@ private slots:
     QVERIFY(events->property("text").toString().contains("Press detected"));
     auto *settings = window->findChild<QQuickItem *>("shortcutSettings");
     QVERIFY(settings);
-    const QString capture = qEnvironmentVariable("SOTTO_GUI_SHORTCUT_CAPTURE");
+    const QString capture = qEnvironmentVariable("SOTTODUO_GUI_SHORTCUT_CAPTURE");
     if (!capture.isEmpty()) {
       for (auto *parent = settings->parentItem(); parent;
            parent = parent->parentItem()) {
@@ -537,10 +537,10 @@ private slots:
   void microphoneSettingsSaveImmediatelyAndKeepInputsCurrent() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
-    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
+    QFile fixture(":/qt/qml/SottoDuo/preview.json");
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
     int saves = 0;
@@ -597,7 +597,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -608,7 +608,7 @@ private slots:
     auto *create = window->findChild<QQuickItem *>("newMicrophoneProfile");
     QVERIFY(page && mode && picker && create);
     QTRY_COMPARE(mode->property("count").toInt(), 4);
-    const QString capture = qEnvironmentVariable("SOTTO_GUI_MICROPHONE_CAPTURE");
+    const QString capture = qEnvironmentVariable("SOTTODUO_GUI_MICROPHONE_CAPTURE");
     if (!capture.isEmpty()) {
       auto *content = page->property("contentItem").value<QQuickItem *>();
       QVERIFY(content);
@@ -695,10 +695,10 @@ private slots:
   void historyKeepsSelectionAndScopesConfirmedActions() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
-    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
+    QFile fixture(":/qt/qml/SottoDuo/preview.json");
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
     auto items = sample["history"].toObject()["items"].toArray();
@@ -741,7 +741,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -821,7 +821,7 @@ private slots:
     auto *refresh = page->findChild<QQuickItem *>("refreshHistory");
     QVERIFY(refresh);
     QVERIFY(QMetaObject::invokeMethod(refresh,"clicked"));
-    QTRY_VERIFY(page->property("message").toString().contains("Update Sotto"));
+    QTRY_VERIFY(page->property("message").toString().contains("Update SottoDuo"));
     QVERIFY(!page->property("loading").toBool());
     QCOMPARE(reads, beforeLegacy + 2);
     QCOMPARE(warnings.count(),0);
@@ -829,10 +829,10 @@ private slots:
   void processingDraftsSurviveConflictsAndNavigation() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
-    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
+    QFile fixture(":/qt/qml/SottoDuo/preview.json");
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
     QJsonObject saved;
@@ -862,7 +862,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -976,7 +976,7 @@ private slots:
     const auto savedEntries = savedDictionary["lists"].toArray()[0].toObject()["entries"].toArray();
     QCOMPARE(savedEntries[0].toObject()["aliases"].toArray(), QJsonArray({"so, too", "so toe"}));
     QCOMPARE(savedEntries[0].toObject()["isPriority"].toBool(), false);
-    QCOMPARE(savedEntries[0].toObject()["id"].toString(), "sotto");
+    QCOMPARE(savedEntries[0].toObject()["id"].toString(), "sottoduo");
     QCOMPARE(savedEntries[1], newer["preferences"].toObject()["dictionary"].toObject()["lists"].toArray()[0].toObject()["entries"].toArray()[1]);
     QCOMPARE(saved["preferences"].toObject()["vocabulary"], newer["preferences"].toObject()["vocabulary"]);
     emit bridge.reply("preferences", newer.toVariantMap());
@@ -992,7 +992,7 @@ private slots:
     QCOMPARE(cleanup->property("text").toString(), "Unsaved after failure.");
     QVERIFY(page->property("dirty").toBool());
     QCOMPARE(page->property("message").toString(), "Check the dictionary replacement phrases.");
-    const QString capture = qEnvironmentVariable("SOTTO_GUI_PROCESSING_CAPTURE");
+    const QString capture = qEnvironmentVariable("SOTTODUO_GUI_PROCESSING_CAPTURE");
     if (!capture.isEmpty()) {
       const auto expanded = dictionary->property("expandedIDs");
       dictionary->setProperty("expandedIDs", QVariantList{});
@@ -1020,9 +1020,9 @@ private slots:
   void connectionSetupMasksSecretsAndRequiresVerifiedSave() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
-    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QVERIFY(QDir().mkpath(directory.path() + "/sottoduo-client"));
     QLocalServer server;
-    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QVERIFY(server.listen(directory.path() + "/sottoduo-client/control.sock"));
     QStringList actions;
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
@@ -1053,7 +1053,7 @@ private slots:
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -1096,7 +1096,7 @@ private slots:
                                          {"trigger", ""},
                                          {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
@@ -1124,7 +1124,7 @@ private slots:
     engine.rootContext()->setContextProperty("bridge", &bridge);
     engine.rootContext()->setContextProperty(
         "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
-    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    engine.load(QUrl::fromLocalFile(QString(SOTTODUO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);

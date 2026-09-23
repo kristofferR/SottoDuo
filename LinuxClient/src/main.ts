@@ -8,19 +8,19 @@ import { isPlasmaDesktop, PlasmaDesktop } from "./plasma.ts";
 import { ClientRuntime } from "./runtime.ts";
 import { ShortcutSettings } from "./shortcuts.ts";
 
-const help = `Sotto for Linux
-  sotto init SERVER_ORIGIN CAPTURE_HOST_ID TOKEN_FILE [DESTINATION_HELPER]
-  sotto sources          List available server capture inputs (no microphone opened)
-  sotto daemon           Run the desktop client in the graphical session
-  sotto start|stop        Hold-to-talk press/release commands
-  sotto toggle|cancel    Toggle recording or cancel this desktop's take
-  sotto status|result    Show state or the current process's last result
-  sotto arm|disarm       Select or clear this computer for the DJI pairing button
-  sotto button-status    Show button destination and receiver availability
-  sotto copy             Explicitly copy that result; never inject paste keys
+const help = `SottoDuo for Linux
+  sottoduo init SERVER_ORIGIN CAPTURE_HOST_ID TOKEN_FILE [DESTINATION_HELPER]
+  sottoduo sources          List available server capture inputs (no microphone opened)
+  sottoduo daemon           Run the desktop client in the graphical session
+  sottoduo start|stop        Hold-to-talk press/release commands
+  sottoduo toggle|cancel    Toggle recording or cancel this desktop's take
+  sottoduo status|result    Show state or the current process's last result
+  sottoduo arm|disarm       Select or clear this computer for the DJI pairing button
+  sottoduo button-status    Show button destination and receiver availability
+  sottoduo copy             Explicitly copy that result; never inject paste keys
 
 Config: ${configPath()}
-Configure the connection and microphones in Sotto → This computer.
+Configure the connection and microphones in SottoDuo → This computer.
 No recording, insertion, or device ownership resumes after restart.`;
 
 try {
@@ -34,7 +34,7 @@ try {
       server,
       hostID,
       resolve(tokenFile),
-      resolve(helper ?? `${dirname(process.execPath)}/sotto-destination`),
+      resolve(helper ?? `${dirname(process.execPath)}/sottoduo-destination`),
     );
     console.log(`Created ${configPath()}`);
   } else if (isCommand(action)) process.stdout.write(await send(action));
@@ -43,7 +43,7 @@ try {
     const api = new API(config.server, await token(config));
     console.log(JSON.stringify(await api.sources(), null, 2));
   } else if (action === "daemon") {
-    const helper = resolve(`${dirname(process.execPath)}/sotto-destination`);
+    const helper = resolve(`${dirname(process.execPath)}/sottoduo-destination`);
     const settings = await ConnectionSettings.open(helper);
     const plasma = isPlasmaDesktop([
       process.env.XDG_CURRENT_DESKTOP,
@@ -94,8 +94,8 @@ try {
       }
       console.log(
         settings.api
-          ? "Sotto is ready. Waiting for a shortcut."
-          : "Open Sotto → This computer to set up the server connection.",
+          ? "SottoDuo is ready. Waiting for a shortcut."
+          : "Open SottoDuo → This computer to set up the server connection.",
       );
     } catch (error) {
       await runtime.close();
@@ -103,9 +103,9 @@ try {
       await close?.();
       throw error;
     }
-  } else throw new Error("Unknown command. Use sotto --help.");
+  } else throw new Error("Unknown command. Use sottoduo --help.");
 } catch (error) {
   // Do not dump request objects, headers, server response text or credentials.
-  console.error(error instanceof Error ? error.message : "Sotto failed.");
+  console.error(error instanceof Error ? error.message : "SottoDuo failed.");
   process.exitCode = 1;
 }

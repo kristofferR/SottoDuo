@@ -821,7 +821,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
-        "X-Sotto-Destination-Owner": string;
+        "X-SottoDuo-Destination-Owner": string;
       };
       path?: never;
       cookie?: never;
@@ -849,7 +849,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
-        "X-Sotto-Destination-Owner": string;
+        "X-SottoDuo-Destination-Owner": string;
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -879,7 +879,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
-        "X-Sotto-Destination-Owner": string;
+        "X-SottoDuo-Destination-Owner": string;
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -909,7 +909,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
-        "X-Sotto-Destination-Owner": string;
+        "X-SottoDuo-Destination-Owner": string;
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -939,7 +939,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
-        "X-Sotto-Destination-Owner": string;
+        "X-SottoDuo-Destination-Owner": string;
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -986,7 +986,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
-        "X-Sotto-Capture-Owner": components["parameters"]["CaptureOwner"];
+        "X-SottoDuo-Capture-Owner": components["parameters"]["CaptureOwner"];
       };
       path?: never;
       cookie?: never;
@@ -1014,7 +1014,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
-        "X-Sotto-Capture-Owner": components["parameters"]["CaptureOwner"];
+        "X-SottoDuo-Capture-Owner": components["parameters"]["CaptureOwner"];
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -1038,7 +1038,7 @@ export interface operations {
       query?: never;
       header: {
         /** @description Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history. */
-        "X-Sotto-Capture-Owner": components["parameters"]["CaptureOwner"];
+        "X-SottoDuo-Capture-Owner": components["parameters"]["CaptureOwner"];
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -1135,11 +1135,11 @@ export interface operations {
       query?: {
         limit?: number;
         before?: string;
-        source?: "sotto" | "wispr-flow";
+        source?: "sottoduo" | "wispr-flow";
       };
       header?: {
         /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
-        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        "X-SottoDuo-Capture"?: components["parameters"]["CaptureView"];
       };
       path?: never;
       cookie?: never;
@@ -1188,7 +1188,7 @@ export interface operations {
       query?: never;
       header?: {
         /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
-        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        "X-SottoDuo-Capture"?: components["parameters"]["CaptureView"];
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -1295,9 +1295,9 @@ export interface operations {
       query?: never;
       header?: {
         /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
-        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        "X-SottoDuo-Capture"?: components["parameters"]["CaptureView"];
         /** @description Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients. */
-        "X-Sotto-Capture-Owner"?: components["parameters"]["CaptureMutationOwner"];
+        "X-SottoDuo-Capture-Owner"?: components["parameters"]["CaptureMutationOwner"];
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -1323,9 +1323,9 @@ export interface operations {
       query?: never;
       header?: {
         /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
-        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        "X-SottoDuo-Capture"?: components["parameters"]["CaptureView"];
         /** @description Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients. */
-        "X-Sotto-Capture-Owner"?: components["parameters"]["CaptureMutationOwner"];
+        "X-SottoDuo-Capture-Owner"?: components["parameters"]["CaptureMutationOwner"];
       };
       path: {
         id: components["schemas"]["UUID"];
@@ -1355,7 +1355,7 @@ export interface operations {
       query?: never;
       header?: {
         /** @description Opt in to remote capture source/state fields; omit for the legacy generation shape. */
-        "X-Sotto-Capture"?: components["parameters"]["CaptureView"];
+        "X-SottoDuo-Capture"?: components["parameters"]["CaptureView"];
       };
       path: {
         id: components["schemas"]["UUID"];

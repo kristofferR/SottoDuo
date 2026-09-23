@@ -1,8 +1,8 @@
-# Sotto server
+# SottoDuo server
 
 The server is an independent TypeScript/Fastify HTTP process that owns models, shared preferences, recordings, and history. Bun manages its dependencies and compiles standalone executables with the runtime included. Native inference helpers run separately. This guide covers model installation and running the server separately.
 
-Linux desktop installations can optionally capture a server-connected microphone directly using [PipeWire capture](../docs/pipewire-capture.md). Enable it explicitly with `--capture-helper` and `--capture-host-id`; headless/client-uploaded operation is unchanged. Package the native helper with `SOTTO_BUILD_CAPTURE=1` when desired.
+Linux desktop installations can optionally capture a server-connected microphone directly using [PipeWire capture](../docs/pipewire-capture.md). Enable it explicitly with `--capture-helper` and `--capture-host-id`; headless/client-uploaded operation is unchanged. Package the native helper with `SOTTODUO_BUILD_CAPTURE=1` when desired.
 
 | Server | Speech | Proofreading |
 | --- | --- | --- |
@@ -20,10 +20,10 @@ Run these commands from the repository root. Weights use about 4 GB of disk; run
 ### Whisper, on either platform
 
 ```sh
-SOTTO_MODEL_DIR="$PWD/.local/models" ./scripts/download-model.sh
+SOTTODUO_MODEL_DIR="$PWD/.local/models" ./scripts/download-model.sh
 ```
 
-This installs and verifies `ggml-large-v3-turbo.bin`. The URL, revision, and checksum are pinned in `scripts/download-model.sh` and `Sources/SottoCore/SpeechModel.swift`. The server build separately downloads the pinned Silero VAD model.
+This installs and verifies `ggml-large-v3-turbo.bin`. The URL, revision, and checksum are pinned in `scripts/download-model.sh` and `Sources/SottoDuoCore/SpeechModel.swift`. The server build separately downloads the pinned Silero VAD model.
 
 ### Qwen on macOS
 
@@ -32,16 +32,16 @@ The MLX directory must contain exactly the six files listed below. Download the 
 ```sh
 (
   set -e
-  sotto_qwen_dir="$PWD/.local/models/Qwen3-4B-Instruct-2507-MLX-4bit"
-  sotto_qwen_url="https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit/resolve/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b"
-  mkdir -p "$sotto_qwen_dir"
+  sottoduo_qwen_dir="$PWD/.local/models/Qwen3-4B-Instruct-2507-MLX-4bit"
+  sottoduo_qwen_url="https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit/resolve/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b"
+  mkdir -p "$sottoduo_qwen_dir"
   for file in model.safetensors config.json tokenizer.json tokenizer_config.json generation_config.json chat_template.jinja; do
-    curl --fail --location --retry 3 --output "$sotto_qwen_dir/$file" "$sotto_qwen_url/$file"
+    curl --fail --location --retry 3 --output "$sottoduo_qwen_dir/$file" "$sottoduo_qwen_url/$file"
   done
 )
 ```
 
-`Sources/SottoCore/TextModel.swift` defines the six-file size/hash manifest; the MLX helper verifies it before becoming ready. Use regular files, with no extra files or symlinks in the model directory.
+`Sources/SottoDuoCore/TextModel.swift` defines the six-file size/hash manifest; the MLX helper verifies it before becoming ready. Use regular files, with no extra files or symlinks in the model directory.
 
 ### Qwen on Linux
 
@@ -62,7 +62,7 @@ Linux requires Bun, a C/C++ toolchain, CMake, Git, curl, pkg-config, and libcurl
 
 ```sh
 ./scripts/build-server.sh                  # macOS Metal/MLX; Linux CPU
-SOTTO_CUDA=ON ./scripts/build-server.sh     # Linux with CUDA
+SOTTODUO_CUDA=ON ./scripts/build-server.sh     # Linux with CUDA
 ```
 
 Output is `build/server`: executable, native helpers, VAD, notices, and resources. Keep the package together; the Mac proofreader requires the adjacent Metal library and bundles. Large model weights and user data live outside it.
@@ -81,20 +81,20 @@ The release workflow produces complete platform tarballs and SHA-256 checksums. 
 
 The archive lock uses Bun FFI to call libc `flock`, matching the reference Swift server. This dependency is tested from source and compiled executables on the supported platforms. A running Swift server and Bun server must never share a data directory.
 
-`SOTTO_BUILD_JOBS` controls build concurrency. For another CPU/GPU host, use `SOTTO_NATIVE=OFF` and set `SOTTO_CUDA_ARCHITECTURES` for the destination GPU. CPU support is useful for compatibility tests; validate CUDA support, memory, and dictation latency on the selected host.
+`SOTTODUO_BUILD_JOBS` controls build concurrency. For another CPU/GPU host, use `SOTTODUO_NATIVE=OFF` and set `SOTTODUO_CUDA_ARCHITECTURES` for the destination GPU. CPU support is useful for compatibility tests; validate CUDA support, memory, and dictation latency on the selected host.
 
 ## Run
 
 From the repository root, with the models installed above:
 
 ```sh
-./build/server/sotto-server \
+./build/server/sottoduo-server \
   --host 127.0.0.1 --port 8391 \
   --data-dir "$PWD/.local/server" \
-  --speech-helper "$PWD/build/server/helpers/sotto-engine" \
+  --speech-helper "$PWD/build/server/helpers/sottoduo-engine" \
   --speech-model "$PWD/.local/models/ggml-large-v3-turbo.bin" \
   --vad-model "$PWD/build/server/resources/silero-vad.bin" \
-  --proof-helper "$PWD/build/server/helpers/sotto-text-engine" \
+  --proof-helper "$PWD/build/server/helpers/sottoduo-text-engine" \
   --proof-model "$PWD/.local/models/Qwen3-4B-Instruct-2507-MLX-4bit"
 ```
 
@@ -102,25 +102,25 @@ On Linux, replace the last path with the GGUF file. Add `--dev` for a developmen
 
 Check `curl http://localhost:8391/v1/health`; HTTP reachability alone does not mean the models are ready. The `ready` field means the server can accept a recording. Quitting a client does not stop this process. Use launchd, systemd, or container supervision for boot/restart behavior; the scripts do not install a service.
 
-For server-only development alongside an installed Sotto instance, use `--port 8392 --data-dir "$PWD/.local/typescript-server" --dev` with your helper/model arguments. Start the executable directly or use `bun run dev:server` with those arguments. The client dev runner starts the app and defaults to port 8391; avoid it when preserving a running installation.
+For server-only development alongside an installed SottoDuo instance, use `--port 8392 --data-dir "$PWD/.local/typescript-server" --dev` with your helper/model arguments. Start the executable directly or use `bun run dev:server` with those arguments. The client dev runner starts the app and defaults to port 8391; avoid it when preserving a running installation.
 
 | Argument | Environment variable |
 | --- | --- |
-| `--host`, `--port` | `SOTTO_SERVER_HOST`, `SOTTO_SERVER_PORT` |
-| `--data-dir`, `--token-file` | `SOTTO_SERVER_DATA_DIR`, `SOTTO_SERVER_TOKEN_FILE` |
-| `--speech-helper`, `--speech-model` | `SOTTO_ENGINE_PATH`, `SOTTO_SPEECH_MODEL` |
-| `--vad-model` | `SOTTO_VAD_PATH` |
-| `--proof-helper`, `--proof-model` | `SOTTO_TEXT_ENGINE_PATH`, `SOTTO_TEXT_MODEL` |
-| `--dev` | `SOTTO_DEV=1` |
+| `--host`, `--port` | `SOTTODUO_SERVER_HOST`, `SOTTODUO_SERVER_PORT` |
+| `--data-dir`, `--token-file` | `SOTTODUO_SERVER_DATA_DIR`, `SOTTODUO_SERVER_TOKEN_FILE` |
+| `--speech-helper`, `--speech-model` | `SOTTODUO_ENGINE_PATH`, `SOTTODUO_SPEECH_MODEL` |
+| `--vad-model` | `SOTTODUO_VAD_PATH` |
+| `--proof-helper`, `--proof-model` | `SOTTODUO_TEXT_ENGINE_PATH`, `SOTTODUO_TEXT_MODEL` |
+| `--dev` | `SOTTODUO_DEV=1` |
 
-The dev runner fixes its host to loopback and defaults to port 8391, `.local/server` for data, and `.local/server.log` for logs. Set `SOTTO_SPEECH_MODEL` and `SOTTO_TEXT_MODEL` when using the paths above. Without those overrides, macOS searches the existing locations `~/Library/Application Support/Murmur/Models/ggml-large-v3-turbo.bin` and `~/.murmur/models/Qwen3-4B-Instruct-2507-MLX-4bit`.
+The dev runner fixes its host to loopback and defaults to port 8391, `.local/server` for data, and `.local/server.log` for logs. Set `SOTTODUO_SPEECH_MODEL` and `SOTTODUO_TEXT_MODEL` when using the paths above. Without those overrides, macOS searches the existing locations `~/Library/Application Support/Murmur/Models/ggml-large-v3-turbo.bin` and `~/.murmur/models/Qwen3-4B-Instruct-2507-MLX-4bit`.
 
 ## Remote access
 
 Bind to a reachable address and pass `--token-file /absolute/path/to/token`. Nonloopback listeners require a token of at least 32 characters with no internal whitespace. In the Mac app, enter the endpoint and token under **This Mac**; tokens are stored in Keychain.
 
 - Use an HTTPS reverse proxy for hosted servers and hostnames, including Tailscale MagicDNS names. The runner itself serves HTTP.
-- HTTP is accepted for localhost and literal Tailscale IPs in `100.64.0.0/10` or `fd7a:115c:a1e0::/48` on your connected tailnet. Sotto checks the address range, not routing; use HTTPS if that private route cannot be assured.
+- HTTP is accepted for localhost and literal Tailscale IPs in `100.64.0.0/10` or `fd7a:115c:a1e0::/48` on your connected tailnet. SottoDuo checks the address range, not routing; use HTTPS if that private route cannot be assured.
 - Ordinary LAN IPs require HTTPS. Endpoints cannot contain credentials, queries, or fragments. Credential-bearing redirects are not followed.
 
 Keep the data directory on persistent storage and back it up. Only one runner can own it. See [storage](../docs/architecture.md#storage) and the [HTTP API](../docs/client-server-contract.md).
@@ -130,8 +130,8 @@ Keep the data directory on persistent storage and back it up. Only one runner ca
 Build from the repository root with initialized submodules:
 
 ```sh
-docker build -f Server/Dockerfile --target cpu -t sotto-server:cpu .
-docker build -f Server/Dockerfile --target cuda -t sotto-server:cuda .
+docker build -f Server/Dockerfile --target cpu -t sottoduo-server:cpu .
+docker build -f Server/Dockerfile --target cuda -t sottoduo-server:cuda .
 ```
 
 `CUDA_ARCHITECTURES`, `CUDA_IMAGE`, `BUN_IMAGE`, `UBUNTU_IMAGE`, and `BUILD_JOBS` are build arguments. Choose CUDA architectures/toolkit/driver versions for your GPU. GPU containers require NVIDIA Container Toolkit and `--gpus all`; Linux containers on a Mac do not have Metal access.
@@ -139,15 +139,15 @@ docker build -f Server/Dockerfile --target cuda -t sotto-server:cuda .
 Mount a directory containing the Whisper `.bin` and Qwen `.gguf` files, plus a token file:
 
 ```sh
-docker run --rm --name sotto-server \
+docker run --rm --name sottoduo-server \
   -p 127.0.0.1:8391:8391 \
-  --mount type=volume,source=sotto-data,target=/data \
+  --mount type=volume,source=sottoduo-data,target=/data \
   --mount type=bind,source=/absolute/path/to/models,target=/models,readonly \
-  --mount type=bind,source=/absolute/path/to/token,target=/run/secrets/sotto-token,readonly \
-  sotto-server:cpu
+  --mount type=bind,source=/absolute/path/to/token,target=/run/secrets/sottoduo-token,readonly \
+  sottoduo-server:cpu
 ```
 
-For a GPU server, use `sotto-server:cuda` and add `--gpus all`. The example exposes only host loopback; use the remote-access setup above for clients on other machines. The container runs as UID 10001, which must be able to read model/token files and write `/data`. The named volume preserves history across container replacement.
+For a GPU server, use `sottoduo-server:cuda` and add `--gpus all`. The example exposes only host loopback; use the remote-access setup above for clients on other machines. The container runs as UID 10001, which must be able to read model/token files and write `/data`. The named volume preserves history across container replacement.
 
 ## Verify
 
@@ -160,7 +160,7 @@ bun run test
 bun run generate:api --check
 swift test
 ./scripts/smoke-test.sh
-SOTTO_TEXT_MODEL=/absolute/path/to/qwen ./scripts/test-corrections.sh
+SOTTODUO_TEXT_MODEL=/absolute/path/to/qwen ./scripts/test-corrections.sh
 ```
 
 API generation/Swift checks need Swift 6.2+. Linux-only development can check TypeScript bindings with `bun run generate:api --check --typescript-only`. The reference Swift server/domain remain as a parity oracle; packaged server builds use TypeScript. See the [contract guide](api/README.md) for generated bindings and the [implementation plan](../docs/typescript-server-plan.md) for the migration.

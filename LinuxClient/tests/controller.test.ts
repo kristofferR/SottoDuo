@@ -58,7 +58,7 @@ async function fixture() {
       };
     },
   };
-  const directory = await mkdtemp(join(tmpdir(), "sotto-linux-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "sottoduo-linux-test-"));
   const service = await GenerationService.open(
     { dataDirectory: directory, development: true, captureProvider: provider },
     new FakeInference(),
@@ -68,9 +68,9 @@ async function fixture() {
   const app = createHTTPServer(service, "fixture-token", (server) => {
     server.addHook("onRequest", async (request) => {
       if (request.url.endsWith("/events")) {
-        const value = request.headers["x-sotto-recognition"];
+        const value = request.headers["x-sottoduo-recognition"];
         recognitionHeader = typeof value === "string" ? value : undefined;
-        const feedback = request.headers["x-sotto-feedback"];
+        const feedback = request.headers["x-sottoduo-feedback"];
         feedbackHeader = typeof feedback === "string" ? feedback : undefined;
       }
     });

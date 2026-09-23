@@ -50,7 +50,7 @@ test("an expired check cannot turn a held or repeated press into dictation", () 
     clock.mockRestore();
   }
 });
-function bindings(key: string) {
+function bindings(key: string, brand = "SottoDuo") {
   return ["start dictation", "stop dictation", "cancel dictation", "copy last result"].map(
     (action, index) => ({
       key,
@@ -59,16 +59,18 @@ function bindings(key: string) {
       release: index === 1,
       submap: "",
       dispatcher: "__lua",
-      description: `Sotto: ${action}`,
+      description: `${brand}: ${action}`,
     }),
   );
 }
 test("shortcut settings preserve other bindings, reject conflicts and stale edits, and roll back failed reloads", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "sotto-shortcuts-"));
+  const dir = await mkdtemp(join(tmpdir(), "sottoduo-shortcuts-"));
   const file = join(dir, "bindings.lua");
   const untouched = '-- My desktop\no.bind("SUPER + B", "Browser", "browser")\n';
   const original =
-    untouched + "-- Sotto dictation: hold Menu; release to transcribe.\n" + shortcutBlock("Menu");
+    untouched +
+    "-- SottoDuo dictation: hold Menu; release to transcribe.\n" +
+    shortcutBlock("Menu");
   let active = bindings("Menu"),
     fail = false,
     busy = false;
@@ -102,14 +104,14 @@ test("shortcut settings preserve other bindings, reject conflicts and stale edit
     expect(saved.key).toBe("F8");
     const good = await readFile(file, "utf8");
     expect(good.startsWith(untouched)).toBe(true);
-    expect(good).toContain("-- BEGIN Sotto shortcuts");
-    expect((await readdir(dir)).some((name) => name.includes("sotto-backup"))).toBe(true);
+    expect(good).toContain("-- BEGIN SottoDuo shortcuts");
+    expect((await readdir(dir)).some((name) => name.includes("sottoduo-backup"))).toBe(true);
     await expect(settings.save("F10", state.revision)).rejects.toThrow("changed elsewhere");
     fail = true;
     await expect(settings.save("F10", saved.revision)).rejects.toThrow("restored");
     expect(await readFile(file, "utf8")).toBe(good);
     expect(settings.blocked).toBe(false);
-    await writeFile(file, good.replace("sotto:start", "custom:start"));
+    await writeFile(file, good.replace("sottoduo:start", "custom:start"));
     expect((await settings.refresh()).supported).toBe(false);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -117,7 +119,7 @@ test("shortcut settings preserve other bindings, reject conflicts and stale edit
 });
 
 test("shortcut settings recognize and migrate the documented Menu bindings", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "sotto-shortcuts-documented-"));
+  const dir = await mkdtemp(join(tmpdir(), "sottoduo-shortcuts-documented-"));
   const file = join(dir, "bindings.lua");
   const documented = await readFile(join(import.meta.dir, "../integration/bindings.lua"), "utf8");
   let active = bindings("Menu");
@@ -137,7 +139,7 @@ test("shortcut settings recognize and migrate the documented Menu bindings", asy
     expect(state).toMatchObject({ supported: true, key: "Menu" });
     await settings.save("F8", state.revision);
     const saved = await readFile(file, "utf8");
-    expect(saved).toContain("-- BEGIN Sotto shortcuts");
+    expect(saved).toContain("-- BEGIN SottoDuo shortcuts");
     expect(saved).toContain('o.rebind("F8"');
   } finally {
     await rm(dir, { recursive: true, force: true });
