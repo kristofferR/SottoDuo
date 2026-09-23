@@ -1,6 +1,7 @@
 import AVFoundation
 import AudioToolbox
 import CoreAudio
+import SottoDuoCore
 import OSLog
 
 /// C API boundary: tests supply every operation and never instantiate hardware.
