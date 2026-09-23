@@ -14,11 +14,11 @@
     },
     "device": {
       "id": "preview",
-      "name": "This computer"
+      "name": "Omarchy"
     },
-    "server": "https://speech.example.com",
+    "server": "http://192.0.2.10:8391",
     "sources": {
-      "server": "https://speech.example.com",
+      "server": "http://192.0.2.10:8391",
       "hostID": "desktop",
       "mode": "automatic",
       "priority": [
@@ -83,7 +83,7 @@
     },
     "microphones": {
       "value": {
-        "server": "https://speech.example.com",
+        "server": "http://192.0.2.10:8391",
         "hostID": "desktop",
         "mode": "automatic",
         "priority": [
@@ -136,12 +136,13 @@
   "connection": {
     "ready": true,
     "speech": {
-      "modelID": "Whisper large v3",
-      "backend": "faster-whisper",
-      "ready": true
+      "modelID": "stt-rt-v5",
+      "backend": "soniox/websocket",
+      "ready": true,
+      "message": "Cloud configured; connection checked per recording."
     },
     "proofreading": {
-      "modelID": "Qwen 3",
+      "modelID": "Qwen3-4B-Instruct-2507",
       "backend": "llama.cpp",
       "ready": true
     }
@@ -216,7 +217,7 @@
         "createdAt": "2026-09-21T10:42:00Z",
         "device": {
           "id": "desktop",
-          "name": "This computer"
+          "name": "Omarchy"
         },
         "status": "completed",
         "insertionText": "Let’s keep the settings familiar, and make dictation feel at home on any Linux desktop.",
@@ -242,11 +243,11 @@
           "encoding": "float32"
         },
         "speech": {
-          "modelID": "Whisper large v3",
-          "backend": "faster-whisper"
+          "modelID": "stt-rt-v5",
+          "backend": "soniox/websocket"
         },
         "proofreading": {
-          "modelID": "Qwen 3",
+          "modelID": "Qwen3-4B-Instruct-2507",
           "backend": "llama.cpp"
         },
         "textProcessing": {

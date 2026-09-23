@@ -115,6 +115,15 @@ Group {
         Setting {
             ui: root.ui
             title: root.ui.connection
+            SLabel {
+                ui: root.ui
+                objectName: "connectionStatusAddress"
+                text: root.ui.snapshot.server || ""
+                color: root.ui.c.muted
+                wrapMode: Text.NoWrap
+                elide: Text.ElideMiddle
+                Layout.preferredWidth: Math.min(260, root.width * 0.35)
+            }
             SButton {
                 ui: root.ui
                 text: "Edit connection"
