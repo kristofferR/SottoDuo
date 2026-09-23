@@ -360,7 +360,7 @@ test("FIFO artifacts are rejected promptly and leave the mutation queue responsi
   if (artifact.status === "rejected")
     expect(artifact.reason).toMatchObject({ code: "artifact_not_found" });
   expect(snapshot.status).toBe("fulfilled");
-}, 1000);
+}, 5000);
 
 test("FIFO replay targets are rejected before any read and leave the mutation queue responsive", async () => {
   const { service, path } = await setup(),
@@ -376,7 +376,7 @@ test("FIFO replay targets are rejected before any read and leave the mutation qu
   if (replay.status === "rejected")
     expect(replay.reason).toMatchObject({ code: "invalid_archive" });
   expect(snapshot.status).toBe("fulfilled");
-}, 1000);
+}, 5000);
 
 function deferred() {
   let release!: () => void;

@@ -184,9 +184,10 @@ ColumnLayout {
             onClicked: root.ui.busy ? bridge.request("stop") : root.ui.startMicrophoneTest()
         }
         SButton {
+            objectName: "cancelDictationButton"
             ui: root.ui
             text: "Cancel"
-            visible: root.ui.busy
+            visible: root.ui.busy && ["preparing", "recording", "processing"].includes(root.ui.activity.phase)
             onClicked: bridge.request("cancel")
         }
         Item {

@@ -904,13 +904,16 @@ private slots:
     QVERIFY(window);
     QTRY_VERIFY(window->property("serverReady").toBool());
     auto *button = window->findChild<QQuickItem *>("microphoneTestButton");
+    auto *cancel = window->findChild<QQuickItem *>("cancelDictationButton");
     QVERIFY(button && button->isEnabled());
+    QVERIFY(cancel);
     auto snapshot = [](const QString &phase, const QString &trigger) {
       return QVariantMap{
           {"busy", true},
           {"activity", QVariantMap{{"phase", phase}, {"trigger", trigger}}}};
     };
     window->setProperty("snapshot", snapshot("recording", "test"));
+    QVERIFY(cancel->isVisible());
     emit bridge.reply(
         "connection",
         QVariantMap{{"ready", false},
@@ -931,11 +934,16 @@ private slots:
     // start.
     QCOMPARE(failed.first().at(0).toString(), "stop");
     window->setProperty("snapshot", snapshot("processing", "test"));
+    QVERIFY(cancel->isVisible());
     QVERIFY(!button->isEnabled());
     QCOMPARE(button->property("text").toString(), "Transcribing…");
     window->setProperty("snapshot", snapshot("recording", "shortcut"));
     QVERIFY(!button->isEnabled());
     QCOMPARE(button->property("text").toString(), "Test microphone");
+    window->setProperty("snapshot", snapshot("delivering", "shortcut"));
+    QVERIFY(!cancel->isVisible());
+    window->setProperty("snapshot", snapshot("completed", "shortcut"));
+    QVERIFY(!cancel->isVisible());
     window->setProperty(
         "snapshot",
         QVariantMap{{"busy", false},
