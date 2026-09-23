@@ -612,6 +612,368 @@ extension Components {
                 ])
             }
         }
+        /// - Remark: Generated from `#/components/schemas/AudioSourceIdentity`.
+        public struct AudioSourceIdentity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AudioSourceIdentity/hostID`.
+            public var hostID: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AudioSourceIdentity/id`.
+            public var id: Swift.String
+            /// Creates a new `AudioSourceIdentity`.
+            ///
+            /// - Parameters:
+            ///   - hostID:
+            ///   - id:
+            public init(
+                hostID: Swift.String,
+                id: Swift.String
+            ) {
+                self.hostID = hostID
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case hostID
+                case id
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.hostID = try container.decode(
+                    Swift.String.self,
+                    forKey: .hostID
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "hostID",
+                    "id"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AudioSource`.
+        public struct AudioSource: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AudioSource/identity`.
+            public var identity: Components.Schemas.AudioSourceIdentity
+            /// - Remark: Generated from `#/components/schemas/AudioSource/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AudioSource/transport`.
+            @frozen public enum TransportPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case usb = "usb"
+                case bluetooth = "bluetooth"
+                case builtIn = "builtIn"
+                case other = "other"
+            }
+            /// - Remark: Generated from `#/components/schemas/AudioSource/transport`.
+            public var transport: Components.Schemas.AudioSource.TransportPayload
+            /// - Remark: Generated from `#/components/schemas/AudioSource/present`.
+            public var present: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AudioSource/link`.
+            @frozen public enum LinkPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case connected = "connected"
+                case disconnected = "disconnected"
+                case unknown = "unknown"
+                case notApplicable = "notApplicable"
+            }
+            /// - Remark: Generated from `#/components/schemas/AudioSource/link`.
+            public var link: Components.Schemas.AudioSource.LinkPayload
+            /// - Remark: Generated from `#/components/schemas/AudioSource/capture`.
+            @frozen public enum CapturePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case available = "available"
+                case unavailable = "unavailable"
+                case unknown = "unknown"
+            }
+            /// - Remark: Generated from `#/components/schemas/AudioSource/capture`.
+            public var capture: Components.Schemas.AudioSource.CapturePayload
+            /// - Remark: Generated from `#/components/schemas/AudioSource/audioHealth`.
+            @frozen public enum AudioHealthPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case unknown = "unknown"
+                case healthy = "healthy"
+                case degraded = "degraded"
+            }
+            /// - Remark: Generated from `#/components/schemas/AudioSource/audioHealth`.
+            public var audioHealth: Components.Schemas.AudioSource.AudioHealthPayload
+            /// - Remark: Generated from `#/components/schemas/AudioSource/observedAt`.
+            public var observedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/AudioSource/reason`.
+            public var reason: Swift.String?
+            /// Creates a new `AudioSource`.
+            ///
+            /// - Parameters:
+            ///   - identity:
+            ///   - name:
+            ///   - transport:
+            ///   - present:
+            ///   - link:
+            ///   - capture:
+            ///   - audioHealth:
+            ///   - observedAt:
+            ///   - reason:
+            public init(
+                identity: Components.Schemas.AudioSourceIdentity,
+                name: Swift.String,
+                transport: Components.Schemas.AudioSource.TransportPayload,
+                present: Swift.Bool,
+                link: Components.Schemas.AudioSource.LinkPayload,
+                capture: Components.Schemas.AudioSource.CapturePayload,
+                audioHealth: Components.Schemas.AudioSource.AudioHealthPayload,
+                observedAt: Foundation.Date,
+                reason: Swift.String? = nil
+            ) {
+                self.identity = identity
+                self.name = name
+                self.transport = transport
+                self.present = present
+                self.link = link
+                self.capture = capture
+                self.audioHealth = audioHealth
+                self.observedAt = observedAt
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case identity
+                case name
+                case transport
+                case present
+                case link
+                case capture
+                case audioHealth
+                case observedAt
+                case reason
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.identity = try container.decode(
+                    Components.Schemas.AudioSourceIdentity.self,
+                    forKey: .identity
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.transport = try container.decode(
+                    Components.Schemas.AudioSource.TransportPayload.self,
+                    forKey: .transport
+                )
+                self.present = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .present
+                )
+                self.link = try container.decode(
+                    Components.Schemas.AudioSource.LinkPayload.self,
+                    forKey: .link
+                )
+                self.capture = try container.decode(
+                    Components.Schemas.AudioSource.CapturePayload.self,
+                    forKey: .capture
+                )
+                self.audioHealth = try container.decode(
+                    Components.Schemas.AudioSource.AudioHealthPayload.self,
+                    forKey: .audioHealth
+                )
+                self.observedAt = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .observedAt
+                )
+                self.reason = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .reason
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "identity",
+                    "name",
+                    "transport",
+                    "present",
+                    "link",
+                    "capture",
+                    "audioHealth",
+                    "observedAt",
+                    "reason"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AudioSourceList`.
+        public struct AudioSourceList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AudioSourceList/sources`.
+            public var sources: [Components.Schemas.AudioSource]
+            /// Creates a new `AudioSourceList`.
+            ///
+            /// - Parameters:
+            ///   - sources:
+            public init(sources: [Components.Schemas.AudioSource]) {
+                self.sources = sources
+            }
+            public enum CodingKeys: String, CodingKey {
+                case sources
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.sources = try container.decode(
+                    [Components.Schemas.AudioSource].self,
+                    forKey: .sources
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "sources"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteCapture`.
+        public struct RemoteCapture: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RemoteCapture/continuationID`.
+            public var continuationID: Components.Schemas.Uuid?
+            /// - Remark: Generated from `#/components/schemas/RemoteCapture/source`.
+            public var source: Components.Schemas.AudioSourceIdentity
+            /// - Remark: Generated from `#/components/schemas/RemoteCapture/state`.
+            @frozen public enum StatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case preparing = "preparing"
+                case recording = "recording"
+                case stopping = "stopping"
+                case sealed = "sealed"
+                case stopped = "stopped"
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteCapture/state`.
+            public var state: Components.Schemas.RemoteCapture.StatePayload
+            /// - Remark: Generated from `#/components/schemas/RemoteCapture/peak`.
+            public var peak: Swift.Double?
+            /// Creates a new `RemoteCapture`.
+            ///
+            /// - Parameters:
+            ///   - continuationID:
+            ///   - source:
+            ///   - state:
+            ///   - peak:
+            public init(
+                continuationID: Components.Schemas.Uuid? = nil,
+                source: Components.Schemas.AudioSourceIdentity,
+                state: Components.Schemas.RemoteCapture.StatePayload,
+                peak: Swift.Double? = nil
+            ) {
+                self.continuationID = continuationID
+                self.source = source
+                self.state = state
+                self.peak = peak
+            }
+            public enum CodingKeys: String, CodingKey {
+                case continuationID
+                case source
+                case state
+                case peak
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.continuationID = try container.decodeIfPresent(
+                    Components.Schemas.Uuid.self,
+                    forKey: .continuationID
+                )
+                self.source = try container.decode(
+                    Components.Schemas.AudioSourceIdentity.self,
+                    forKey: .source
+                )
+                self.state = try container.decode(
+                    Components.Schemas.RemoteCapture.StatePayload.self,
+                    forKey: .state
+                )
+                self.peak = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .peak
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "continuationID",
+                    "source",
+                    "state",
+                    "peak"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/StartCaptureRequest`.
+        public struct StartCaptureRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/requestID`.
+            public var requestID: Components.Schemas.Uuid
+            /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/device`.
+            public var device: Components.Schemas.DeviceIdentity
+            /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/mode`.
+            @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case dictation = "dictation"
+                case test = "test"
+            }
+            /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/mode`.
+            public var mode: Components.Schemas.StartCaptureRequest.ModePayload
+            /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/source`.
+            public var source: Components.Schemas.AudioSourceIdentity
+            /// Creates a new `StartCaptureRequest`.
+            ///
+            /// - Parameters:
+            ///   - requestID:
+            ///   - device:
+            ///   - mode:
+            ///   - source:
+            public init(
+                requestID: Components.Schemas.Uuid,
+                device: Components.Schemas.DeviceIdentity,
+                mode: Components.Schemas.StartCaptureRequest.ModePayload,
+                source: Components.Schemas.AudioSourceIdentity
+            ) {
+                self.requestID = requestID
+                self.device = device
+                self.mode = mode
+                self.source = source
+            }
+            public enum CodingKeys: String, CodingKey {
+                case requestID
+                case device
+                case mode
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.requestID = try container.decode(
+                    Components.Schemas.Uuid.self,
+                    forKey: .requestID
+                )
+                self.device = try container.decode(
+                    Components.Schemas.DeviceIdentity.self,
+                    forKey: .device
+                )
+                self.mode = try container.decode(
+                    Components.Schemas.StartCaptureRequest.ModePayload.self,
+                    forKey: .mode
+                )
+                self.source = try container.decode(
+                    Components.Schemas.AudioSourceIdentity.self,
+                    forKey: .source
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "requestID",
+                    "device",
+                    "mode",
+                    "source"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/StopCaptureRequest`.
+        public struct StopCaptureRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StopCaptureRequest/continuationID`.
+            public var continuationID: Components.Schemas.Uuid?
+            /// Creates a new `StopCaptureRequest`.
+            ///
+            /// - Parameters:
+            ///   - continuationID:
+            public init(continuationID: Components.Schemas.Uuid? = nil) {
+                self.continuationID = continuationID
+            }
+            public enum CodingKeys: String, CodingKey {
+                case continuationID
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.continuationID = try container.decodeIfPresent(
+                    Components.Schemas.Uuid.self,
+                    forKey: .continuationID
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "continuationID"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CreateGenerationRequest`.
         public struct CreateGenerationRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CreateGenerationRequest/requestID`.
@@ -1920,6 +2282,8 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/GenerationRecord`.
         public struct GenerationRecord: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GenerationRecord/capture`.
+            public var capture: Components.Schemas.RemoteCapture?
             /// - Remark: Generated from `#/components/schemas/GenerationRecord/schemaVersion`.
             public var schemaVersion: Swift.Int
             /// - Remark: Generated from `#/components/schemas/GenerationRecord/id`.
@@ -1981,6 +2345,7 @@ extension Components {
             /// Creates a new `GenerationRecord`.
             ///
             /// - Parameters:
+            ///   - capture:
             ///   - schemaVersion:
             ///   - id:
             ///   - requestID:
@@ -2011,6 +2376,7 @@ extension Components {
             ///   - progress:
             ///   - importedSource:
             public init(
+                capture: Components.Schemas.RemoteCapture? = nil,
                 schemaVersion: Swift.Int,
                 id: Components.Schemas.Uuid,
                 requestID: Components.Schemas.Uuid,
@@ -2041,6 +2407,7 @@ extension Components {
                 progress: Swift.Double? = nil,
                 importedSource: Components.Schemas.ImportedSource? = nil
             ) {
+                self.capture = capture
                 self.schemaVersion = schemaVersion
                 self.id = id
                 self.requestID = requestID
@@ -2072,6 +2439,7 @@ extension Components {
                 self.importedSource = importedSource
             }
             public enum CodingKeys: String, CodingKey {
+                case capture
                 case schemaVersion
                 case id
                 case requestID
@@ -2104,6 +2472,10 @@ extension Components {
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.capture = try container.decodeIfPresent(
+                    Components.Schemas.RemoteCapture.self,
+                    forKey: .capture
+                )
                 self.schemaVersion = try container.decode(
                     Swift.Int.self,
                     forKey: .schemaVersion
@@ -2221,6 +2593,7 @@ extension Components {
                     forKey: .importedSource
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "capture",
                     "schemaVersion",
                     "id",
                     "requestID",

@@ -1,19 +1,35 @@
 import Foundation
 
-/// Stable Core Audio identity and display metadata, never a transient hardware ID.
+/// Endpoint scope prevents a saved remote input from moving to another server.
+public struct RemoteInputHost: Codable, Equatable, Hashable, Sendable {
+    public let server: String
+    public let hostID: String
+    public init(server: String, hostID: String) { self.server = server; self.hostID = hostID }
+}
+
+/// Stable source identity and display metadata, never a transient hardware ID.
 public struct AudioInputDevice: Identifiable, Codable, Equatable, Hashable, Sendable {
     public let uid: String
     public let name: String
     public let transport: AudioInputTransport
-    public var id: String { uid }
+    public let remote: RemoteInputHost?
+    public var id: String {
+        guard let remote else { return "local:\(uid)" }
+        return "remote:\(remote.server.utf8.count):\(remote.server)\(remote.hostID.utf8.count):\(remote.hostID)\(uid)"
+    }
+    public var displayName: String {
+        let connection = transport == .bluetooth ? " · Bluetooth" : ""
+        return name + connection + (remote.map { " · \($0.hostID)" } ?? "")
+    }
 
-    public init(uid: String, name: String, transport: AudioInputTransport) {
+    public init(uid: String, name: String, transport: AudioInputTransport, remote: RemoteInputHost? = nil) {
         self.uid = uid
         self.name = name
         self.transport = transport
+        self.remote = remote
     }
 
-    private enum CodingKeys: String, CodingKey { case uid, name, transport }
+    private enum CodingKeys: String, CodingKey { case uid, name, transport, remote }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -22,7 +38,8 @@ public struct AudioInputDevice: Identifiable, Codable, Equatable, Hashable, Send
             throw DecodingError.dataCorruptedError(forKey: .uid, in: values, debugDescription: "An input device needs a stable UID.")
         }
         self.init(uid: uid, name: (try? values.decode(String.self, forKey: .name)) ?? "Microphone",
-                  transport: (try? values.decode(AudioInputTransport.self, forKey: .transport)) ?? .other)
+                  transport: (try? values.decode(AudioInputTransport.self, forKey: .transport)) ?? .other,
+                  remote: try values.decodeIfPresent(RemoteInputHost.self, forKey: .remote))
     }
 }
 
@@ -144,10 +161,10 @@ public struct MicrophonePreferences: Codable, Equatable, Sendable {
         var uids = Set<String>()
         return devices.compactMap { device in
             guard !device.uid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  uids.insert(device.uid).inserted else { return nil }
+                  uids.insert(device.id).inserted else { return nil }
             let name = device.name.trimmingCharacters(in: .whitespacesAndNewlines)
             return AudioInputDevice(uid: device.uid, name: name.isEmpty ? "Microphone" : name,
-                                    transport: device.transport)
+                                    transport: device.transport, remote: device.remote)
         }
     }
 }
@@ -172,26 +189,26 @@ public enum MicrophoneSelectionPolicy {
                                systemDefaultUID: String?) -> MicrophoneResolution {
         let preferences = preferences.normalized()
         let available = MicrophonePreferences.uniqueDevices(available)
-        let systemDefault = available.first(where: { $0.uid == systemDefaultUID })
+        let local = available.filter { $0.remote == nil }
+        let systemDefault = local.first(where: { $0.uid == systemDefaultUID })
         // Core Audio enumeration order is not a persistent preference.
-        let fallback = systemDefault ?? available.min(by: { $0.uid < $1.uid })
-        guard let fallback else { return MicrophoneResolution(device: nil, reason: .unavailable) }
+        let fallback = systemDefault ?? local.min(by: { $0.uid < $1.uid })
 
         switch preferences.selection {
         case .automatic:
             for preferred in preferences.activeProfile.priority {
-                if let device = available.first(where: { $0.uid == preferred.uid }) {
+                if let device = available.first(where: { $0.id == preferred.id }) {
                     return MicrophoneResolution(device: device, reason: .priority)
                 }
             }
-            return MicrophoneResolution(device: fallback, reason: systemDefault == nil ? .fallback(requested: nil) : .systemDefault)
+            return MicrophoneResolution(device: fallback, reason: fallback == nil ? .unavailable : systemDefault == nil ? .fallback(requested: nil) : .systemDefault)
         case .systemDefault:
-            return MicrophoneResolution(device: fallback, reason: systemDefault == nil ? .fallback(requested: nil) : .systemDefault)
+            return MicrophoneResolution(device: fallback, reason: fallback == nil ? .unavailable : systemDefault == nil ? .fallback(requested: nil) : .systemDefault)
         case .fixed(let requested):
-            if let device = available.first(where: { $0.uid == requested.uid }) {
+            if let device = available.first(where: { $0.id == requested.id }) {
                 return MicrophoneResolution(device: device, reason: .fixed)
             }
-            return MicrophoneResolution(device: fallback, reason: .fallback(requested: requested))
+            return MicrophoneResolution(device: fallback, reason: fallback == nil ? .unavailable : .fallback(requested: requested))
         }
     }
 }

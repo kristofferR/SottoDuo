@@ -84,8 +84,8 @@ private struct StrictProfile: Decodable {
         }
         let priority = values.contains(.priority)
             ? try values.decode([StrictDevice].self, forKey: .priority).map(\.device) : []
-        guard Set(priority.map(\.uid)).count == priority.count else {
-            throw values.invalid(.priority, "Each microphone UID must appear only once in a priority list.")
+        guard Set(priority.map(\.id)).count == priority.count else {
+            throw values.invalid(.priority, "Each microphone identity must appear only once in a priority list.")
         }
         profile = MicrophoneProfile(id: id, name: name, priority: priority)
     }
@@ -93,7 +93,7 @@ private struct StrictProfile: Decodable {
 
 private struct StrictDevice: Decodable {
     let device: AudioInputDevice
-    private enum CodingKeys: String, CodingKey { case uid, name, transport }
+    private enum CodingKeys: String, CodingKey { case uid, name, transport, remote }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -107,7 +107,14 @@ private struct StrictDevice: Decodable {
         guard let transport = AudioInputTransport(rawValue: rawTransport) else {
             throw values.invalid(.transport, "Use builtIn, usb, bluetooth, virtual, aggregate, or other.")
         }
-        device = AudioInputDevice(uid: uid, name: name, transport: transport)
+        let remote = try values.decodeIfPresent(RemoteInputHost.self, forKey: .remote)
+        if let remote {
+            guard !remote.server.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !remote.hostID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw values.invalid(.remote, "Remote inputs need a server address and hostID.")
+            }
+        }
+        device = AudioInputDevice(uid: uid, name: name, transport: transport, remote: remote)
     }
 }
 

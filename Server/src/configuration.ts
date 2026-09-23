@@ -1,4 +1,5 @@
 import type { SonioxConfiguration } from "./inference/soniox.ts";
+import type { PipeWireConfiguration } from "./capture/pipewire-provider.ts";
 import { readRegularFile } from "./storage.ts";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
@@ -17,6 +18,7 @@ export interface ServerConfiguration {
   development: boolean;
   soniox?: SonioxConfiguration;
   inference: InferenceConfiguration;
+  capture?: PipeWireConfiguration;
 }
 
 export const usage = `Sotto server — independent dictation service
@@ -28,6 +30,8 @@ Soniox streaming is preferred when SONIOX_API_KEY or --soniox-key-file is config
 Whisper remains the automatic offline fallback.
 Models must already exist. The server never downloads or imports personal data automatically.
 Use persistent storage for --data-dir. Remote bindings require --token-file.
+Optional Linux capture: --capture-helper PATH --capture-host-id STABLE_NAME.
+Run in the desktop user's PipeWire session; without these options the server stays headless.
 `;
 
 const names = new Set([
@@ -41,6 +45,8 @@ const names = new Set([
   "vad-model",
   "proof-helper",
   "proof-model",
+  "capture-helper",
+  "capture-host-id",
 ]);
 export const isLoopbackHost = (host: string) => ["localhost", "127.0.0.1", "::1"].includes(host);
 const expandPath = (value: string) =>
@@ -121,7 +127,20 @@ export async function parseConfiguration(
     throw new Error(
       "The Soniox key must be nonempty, without whitespace, and fit within 4096 bytes.",
     );
+  const captureHelper = value("capture-helper", "SOTTO_CAPTURE_HELPER");
+  const captureHostID = value("capture-host-id", "SOTTO_CAPTURE_HOST_ID");
+  if (
+    (captureHelper || captureHostID) &&
+    (!captureHelper || !captureHostID || !/^[a-zA-Z0-9._-]{1,128}$/.test(captureHostID))
+  )
+    throw new Error(
+      "Configure both --capture-helper and a stable --capture-host-id (letters, digits, dots, underscores or hyphens).",
+    );
   return {
+    capture:
+      captureHelper && captureHostID
+        ? { helper: expandPath(captureHelper), hostID: captureHostID }
+        : undefined,
     soniox: apiKey
       ? {
           apiKey,

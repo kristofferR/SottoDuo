@@ -12,13 +12,13 @@ const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0)) await close();
 });
-async function fixture(token?: string) {
+async function fixture(token?: string, beforeRoutes?: Parameters<typeof createHTTPServer>[2]) {
   const directory = await mkdtemp(join(tmpdir(), "sotto-http-"));
   const service = await GenerationService.open(
     { dataDirectory: directory, development: true },
     new FakeInference(),
   );
-  const app = createHTTPServer(service, token);
+  const app = createHTTPServer(service, token, beforeRoutes);
   cleanup.push(async () => {
     await service.shutdown();
     await app.close();
@@ -28,6 +28,18 @@ async function fixture(token?: string) {
 }
 
 describe("Fastify API contract", () => {
+  test("pre-route hooks apply to API routes", async () => {
+    const { app } = await fixture(undefined, (app) => {
+      app.addHook("onRequest", async (request, reply) => {
+        if (request.url === "/v1/preferences")
+          return reply.code(503).send({ code: "fixture_unavailable", message: "Fixture failure" });
+      });
+    });
+    const response = await app.inject("/v1/preferences");
+    expect(response.statusCode).toBe(503);
+    expect(response.json().code).toBe("fixture_unavailable");
+  });
+
   test("Swift-compatible JSON, binary uploads, NDJSON, artifacts and no-body actions", async () => {
     const { app } = await fixture();
     const original = (await app.inject({ method: "GET", url: "/v1/preferences" })).json();

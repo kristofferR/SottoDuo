@@ -5,6 +5,67 @@ import XCTest
 @testable import Sotto
 
 final class ServerClientTests: XCTestCase {
+    func testCaptureOwnerIsUniquePerTakeAndNeverLeaksIntoURLsOrDiscovery() throws {
+        let client = try ServerClient(endpoint: "https://example.com", token: "server-access")
+        let first = try client.owningCapture()
+        let second = try client.owningCapture()
+        let request = try first.request(path: "v1/captures", method: "POST")
+        let secret = try XCTUnwrap(request.value(forHTTPHeaderField: "X-Sotto-Capture-Owner"))
+        XCTAssertEqual(secret.count, 64)
+        XCTAssertTrue(secret.allSatisfy { "0123456789abcdef".contains($0) })
+        XCTAssertNotEqual(secret, try second.request(path: "v1/captures").value(forHTTPHeaderField: "X-Sotto-Capture-Owner"))
+        XCTAssertNil(try client.request(path: "v1/audio-sources").value(forHTTPHeaderField: "X-Sotto-Capture-Owner"))
+        for path in ["capture/heartbeat", "capture/stop", "cancel", "delivery", "events"] {
+            let control = try first.request(path: "v1/generations/\(UUID())/\(path)")
+            XCTAssertEqual(control.value(forHTTPHeaderField: "X-Sotto-Capture-Owner"), secret)
+            XCTAssertEqual(control.value(forHTTPHeaderField: "X-Sotto-Capture"), "capture-v1")
+            XCTAssertFalse(control.url!.absoluteString.contains(secret))
+        }
+    }
+
+    func testCaptureSourceErrorsAreDistinctFromServerFailureAndLegacyDiscoveryIsEmpty() async throws {
+        let fixture = HTTPFixture()
+        defer { fixture.session.invalidateAndCancel() }
+        let client = try ServerClient(endpoint: fixture.endpoint, token: "", session: fixture.session).owningCapture()
+        let input = StartCaptureRequest(requestID: UUID(), device: .init(id: "mac", name: "Mac"), mode: .test,
+                                        source: .init(hostID: "desk", id: "dji"))
+        for code in ["source_unavailable", "capture_failed", "capture_timeout", "server_stopping"] {
+            fixture.respond = { _ in (503, try SottoAPI.encoder().encode(APIErrorResponse(code: code, message: "Fixture"))) }
+            do { _ = try await client.startCapture(input, timeout: 2); XCTFail("Expected rejection") }
+            catch ServerClientError.captureUnavailable { XCTAssertNotEqual(code, "server_stopping") }
+            catch ServerClientError.rejected(503, _) { XCTAssertEqual(code, "server_stopping") }
+        }
+        fixture.respond = { _ in (404, Data()) }
+        let sources = try await client.audioSources()
+        XCTAssertTrue(sources.isEmpty)
+        XCTAssertEqual(fixture.requests.last?.timeoutInterval, 1)
+    }
+
+    @MainActor
+    func testInterruptedRemoteStopIsNotCancelledAsUnsealed() async throws {
+        let fixture = HTTPFixture()
+        defer { fixture.session.invalidateAndCancel() }
+        let connection = try ServerClient(endpoint: fixture.endpoint, token: "", session: fixture.session).owningCapture()
+        let source = AudioSourceIdentity(hostID: "desk", id: "dji")
+        var record = GenerationRecord(requestID: UUID(), device: .init(id: "mac", name: "Mac"), settings: .init())
+        record.capture = .init(source: source, state: .recording)
+        let capture = try RemoteCaptureSession(
+            record: record,
+            connection: connection,
+            requestedAt: ProcessInfo.processInfo.systemUptime)
+        fixture.respond = { request in
+            XCTAssertTrue(request.url?.path.hasSuffix("/capture/stop") == true)
+            throw URLError(.networkConnectionLost)
+        }
+        do {
+            _ = try await capture.stop(continuationID: nil)
+            XCTFail("Expected the interrupted stop response to fail")
+        } catch is URLError {}
+        XCTAssertFalse(capture.isSealed)
+        XCTAssertFalse(capture.shouldCancelServer)
+        capture.cancelMonitoring()
+    }
+
     func testConnectionRejectsCredentialsInURLsAndKeepsBearerInHeader() throws {
         XCTAssertThrowsError(try ServerClient(endpoint: "https://person:secret@example.com", token: ""))
         XCTAssertThrowsError(try ServerClient(endpoint: "https://example.com?token=secret", token: ""))

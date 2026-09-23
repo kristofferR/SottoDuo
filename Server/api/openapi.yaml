@@ -17,6 +17,78 @@ x-sotto-maximumChunkBytes: 1048576
 x-sotto-maximumArtifactBytes: 8388608
 x-sotto-maximumDictionaryBytes: 8388608
 paths:
+  "/v1/audio-sources":
+    get:
+      operationId: "listAudioSources"
+      responses:
+        "200":
+          description: "Bounded snapshot; discovery never starts audio or connects Bluetooth."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AudioSourceList"
+        default:
+          "$ref": "#/components/responses/APIError"
+  "/v1/captures":
+    post:
+      operationId: "startCapture"
+      parameters:
+        - "$ref": "#/components/parameters/CaptureOwner"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/StartCaptureRequest"
+      responses:
+        "201":
+          description: "Admitted generation with acknowledged recording readiness."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GenerationRecord"
+        default:
+          "$ref": "#/components/responses/APIError"
+  "/v1/generations/{id}/capture/heartbeat":
+    post:
+      operationId: "heartbeatCapture"
+      parameters:
+        - "$ref": "#/components/parameters/CaptureOwner"
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            "$ref": "#/components/schemas/UUID"
+      responses:
+        "204":
+          description: "Owner lease renewed. Send every second; expiry is six seconds."
+        default:
+          "$ref": "#/components/responses/APIError"
+  "/v1/generations/{id}/capture/stop":
+    post:
+      operationId: "stopCapture"
+      parameters:
+        - "$ref": "#/components/parameters/CaptureOwner"
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            "$ref": "#/components/schemas/UUID"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/StopCaptureRequest"
+      responses:
+        "202":
+          description: "Capture stopped, audio drained and sealed for processing."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GenerationRecord"
+        default:
+          "$ref": "#/components/responses/APIError"
   "/v1/health":
     get:
       operationId: "getHealth"
@@ -73,6 +145,7 @@ paths:
         default:
           "$ref": "#/components/responses/APIError"
       parameters:
+        - "$ref": "#/components/parameters/CaptureView"
         -
           name: "limit"
           in: "query"
@@ -128,6 +201,7 @@ paths:
         default:
           "$ref": "#/components/responses/APIError"
       parameters:
+        - "$ref": "#/components/parameters/CaptureView"
         -
           name: "id"
           in: "path"
@@ -245,6 +319,8 @@ paths:
         default:
           "$ref": "#/components/responses/APIError"
       parameters:
+        - "$ref": "#/components/parameters/CaptureView"
+        - "$ref": "#/components/parameters/CaptureMutationOwner"
         -
           name: "id"
           in: "path"
@@ -271,6 +347,8 @@ paths:
               "$ref": "#/components/schemas/DeliveryReceipt"
         x-maximumBytes: 262144
       parameters:
+        - "$ref": "#/components/parameters/CaptureView"
+        - "$ref": "#/components/parameters/CaptureMutationOwner"
         -
           name: "id"
           in: "path"
@@ -293,6 +371,7 @@ paths:
           "$ref": "#/components/responses/APIError"
       description: "A bounded NDJSON stream of complete GenerationRecord values, with the latest record repeated as a two-second heartbeat. Ends after a terminal record."
       parameters:
+        - "$ref": "#/components/parameters/CaptureView"
         -
           name: "id"
           in: "path"
@@ -733,6 +812,96 @@ components:
         - "ready"
         - "speech"
         - "proofreading"
+    AudioSourceIdentity:
+      type: "object"
+      additionalProperties: false
+      properties:
+        hostID:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 256
+      required: [hostID, id]
+    AudioSource:
+      type: "object"
+      additionalProperties: false
+      properties:
+        identity:
+          "$ref": "#/components/schemas/AudioSourceIdentity"
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        transport:
+          type: "string"
+          enum: [usb, bluetooth, builtIn, other]
+        present:
+          type: "boolean"
+        link:
+          type: "string"
+          enum: [connected, disconnected, unknown, notApplicable]
+        capture:
+          type: "string"
+          enum: [available, unavailable, unknown]
+        audioHealth:
+          type: "string"
+          enum: [unknown, healthy, degraded]
+        observedAt:
+          type: "string"
+          format: "date-time"
+        reason:
+          type: "string"
+          maxLength: 512
+      required: [identity, name, transport, present, link, capture, audioHealth, observedAt]
+    AudioSourceList:
+      type: "object"
+      additionalProperties: false
+      properties:
+        sources:
+          type: "array"
+          maxItems: 32
+          items:
+            "$ref": "#/components/schemas/AudioSource"
+      required: [sources]
+    RemoteCapture:
+      type: "object"
+      additionalProperties: false
+      properties:
+        continuationID:
+          "$ref": "#/components/schemas/UUID"
+        source:
+          "$ref": "#/components/schemas/AudioSourceIdentity"
+        state:
+          type: "string"
+          enum: [preparing, recording, stopping, sealed, stopped]
+        peak:
+          type: "number"
+          minimum: 0
+          maximum: 1
+      required: [source, state]
+    StartCaptureRequest:
+      type: "object"
+      additionalProperties: false
+      properties:
+        requestID:
+          "$ref": "#/components/schemas/UUID"
+        device:
+          "$ref": "#/components/schemas/DeviceIdentity"
+        mode:
+          type: "string"
+          enum: [dictation, test]
+        source:
+          "$ref": "#/components/schemas/AudioSourceIdentity"
+      required: [requestID, device, mode, source]
+    StopCaptureRequest:
+      type: "object"
+      additionalProperties: false
+      properties:
+        continuationID:
+          "$ref": "#/components/schemas/UUID"
     CreateGenerationRequest:
       type: "object"
       additionalProperties: false
@@ -1161,6 +1330,8 @@ components:
       type: "object"
       additionalProperties: false
       properties:
+        capture:
+          "$ref": "#/components/schemas/RemoteCapture"
         schemaVersion:
           type: "integer"
           minimum: 0
@@ -1280,6 +1451,31 @@ components:
       required:
         - "code"
         - "message"
+  parameters:
+    CaptureView:
+      name: "X-Sotto-Capture"
+      in: "header"
+      required: false
+      description: "Opt in to remote capture source/state fields; omit for the legacy generation shape."
+      schema:
+        type: "string"
+        enum: [capture-v1]
+    CaptureMutationOwner:
+      name: "X-Sotto-Capture-Owner"
+      in: "header"
+      required: false
+      description: "Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients."
+      schema:
+        type: "string"
+        pattern: "^[0-9a-f]{64}$"
+    CaptureOwner:
+      name: "X-Sotto-Capture-Owner"
+      in: "header"
+      required: true
+      description: "Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history."
+      schema:
+        type: "string"
+        pattern: "^[0-9a-f]{64}$"
   securitySchemes:
     bearerAuth:
       type: "http"

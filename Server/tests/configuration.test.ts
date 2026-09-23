@@ -18,6 +18,27 @@ const environment = {
   SOTTO_TEXT_MODEL: "/tmp/proof-model",
 };
 
+test("PipeWire capture is opt-in and requires a stable host identity", async () => {
+  expect((await parseConfiguration([], environment)).capture).toBeUndefined();
+  await expect(
+    parseConfiguration(["--capture-helper", "/tmp/capture"], environment),
+  ).rejects.toThrow("both");
+  await expect(
+    parseConfiguration(
+      ["--capture-helper", "/tmp/capture", "--capture-host-id", "invalid id"],
+      environment,
+    ),
+  ).rejects.toThrow("stable");
+  expect(
+    (
+      await parseConfiguration(
+        ["--capture-helper", "/tmp/capture", "--capture-host-id", "desktop"],
+        environment,
+      )
+    ).capture,
+  ).toEqual({ helper: "/tmp/capture", hostID: "desktop" });
+});
+
 test("CLI overrides environment and uses independent explicit model/data paths", async () => {
   const configuration = await parseConfiguration(["--port", "8392", "--dev"], {
     ...environment,

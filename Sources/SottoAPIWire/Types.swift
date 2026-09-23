@@ -12,6 +12,18 @@ public import struct Foundation.Date
 public import Foundation
 /// A type that performs HTTP operations defined by the OpenAPI document.
 public protocol APIProtocol: Sendable {
+    /// - Remark: HTTP `GET /v1/audio-sources`.
+    /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)`.
+    func listAudioSources(_ input: Operations.ListAudioSources.Input) async throws -> Operations.ListAudioSources.Output
+    /// - Remark: HTTP `POST /v1/captures`.
+    /// - Remark: Generated from `#/paths//v1/captures/post(startCapture)`.
+    func startCapture(_ input: Operations.StartCapture.Input) async throws -> Operations.StartCapture.Output
+    /// - Remark: HTTP `POST /v1/generations/{id}/capture/heartbeat`.
+    /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)`.
+    func heartbeatCapture(_ input: Operations.HeartbeatCapture.Input) async throws -> Operations.HeartbeatCapture.Output
+    /// - Remark: HTTP `POST /v1/generations/{id}/capture/stop`.
+    /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/stop/post(stopCapture)`.
+    func stopCapture(_ input: Operations.StopCapture.Input) async throws -> Operations.StopCapture.Output
     /// - Remark: HTTP `GET /v1/health`.
     /// - Remark: Generated from `#/paths//v1/health/get(getHealth)`.
     func getHealth(_ input: Operations.GetHealth.Input) async throws -> Operations.GetHealth.Output
@@ -75,6 +87,46 @@ public protocol APIProtocol: Sendable {
 
 /// Convenience overloads for operation inputs.
 extension APIProtocol {
+    /// - Remark: HTTP `GET /v1/audio-sources`.
+    /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)`.
+    public func listAudioSources(headers: Operations.ListAudioSources.Input.Headers = .init()) async throws -> Operations.ListAudioSources.Output {
+        try await listAudioSources(Operations.ListAudioSources.Input(headers: headers))
+    }
+    /// - Remark: HTTP `POST /v1/captures`.
+    /// - Remark: Generated from `#/paths//v1/captures/post(startCapture)`.
+    public func startCapture(
+        headers: Operations.StartCapture.Input.Headers,
+        body: Operations.StartCapture.Input.Body
+    ) async throws -> Operations.StartCapture.Output {
+        try await startCapture(Operations.StartCapture.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/generations/{id}/capture/heartbeat`.
+    /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/heartbeat/post(heartbeatCapture)`.
+    public func heartbeatCapture(
+        path: Operations.HeartbeatCapture.Input.Path,
+        headers: Operations.HeartbeatCapture.Input.Headers
+    ) async throws -> Operations.HeartbeatCapture.Output {
+        try await heartbeatCapture(Operations.HeartbeatCapture.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/generations/{id}/capture/stop`.
+    /// - Remark: Generated from `#/paths//v1/generations/{id}/capture/stop/post(stopCapture)`.
+    public func stopCapture(
+        path: Operations.StopCapture.Input.Path,
+        headers: Operations.StopCapture.Input.Headers,
+        body: Operations.StopCapture.Input.Body
+    ) async throws -> Operations.StopCapture.Output {
+        try await stopCapture(Operations.StopCapture.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// - Remark: HTTP `GET /v1/health`.
     /// - Remark: Generated from `#/paths//v1/health/get(getHealth)`.
     public func getHealth(headers: Operations.GetHealth.Input.Headers = .init()) async throws -> Operations.GetHealth.Output {

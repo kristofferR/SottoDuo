@@ -12,6 +12,7 @@ export function registerAudioStream(app: FastifyInstance, service: GenerationSer
       {
         websocket: true,
         preValidation: async (request) => {
+          await service.requireClientUpload(request.params.id);
           const record = await service.get(request.params.id);
           if (record.status !== "receiving")
             throw new ServiceError(409, "upload_closed", "Recording is no longer accepting audio.");

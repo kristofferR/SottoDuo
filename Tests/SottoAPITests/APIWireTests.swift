@@ -4,6 +4,24 @@ import SottoAPIWire
 import XCTest
 
 final class APIWireTests: XCTestCase {
+    func testRemoteSourceStatusDecodesWithTheExistingDateStrategy() throws {
+        let data = Data("""
+            {"sources":[{"identity":{"hostID":"host-stable","id":"usb-dji"},"name":"DJI",\
+            "transport":"usb","present":true,"link":"connected","capture":"available",\
+            "audioHealth":"unknown","observedAt":"2026-09-20T20:00:00Z"}]}
+            """.utf8)
+        let decoded = try SottoAPI.decoder().decode(Components.Schemas.AudioSourceList.self, from: data)
+        XCTAssertEqual(decoded.sources.first?.identity.hostID, "host-stable")
+        XCTAssertEqual(decoded.sources.first?.observedAt, Date(timeIntervalSince1970: 1_789_934_400))
+        XCTAssertEqual(decoded.sources.first?.link.rawValue, "connected")
+        XCTAssertEqual(decoded.sources.first?.audioHealth.rawValue, "unknown")
+        let capture = try SottoAPI.decoder().decode(Components.Schemas.RemoteCapture.self,
+            from: Data("""
+                {"source":{"hostID":"host-stable","id":"usb-dji"},"state":"recording","peak":0.25}
+                """.utf8))
+        XCTAssertEqual(capture.state.rawValue, "recording")
+        XCTAssertEqual(capture.peak, 0.25)
+    }
     func testHistoricalPreferencesDefaultsSurviveGeneratedTransport() throws {
         let json = Data("""
             {"revision":7,"preferences":{"language":"en","vocabulary":"",

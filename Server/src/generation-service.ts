@@ -3,7 +3,8 @@ import type { SonioxConfiguration, StartSpeechStream } from "./inference/soniox.
 import { constants } from "node:fs";
 import { access, mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { CaptureSessions, type CaptureProvider } from "./capture-sessions.ts";
 import type {
   AudioArtifact,
   AudioChunkReceipt,
@@ -150,6 +151,7 @@ function normalizePreferences(
 }
 
 interface ServiceConfiguration {
+  captureProvider?: CaptureProvider;
   soniox?: SonioxConfiguration;
   startSpeechStream?: StartSpeechStream;
   dataDirectory: string;
@@ -168,6 +170,7 @@ interface Watcher {
 
 /** All durable mutations share one queue. Model work proceeds outside it. */
 export class GenerationService {
+  readonly captures: CaptureSessions;
   private preferences: PreferencesSnapshot = defaultPreferences();
   private records = new Map<string, GenerationRecord>();
   private uploads = new Map<string, Partial<Record<AudioKind, Upload>>>();
@@ -188,6 +191,7 @@ export class GenerationService {
     private readonly configuration: ServiceConfiguration,
     private readonly inference: InferenceBackend,
   ) {
+    this.captures = new CaptureSessions(this, configuration.captureProvider);
     this.imports = new WisprFlowImports({
       dataDirectory: configuration.dataDirectory,
       getPreferences: () => copy(this.preferences),
@@ -278,6 +282,7 @@ export class GenerationService {
         throw new ServiceError(500, "invalid_archive", "A generation has invalid metadata.");
       record.id = id;
       if (!terminal(record)) {
+        if (record.capture) record.capture.state = "stopped";
         record.status = "failed";
         record.error = "Server restarted before this generation completed.";
         if (record.recognition) delete record.recognition.partialText;
@@ -322,6 +327,7 @@ export class GenerationService {
   }
   async shutdown() {
     this.stopping = true;
+    await this.captures.shutdown();
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
     this.warmController?.abort();
@@ -429,7 +435,10 @@ export class GenerationService {
       return copy(next);
     });
   }
-  async create(request: CreateGenerationRequest) {
+  async create(
+    request: CreateGenerationRequest,
+    remote?: { source: components["schemas"]["AudioSourceIdentity"]; owner: string },
+  ) {
     const state = await this.inference.readiness(false);
     return this.mutate(async () => {
       if (this.stopping)
@@ -450,7 +459,24 @@ export class GenerationService {
           record.requestID.toUpperCase() === request.requestID.toUpperCase() &&
           record.device.id === request.device.id,
       );
-      if (existing) return copy(existing);
+      if (existing) {
+        if (existing.capture || remote) {
+          if (
+            !existing.capture ||
+            !remote ||
+            existing.capture.source.hostID !== remote.source.hostID ||
+            existing.capture.source.id !== remote.source.id ||
+            existing.mode !== request.mode
+          )
+            throw new ServiceError(
+              409,
+              "conflicting_request",
+              "This request already selects another source or mode.",
+            );
+          await this.authorizeCapture(existing.id, remote.owner);
+        }
+        return copy(existing);
+      }
       if (this.activeID)
         throw new ServiceError(
           409,
@@ -484,6 +510,13 @@ export class GenerationService {
         now(),
       );
       await mkdir(this.directory(record.id), { mode: 0o700 });
+      if (remote) {
+        record.capture = { source: copy(remote.source), state: "preparing" };
+        await atomicPrivateWrite(
+          join(this.directory(record.id), "capture-owner.sha256"),
+          createHash("sha256").update(remote.owner).digest("hex"),
+        );
+      }
       await this.save(record);
       this.activeID = record.id;
       this.uploads.set(record.id, {});
@@ -512,6 +545,17 @@ export class GenerationService {
       this.publish(record);
       return copy(record);
     });
+  }
+  findRequest(requestID: string, deviceID: string) {
+    return this.mutate(() =>
+      copy(
+        [...this.records.values()].find(
+          (record) =>
+            record.requestID.toUpperCase() === requestID.toUpperCase() &&
+            record.device.id === deviceID,
+        ),
+      ),
+    );
   }
   private newRecord(
     id: string,
@@ -773,6 +817,10 @@ export class GenerationService {
       try {
         record.inferenceAudio = await this.seal(id, "inference", speech);
         if (original) record.originalAudio = await this.seal(id, "original", original);
+        if (record.capture) {
+          record.capture.state = "sealed";
+          record.capture.continuationID = request.continuationID?.toUpperCase();
+        }
         record.status = "queued";
         record.updatedAt = now();
         record.progress = 0;
@@ -802,6 +850,51 @@ export class GenerationService {
   }
   get(id: string) {
     return this.mutate(() => this.getInternal(id));
+  }
+  /** Owner hashes are private artifacts, never part of history or downloadable metadata. */
+  async authorizeCapture(id: string, owner?: string) {
+    const record = this.getInternal(id);
+    if (!record.capture) return;
+    if (!owner || !/^[0-9a-f]{64}$/.test(owner))
+      throw new ServiceError(
+        403,
+        "capture_owner_required",
+        "This action requires the capture owner's secret.",
+      );
+    const expected = await readRegularFile(
+      join(this.directory(record.id), "capture-owner.sha256"),
+      64,
+    ).catch(() => Buffer.alloc(0));
+    const actual = Buffer.from(createHash("sha256").update(owner).digest("hex"));
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
+      throw new ServiceError(
+        403,
+        "capture_owner_required",
+        "This action requires the capture owner's secret.",
+      );
+  }
+  updateCapture(id: string, state: components["schemas"]["RemoteCapture"]["state"], peak?: number) {
+    return this.mutate(async () => {
+      const record = this.getInternal(id);
+      if (!record.capture || terminal(record)) return record;
+      record.capture.state = state;
+      if (peak === undefined || !Number.isFinite(peak)) {
+        delete record.capture.peak;
+        await this.save(record);
+      } else if (Number.isFinite(peak)) {
+        record.capture.peak = Math.max(0, Math.min(1, peak));
+        this.publish(record);
+      }
+      return record;
+    });
+  }
+  async requireClientUpload(id: string) {
+    if ((await this.get(id)).capture)
+      throw new ServiceError(
+        409,
+        "remote_capture",
+        "Remote audio is supplied only by the capture provider.",
+      );
   }
   history(limit = 50, before?: string, source?: string): Promise<GenerationPage> {
     return this.mutate(() => {
@@ -889,14 +982,16 @@ export class GenerationService {
     return iterator;
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, message = "Recording cancelled.") {
+    this.captures.abort(id);
     const cancelled = await this.mutate(async () => {
       const record = this.getInternal(id);
       id = record.id;
       if (terminal(record)) return { record, active: false };
       record.status = "cancelled";
+      if (record.capture) record.capture.state = "stopped";
       if (record.recognition) delete record.recognition.partialText;
-      record.error = "Recording cancelled.";
+      record.error = message;
       delete record.progress;
       record.updatedAt = now();
       await this.save(record).catch(() => this.publish(record));

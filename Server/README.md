@@ -2,6 +2,8 @@
 
 The server is an independent TypeScript/Fastify HTTP process that owns models, shared preferences, recordings, and history. Bun manages its dependencies and compiles standalone executables with the runtime included. Native inference helpers run separately. This guide covers model installation and running the server separately.
 
+Linux desktop installations can optionally capture a server-connected microphone directly using [PipeWire capture](../docs/pipewire-capture.md). Enable it explicitly with `--capture-helper` and `--capture-host-id`; headless/client-uploaded operation is unchanged. Package the native helper with `SOTTO_BUILD_CAPTURE=1` when desired.
+
 | Server | Speech | Proofreading |
 | --- | --- | --- |
 | Apple Silicon macOS | Whisper large-v3-turbo / whisper.cpp / Metal | Qwen3-4B-Instruct-2507 / Swift MLX / 4-bit |

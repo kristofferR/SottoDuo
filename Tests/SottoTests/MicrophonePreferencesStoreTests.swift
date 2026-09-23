@@ -1,5 +1,7 @@
+import Combine
 import Foundation
 import SottoCore
+import SottoAPI
 import XCTest
 @testable import Sotto
 
@@ -7,6 +9,78 @@ final class MicrophonePreferencesStoreTests: XCTestCase {
     private let builtIn = AudioInputDevice(uid: "builtin", name: "Mac microphone", transport: .builtIn)
     private let usb = AudioInputDevice(uid: "usb", name: "Desk microphone", transport: .usb)
     private let headset = AudioInputDevice(uid: "headset", name: "Headset", transport: .bluetooth)
+
+    func testUnchangedDiscoveryDoesNotPublishButStatusChangesDo() async throws {
+        try await withPreferences { store, _ in
+            var source = AudioSource(identity: .init(hostID: "desk", id: "dji"), name: "DJI", transport: .usb,
+                present: true, link: .connected, capture: .available, audioHealth: .unknown, observedAt: Date())
+            store.updateRemote([source], server: "https://desktop:8391")
+            var updates = 0
+            let subscription = store.objectWillChange.sink { updates += 1 }
+            defer { subscription.cancel() }
+            source.observedAt = Date()
+            store.updateRemote([source], server: "https://desktop:8391")
+            XCTAssertEqual(updates, 0)
+            source.link = .unknown
+            source.observedAt = Date()
+            store.updateRemote([source], server: "https://desktop:8391")
+            XCTAssertEqual(updates, 1)
+        }
+    }
+
+    func testRemoteStatusUsesLocalFallbackAndPersistsAcrossConfigurationReload() async throws {
+        try await withPreferences { store, fixture in
+            let host = "https://desktop:8391"
+            var source = AudioSource(identity: .init(hostID: "desk", id: "usb"), name: "DJI", transport: .usb,
+                present: true, link: .connected, capture: .available, audioHealth: .unknown, observedAt: Date())
+            store.update(devices: [builtIn, usb], systemDefaultUID: builtIn.uid)
+            store.updateRemote([source], server: host)
+            let remote = try XCTUnwrap(store.availableDevices.first { $0.remote != nil })
+            [remote, usb, builtIn].forEach(store.addToPriority)
+            XCTAssertEqual(store.resolution.device, remote)
+            source.link = .unknown
+            source.observedAt = Date()
+            store.updateRemote([source], server: host)
+            XCTAssertEqual(store.resolution.device, usb, "A USB receiver with unknown TX status is not ready")
+            XCTAssertTrue(store.availableDevices.contains(remote), "Unavailable sources remain configurable")
+            source.link = .connected
+            source.observedAt = Date()
+            store.updateRemote([source], server: host)
+            store.update(devices: [builtIn], systemDefaultUID: builtIn.uid)
+            XCTAssertEqual(store.resolution.device, remote, "A local inventory refresh must not erase remote sources")
+            source.observedAt = Date().addingTimeInterval(-4)
+            store.updateRemote([source], server: host)
+            XCTAssertEqual(store.resolution.device, builtIn)
+            let restored = await fixture.restoredStore()
+            XCTAssertEqual(restored.activeProfile.priority, [remote, usb, builtIn])
+            source.observedAt = Date()
+            restored.updateRemote([source], server: host)
+            XCTAssertEqual(restored.resolution.device, remote, "Remote-only Macs need no local input")
+            restored.updateRemote([source], server: "https://different-server:8391")
+            XCTAssertNil(restored.resolution.device, "A new endpoint must not inherit the previous server's identity")
+            restored.clearRemote()
+            XCTAssertNil(restored.resolution.device)
+        }
+    }
+
+    func testLocalFallbackSkipsOtherReadyRemoteInputs() async throws {
+        try await withPreferences { store, _ in
+            store.update(devices: [builtIn], systemDefaultUID: builtIn.uid)
+            let sources = ["first", "second"].map { id in
+                AudioSource(identity: .init(hostID: "desk", id: id), name: id, transport: .usb,
+                    present: true, link: .connected, capture: .available, audioHealth: .unknown, observedAt: Date())
+            }
+            store.updateRemote(sources, server: "https://desktop:8391")
+            let remote = store.availableDevices.filter { $0.remote != nil }
+            remote.forEach(store.addToPriority)
+            store.addToPriority(builtIn)
+            XCTAssertEqual(store.resolution.device, remote.first)
+            XCTAssertEqual(store.resolution(excluding: remote[0].id).device, remote[1])
+            XCTAssertEqual(store.localFallback, builtIn)
+            store.update(devices: [], systemDefaultUID: nil)
+            XCTAssertNil(store.localFallback)
+        }
+    }
 
     func testPreferredDeviceReturnsWithoutLosingSavedOrder() async throws {
         try await withPreferences { store, fixture in
@@ -30,7 +104,7 @@ final class MicrophonePreferencesStoreTests: XCTestCase {
             [builtIn, usb, headset].forEach(store.addToPriority)
             store.movePriority(fromOffsets: IndexSet(integer: 2), toOffset: 0)
             XCTAssertEqual(store.activeProfile.priority.map(\.uid), [headset.uid, builtIn.uid, usb.uid])
-            store.movePriority(uid: usb.uid, by: -1)
+            store.movePriority(id: usb.id, by: -1)
             XCTAssertEqual(store.activeProfile.priority.map(\.uid), [headset.uid, usb.uid, builtIn.uid])
             let firstProfile = store.activeProfile
 
@@ -55,7 +129,7 @@ final class MicrophonePreferencesStoreTests: XCTestCase {
             let before = store.preferences
             store.movePriority(fromOffsets: IndexSet(integer: 20), toOffset: 0)
             store.movePriority(fromOffsets: IndexSet(integer: 0), toOffset: 20)
-            store.movePriority(uid: usb.uid, by: -1)
+            store.movePriority(id: usb.id, by: -1)
             XCTAssertEqual(store.preferences, before)
         }
     }
