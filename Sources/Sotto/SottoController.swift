@@ -153,7 +153,7 @@ final class SottoController: ObservableObject {
     var mayUseLocalMicrophone: Bool {
         guard let selected = microphones.resolution.device else { return false }
         if selected.remote == nil { return true }
-        return microphones.resolution(excluding: selected.id).device?.remote == nil
+        return microphones.localFallback != nil
     }
     var allPermissionsGranted: Bool { (usesRemoteInput || permissions.microphone) && permissions.accessibility }
     var onHUDVisibility: ((Bool) -> Void)?
@@ -943,7 +943,7 @@ final class SottoController: ObservableObject {
                     // Only a definitive pre-ready rejection permits one fresh admission.
                     guard buttonSource == nil, input.remote != nil, sessionID == current, activity == .starting,
                           !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline,
-                          let fallback = microphones.resolution(excluding: input.id).device else { throw ServerClientError.captureUnavailable(message) }
+                          let fallback = microphones.localFallback else { throw ServerClientError.captureUnavailable(message) }
                     try await startInput(fallback, session: current, requestID: UUID(), isTest: isTest, deadline: deadline)
                 }
             } catch is CancellationError {

@@ -105,6 +105,11 @@ final class MicrophonePreferencesStore: ObservableObject {
             available: availableDevices.filter { $0.id != id && isEligible($0) }, systemDefaultUID: systemDefaultUID)
     }
 
+    var localFallback: AudioInputDevice? {
+        MicrophoneSelectionPolicy.resolve(preferences: preferences,
+            available: localDevices.filter { isEligible($0) }, systemDefaultUID: systemDefaultUID).device
+    }
+
     private func rebuildDevices() {
         let devices = localDevices + remoteDevices
         let statuses = Dictionary(devices.map { ($0.id, availability($0)) }, uniquingKeysWith: { first, _ in first })
