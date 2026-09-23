@@ -7,6 +7,7 @@ action="${1:-start}"
 if [[ "$action" == --skip-build ]]; then action=start; skip_build=true; else skip_build=false; fi
 if [[ "${2:-}" == --skip-build ]]; then skip_build=true; fi
 server_binary="$project_dir/build/server/sottoduo-server"
+legacy_server_binary="$project_dir/build/server/sotto-server"
 state_dir="$project_dir/.local"
 pid_file="$state_dir/server.pid"
 log_file="$state_dir/server.log"
@@ -34,6 +35,7 @@ server_pid=""
 recorded_port=""
 recorded_extra=""
 server_command=""
+running_binary=""
 
 valid_port() {
     [[ "$1" =~ ^[0-9]{1,5}$ ]] && ((10#$1 >= 1 && 10#$1 <= 65535))
@@ -47,7 +49,8 @@ is_running() {
     # A stale PID file must never target an unrelated process.
     server_command="$(ps -p "$server_pid" -o command=)" || return 1
     case "$server_command" in
-        "$server_binary "*) return 0 ;;
+        "$server_binary "*) running_binary="$server_binary"; return 0 ;;
+        "$legacy_server_binary "*) running_binary="$legacy_server_binary"; return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -56,7 +59,7 @@ use_running_port() {
     # The launch prefix also recovers the endpoint from older PID-only records.
     # Check it against the record so stale or damaged state cannot select a
     # different server for a health check or client launch.
-    local arguments="${server_command#"$server_binary "}"
+    local arguments="${server_command#"$running_binary "}"
     local port_pattern='^--host 127\.0\.0\.1 --port ([0-9]{1,5})( |$)'
     if [[ "$arguments" =~ $port_pattern ]]; then
         local running_port="${BASH_REMATCH[1]}"

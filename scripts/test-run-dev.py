@@ -6,6 +6,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 
 
 def main():
@@ -93,6 +94,23 @@ def main():
                 os.kill(tracked_pid, 0)
 
             # Stop remains available even if endpoint metadata is damaged.
+            run("stop")
+            assert not pid_file.exists()
+            tracked_pid = None
+
+            legacy_binary = root / "build/server/sotto-server"
+            subprocess.run(["cc", str(c_source), "-o", str(legacy_binary)], check=True)
+            legacy = subprocess.Popen([
+                str(legacy_binary), "--host", "127.0.0.1", "--port", "8493",
+            ])
+            threading.Thread(target=legacy.wait, daemon=True).start()
+            tracked_pid = legacy.pid
+            pid_file.write_text(f"{tracked_pid} 8493\n")
+            output, invoked = run("status")
+            assert "http://localhost:8493" in output, output
+            output, invoked = run("start")
+            assert "already running" in output, output
+            assert int(pid_file.read_text().split()[0]) == tracked_pid
             run("stop")
             assert not pid_file.exists()
             tracked_pid = None

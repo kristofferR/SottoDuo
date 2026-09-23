@@ -14,7 +14,13 @@ SOTTODUO_BUILD_CAPTURE=1 ./scripts/build-server.sh # include helper + service/ru
 
 Add `--capture-helper /absolute/path/to/sottoduo-capture --capture-host-id omarchy-desktop` to the existing server arguments, or set `SOTTODUO_CAPTURE_HELPER` and `SOTTODUO_CAPTURE_HOST_ID`. Choose a unique, stable host ID and preserve it across upgrades. This is an explicit opt-in; it is not enabled by building or installing a package. Start only one server against a given data directory.
 
-The example [user service](../Server/packaging/sottoduo-server.service) reads `%h/.config/sottoduo/server.env`. Supply the existing `SOTTODUO_SERVER_*`, model/helper paths, optional Soniox key-file path, and the two capture variables there, using absolute paths. Environment files do not expand `$HOME`. Keep token/key values in the existing private credential files. Review/adapt the template before installing it as `~/.config/systemd/user/sottoduo-server.service`; do not overwrite an existing unit blindly.
+The example [user service](../Server/packaging/sottoduo-server.service) reads the existing `%h/.config/sotto/server.env`, then `%h/.config/sottoduo/server.env` when present. Values in the new file take precedence. Supply the `SOTTODUO_SERVER_*`, model/helper paths, optional Soniox key-file path, and the two capture variables there, using absolute paths. Environment files do not expand `$HOME`. Keep token/key values in the existing private credential files. Review/adapt the template before installing it as `~/.config/systemd/user/sottoduo-server.service`; do not overwrite an existing unit blindly.
+
+When upgrading an enabled `sotto-server.service`, stop and disable it before enabling the new unit so both servers cannot claim the same port and data directory:
+
+```sh
+systemctl --user disable --now sotto-server.service
+```
 
 ```sh
 systemctl --user daemon-reload

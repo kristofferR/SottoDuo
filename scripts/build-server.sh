@@ -84,7 +84,7 @@ mkdir -p "$staging_dir/helpers" "$staging_dir/resources"
 bun run --cwd Server build --outfile "$staging_dir/sottoduo-server"
 cp "$speech_helper" "$staging_dir/helpers/sottoduo-engine"
 cp "$text_helper" "$staging_dir/helpers/sottoduo-text-engine"
-if [[ "${SOTTODUO_BUILD_CAPTURE:-0}" == 1 ]]; then
+if [[ "${SOTTODUO_BUILD_CAPTURE:-${SOTTO_BUILD_CAPTURE:-0}}" == 1 ]]; then
     if [[ "$server_platform" != Linux ]]; then
         printf 'Optional PipeWire capture requires Linux.\n' >&2
         exit 1
