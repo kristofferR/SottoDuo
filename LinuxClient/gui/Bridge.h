@@ -31,22 +31,26 @@ public:
   DesktopIntegration *desktop() { return &m_desktop; }
   void setTheme(const QString &theme);
   Q_INVOKABLE void request(const QString &action,
-                           const QVariantMap &arguments = {});
+                           const QVariantMap &arguments = {},
+                           const QString &requestID = {});
   void requestShortcutEdge(const QString &action);
   Q_INVOKABLE void copy(const QString &text);
   Q_INVOKABLE void previewPhase(const QString &phase);
 signals:
   void snapshotChanged();
   void themeChanged();
-  void reply(const QString &action, const QVariant &data);
-  void failed(const QString &action, const QString &message);
+  void reply(const QString &action, const QVariant &data,
+             const QString &requestID = {});
+  void failed(const QString &action, const QString &message,
+              const QString &requestID = {});
 
 private:
   void disconnected();
   void updateColors();
-  void receive(const QString &action, const QByteArray &bytes);
+  void receive(const QString &action, const QByteArray &bytes,
+               const QString &requestID);
   void sendRequest(const QString &action, const QVariantMap &arguments,
-                   std::function<void()> complete);
+                   const QString &requestID, std::function<void()> complete);
   void sendNextShortcutEdge();
   bool m_preview = false;
   DesktopIntegration m_desktop;

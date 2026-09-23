@@ -1081,6 +1081,38 @@ private slots:
     QVERIFY(token->property("text").toString().isEmpty());
     QCOMPARE(warnings.count(), 0);
   }
+  void connectionIgnoresRepliesFromEarlierChecks() {
+    Bridge bridge(true);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false},
+                                         {"supported", false},
+                                         {"trigger", ""},
+                                         {"message", ""}});
+    QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("page", 4);
+    QTRY_VERIFY(window->findChild<QQuickItem *>("connectionSettings"));
+    auto *settings = window->findChild<QQuickItem *>("connectionSettings");
+    settings->setProperty("pending", true);
+    settings->setProperty("activeRequestID", "new-check");
+    const QVariantMap older{{"ticket", "old-ticket"}, {"hosts", QStringList{"old"}}};
+    emit bridge.reply("testConnection", older, "old-check");
+    QVERIFY(settings->property("pending").toBool());
+    QVERIFY(settings->property("ticket").toString().isEmpty());
+    const QVariantMap newer{{"ticket", "new-ticket"},
+                            {"hosts", QStringList{"new"}},
+                            {"hostID", "new"},
+                            {"message", "Connected"}};
+    emit bridge.reply("testConnection", newer, "new-check");
+    QCOMPARE(settings->property("ticket").toString(), "new-ticket");
+    QVERIFY(!settings->property("pending").toBool());
+    QCOMPARE(warnings.count(), 0);
+  }
   void activeMicrophoneTestCanFinishWhenServerIsBusy() {
     Bridge bridge(true);
     QQmlApplicationEngine engine;
