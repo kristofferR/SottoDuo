@@ -29,8 +29,11 @@ test("GUI shortcut release waits for the preceding press check", async () => {
   const actions: string[] = [];
   const desktop: Desktop = {
     unlocked: async () => {
-      if (++checks === 1) await pressCheck;
-      return true;
+      if (++checks === 1) {
+        await pressCheck;
+        return true;
+      }
+      return false;
     },
     capture: async () => {
       throw new Error("not used");
@@ -59,6 +62,7 @@ test("GUI shortcut release waits for the preceding press check", async () => {
   expect(actions).toEqual([]);
   allowPress?.();
   await Promise.all([press, release]);
+  expect(checks).toBe(1);
   expect(actions).toEqual(["start", "stop"]);
 });
 

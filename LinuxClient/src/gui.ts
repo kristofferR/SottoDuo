@@ -72,6 +72,10 @@ export function createGUIHandler(
         desktop: desktop.kind ?? "hyprland",
         configPath: file,
       };
+    if (request.action === "stop") {
+      controller.stop();
+      return {};
+    }
     if (!(await desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
     switch (request.action) {
       case "start":
@@ -96,9 +100,6 @@ export function createGUIHandler(
       case "test":
         if (!controller.start(undefined, true))
           throw new ClientNotice("Finish dictation or the shortcut check before testing.");
-        return {};
-      case "stop":
-        controller.stop();
         return {};
       case "cancel":
         await controller.cancel();

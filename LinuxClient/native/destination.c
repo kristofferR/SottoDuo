@@ -165,12 +165,6 @@ int main(int argc, char **argv) {
     if (focused_mode || atspi_accessible_get_process_id(app, NULL) == pid) {
       visited = 0;
       AtspiAccessible *candidate = find(app, 0);
-      if (focused_mode && visited > 512) {
-        ambiguous = TRUE;
-        g_clear_object(&candidate);
-        g_object_unref(app);
-        break;
-      }
       if (candidate && target) {
         ambiguous = TRUE;
         g_object_unref(candidate);
