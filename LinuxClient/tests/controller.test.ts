@@ -382,6 +382,30 @@ test("a polling failure after sealing preserves the completed take in history", 
   await until(async () => (await get(sealedID!)).status === "completed");
 });
 
+test("an ambiguous stop response cannot cancel a sealed take", async () => {
+  const f = await fixture();
+  const stop = f.api.stop.bind(f.api);
+  const get = f.api.get.bind(f.api);
+  const cancel = f.api.cancel.bind(f.api);
+  let sealedID: string | undefined;
+  let cancellations = 0;
+  f.api.stop = async (...args) => {
+    sealedID = (await stop(...args)).id;
+    throw new Error("Stop response lost");
+  };
+  f.api.cancel = async (...args) => {
+    cancellations++;
+    return cancel(...args);
+  };
+  f.controller.start();
+  await until(() => f.controller.state.startsWith("recording"));
+  f.controller.stop();
+  await f.controller.settled();
+  expect(cancellations).toBe(0);
+  expect(sealedID).toBeDefined();
+  await until(async () => (await get(sealedID!)).status === "completed");
+});
+
 test("button take pins DJI, ignores keyboard release, and reports a supported preview receipt", async () => {
   const f = await fixture();
   const owner = "a".repeat(64),
