@@ -167,6 +167,7 @@ ColumnLayout {
         SButton {
             ui: root.ui
             text: "Copy"
+            symbolName: "copy"
             enabled: !!root.ui.result && !root.ui.busy
             onClicked: {
                 bridge.copy(root.ui.result.text);

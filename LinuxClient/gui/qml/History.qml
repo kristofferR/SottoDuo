@@ -276,7 +276,10 @@ ColumnLayout {
         SButton {
             ui: root.ui
             objectName: "refreshHistory"
-            text: "Refresh"
+            symbolName: "refresh"
+            accessibleLabel: "Refresh shared history"
+            ToolTip.visible: hovered
+            ToolTip.text: "Refresh shared history"
             enabled: !root.loading && !root.acting && root.available
             onClicked: root.load(false)
         }

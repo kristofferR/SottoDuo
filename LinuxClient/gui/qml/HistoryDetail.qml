@@ -54,7 +54,10 @@ ColumnLayout {
         SButton {
             ui: root.ui
             objectName: "copyHistory"
-            text: root.record && root.copiedID === root.record.id ? "Copied" : "Copy"
+            symbolName: root.record && root.copiedID === root.record.id ? "check" : "copy"
+            accessibleLabel: root.record && root.copiedID === root.record.id ? "Copied transcript" : "Copy transcript"
+            ToolTip.visible: hovered
+            ToolTip.text: accessibleLabel
             enabled: root.transcript.length > 0
             onClicked: {
                 bridge.copy(root.transcript);

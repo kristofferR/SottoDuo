@@ -766,7 +766,8 @@ private slots:
     QVERIFY(remove && copy && date && open && transcript);
     QVERIFY(!date->property("text").toString().isEmpty());
     QVERIFY(QMetaObject::invokeMethod(copy, "clicked"));
-    QCOMPARE(copy->property("text").toString(), QString("Copied"));
+    QCOMPARE(copy->property("symbolName").toString(), QString("check"));
+    QCOMPARE(copy->property("accessibleLabel").toString(), QString("Copied transcript"));
     QVERIFY(open->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(open,"clicked"));
     QTRY_VERIFY(!audio.isEmpty());
@@ -774,7 +775,8 @@ private slots:
     QCOMPARE(audio["kind"].toString(),"inference");
     QTRY_VERIFY(page->property("message").toString().contains("no longer available"));
     page->setProperty("selectedID","preview-2");
-    QCOMPARE(copy->property("text").toString(), QString("Copy"));
+    QCOMPARE(copy->property("symbolName").toString(), QString("copy"));
+    QCOMPARE(copy->property("accessibleLabel").toString(), QString("Copy transcript"));
     QCOMPARE(page->property("selectedID").toString(),"preview-2");
     auto *list = page->findChild<QQuickItem *>("historyList");
     QVERIFY(list);
