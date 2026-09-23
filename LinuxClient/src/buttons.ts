@@ -1,3 +1,4 @@
+import { ClientNotice } from "./errors.ts";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { API, Device } from "./api.ts";
 import type { Controller, Desktop } from "./controller.ts";
@@ -18,7 +19,24 @@ export class ButtonDestinationClient {
     private desktop: Pick<Desktop, "unlocked">,
     private controller: Controller,
     private device: Device,
+    private receiving = true,
   ) {}
+  get enabled() {
+    return this.receiving && !this.closed;
+  }
+  get selectedHere() {
+    return this.registration !== undefined && this.state?.selected?.id === this.registration.id;
+  }
+  async setEnabled(enabled: boolean) {
+    if (this.closed)
+      throw new ClientNotice("Restart the client before changing pairing-button settings.");
+    if (this.controller.busy)
+      throw new ClientNotice("Finish dictation before changing pairing-button settings.");
+    if (this.receiving === enabled) return;
+    this.receiving = enabled;
+    this.lastTick = Date.now();
+    if (!enabled) await this.disarm();
+  }
   start() {
     this.controller.onStart = (ticket) => {
       this.keyboardRegistration = ticket ? undefined : this.registration;
@@ -46,8 +64,19 @@ export class ButtonDestinationClient {
   }
   async select(generationID?: string) {
     const registration = this.registration;
-    if (!registration || !(await this.desktop.unlocked()) || this.registration !== registration)
-      throw new Error("The button destination is not connected and unlocked.");
+    if (
+      !this.enabled ||
+      !registration ||
+      !(await this.desktop.unlocked()) ||
+      this.registration !== registration
+    )
+      throw new ClientNotice("The button destination is not connected and unlocked.");
+    if (this.controller.busy)
+      throw new ClientNotice("Finish dictation before changing its destination.");
+    if (!this.state?.available)
+      throw new ClientNotice(
+        "The server’s pairing-button receiver is unavailable. Check receiver status.",
+      );
     return this.request(registration, "/select", generationID ? { generationID } : {});
   }
   async disarm() {
@@ -81,6 +110,7 @@ export class ButtonDestinationClient {
     }
   }
   async tick() {
+    if (!this.enabled) return;
     const epoch = this.epoch;
     const now = Date.now();
     const slept = now - this.lastTick > 3000 || now < this.lastTick;
@@ -88,7 +118,7 @@ export class ButtonDestinationClient {
       await this.disarm();
       return;
     }
-    if (this.closed || epoch !== this.epoch) return;
+    if (!this.enabled || epoch !== this.epoch) return;
     if (!this.registration) {
       const registration = {
         id: randomUUID().toUpperCase(),

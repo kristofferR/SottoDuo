@@ -6,6 +6,7 @@ import {
   MAXIMUM_ARTIFACT_BYTES,
   MAXIMUM_CHUNK_BYTES,
   MAXIMUM_DICTIONARY_BYTES,
+  type GenerationRecord,
   type WisprFlowArtifactName,
 } from "./api.ts";
 import { ServiceError } from "./errors.ts";
@@ -78,6 +79,14 @@ const encodeFor = (request: FastifyRequest) => {
       return item;
     });
 };
+export const compactFeedback = (record: GenerationRecord) => ({
+  feedbackDelta: 1 as const,
+  id: record.id,
+  status: record.status,
+  capture: record.capture ?? null,
+  recognition: record.recognition ?? null,
+  progress: record.progress ?? null,
+});
 const captureOwner = (request: FastifyRequest) => {
   const value = request.headers["x-sotto-capture-owner"];
   return typeof value === "string" ? value : undefined;
@@ -294,9 +303,14 @@ export function createHTTPServer(
   app.get<{ Params: IDParams }>("/v1/generations/:id/events", async (request, reply) => {
     const events = await service.events(identifier(request.params.id));
     const encode = encodeFor(request);
+    const compact = request.headers["x-sotto-feedback"] === "compact-v1";
     const source = Readable.from(
       (async function* () {
-        for await (const record of events) yield `${encode(record)}\n`;
+        let first = true;
+        for await (const record of events) {
+          yield `${encode(first || !compact ? record : compactFeedback(record))}\n`;
+          first = false;
+        }
       })(),
       { objectMode: false },
     );

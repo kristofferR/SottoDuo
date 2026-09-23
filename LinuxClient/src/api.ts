@@ -3,6 +3,10 @@ import type { components } from "../../Server/src/generated/api.ts";
 import type { SourceID } from "./sources.ts";
 export type Generation = components["schemas"]["GenerationRecord"];
 export type Device = components["schemas"]["DeviceIdentity"];
+export type CaptureMode = components["schemas"]["StartCaptureRequest"]["mode"];
+function object(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 export class APIError extends Error {
   constructor(
     readonly status: number,
@@ -39,6 +43,7 @@ export class API {
         ...(destinationOwner ? { "X-Sotto-Destination-Owner": destinationOwner } : {}),
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         "X-Sotto-Capture": "capture-v1",
+        "X-Sotto-Recognition": "streaming-v1",
         ...(owner ? { "X-Sotto-Capture-Owner": owner } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -61,12 +66,67 @@ export class API {
       await this.request(`/v1/button-destinations${path}`, method, body, undefined, 1500, owner),
     );
   }
+  async health() {
+    return validateBody("ServerHealth", await this.request("/v1/health"));
+  }
+  async buttonStatus() {
+    return validateBody("ButtonDestinationState", await this.request("/v1/button-destinations"));
+  }
+  async history(before?: string, source?: string) {
+    return validateBody(
+      "GenerationPage",
+      await this.request(
+        `/v1/generations?limit=30${before ? `&before=${encodeURIComponent(before)}` : ""}${source ? `&source=${encodeURIComponent(source)}` : ""}`,
+        "GET",
+        undefined,
+        undefined,
+        60_000,
+      ),
+    );
+  }
+  async deleteHistory(id: string) {
+    await this.request(`/v1/generations/${encodeURIComponent(id)}`, "DELETE");
+  }
+  async historyAudio(id: string, filename: "inference.wav" | "original.wav" | "source.wav") {
+    const response = await fetch(
+      `${this.endpoint}/v1/generations/${encodeURIComponent(id)}/artifacts/${filename}`,
+      {
+        redirect: "error",
+        signal: AbortSignal.timeout(300_000),
+        headers: { Authorization: `Bearer ${this.token}` },
+      },
+    );
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new APIError(response.status, "audio_unavailable");
+    }
+    return response;
+  }
+  async preferences() {
+    return validateBody(
+      "PreferencesSnapshot",
+      await this.request("/v1/preferences", "GET", undefined, undefined, 10_000),
+    );
+  }
+  async savePreferences(value: unknown) {
+    return validateBody(
+      "PreferencesSnapshot",
+      await this.request(
+        "/v1/preferences",
+        "PUT",
+        validateBody("PreferencesSnapshot", value),
+        undefined,
+        10_000,
+      ),
+    );
+  }
   async sources() {
     return validateBody("AudioSourceList", await this.request("/v1/audio-sources")).sources;
   }
   async start(
     requestID: string,
     device: Device,
+    mode: CaptureMode,
     source: SourceID,
     owner: string,
     timeout: number,
@@ -77,7 +137,7 @@ export class API {
       await this.request(
         "/v1/captures",
         "POST",
-        { requestID, device, mode: "dictation", source, buttonTicket },
+        { requestID, device, mode, source, buttonTicket },
         owner,
         timeout,
       ),
@@ -95,8 +155,71 @@ export class API {
   async cancel(id: string, owner: string) {
     await this.request(`/v1/generations/${id}/cancel`, "POST", {}, owner);
   }
-  async get(id: string) {
-    return validateBody("GenerationRecord", await this.request(`/v1/generations/${id}`));
+  async get(id: string, timeout = 3000) {
+    return validateBody(
+      "GenerationRecord",
+      await this.request(`/v1/generations/${id}`, "GET", undefined, undefined, timeout),
+    );
+  }
+  async events(id: string, signal: AbortSignal, update: (record: Generation) => void) {
+    const response = await fetch(`${this.endpoint}/v1/generations/${id}/events`, {
+      redirect: "error",
+      signal,
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: "application/x-ndjson",
+        "X-Sotto-Capture": "capture-v1",
+        "X-Sotto-Recognition": "streaming-v1",
+        "X-Sotto-Feedback": "compact-v1",
+      },
+    });
+    if (!response.ok || !response.body) {
+      await response.body?.cancel();
+      throw new Error("Live feedback is unavailable.");
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let pending = "";
+    let previous: Generation | undefined;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) throw new Error("Live feedback disconnected.");
+        pending += decoder.decode(value, { stream: true });
+        let newline: number;
+        while ((newline = pending.indexOf("\n")) >= 0) {
+          if (newline > 2 * 1024 * 1024) throw new Error("Oversized feedback record.");
+          const line = pending.slice(0, newline);
+          pending = pending.slice(newline + 1);
+          if (!line.trim()) continue;
+          signal.throwIfAborted();
+          const value: unknown = JSON.parse(line);
+          const delta = object(value) && "feedbackDelta" in value ? value : undefined;
+          if (delta && (delta.feedbackDelta !== 1 || !previous || delta.id !== id))
+            throw new Error("Invalid feedback update.");
+          const record = validateBody(
+            "GenerationRecord",
+            delta
+              ? {
+                  ...previous,
+                  status: delta.status,
+                  capture: delta.capture ?? undefined,
+                  recognition: delta.recognition ?? undefined,
+                  progress: delta.progress ?? undefined,
+                }
+              : value,
+          );
+          if (record.id !== id) throw new Error("Mismatched feedback record.");
+          previous = record;
+          update(record);
+          if (["completed", "failed", "cancelled"].includes(record.status)) return;
+        }
+        if (pending.length > 2 * 1024 * 1024) throw new Error("Oversized feedback record.");
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
   }
   async delivery(id: string, owner: string, status: string) {
     await this.request(

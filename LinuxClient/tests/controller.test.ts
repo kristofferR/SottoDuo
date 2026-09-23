@@ -9,6 +9,7 @@ import { FakeInference } from "../../Server/tests/support.ts";
 import { API, APIError } from "../src/api.ts";
 import { Controller, type Desktop } from "../src/controller.ts";
 import type { Source } from "../src/sources.ts";
+import { ShortcutCheck } from "../src/shortcuts.ts";
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
@@ -33,10 +34,12 @@ async function fixture() {
       observedAt: new Date().toISOString(),
     }));
   const starts: string[] = [];
+  let level: (peak: number) => void = () => {};
   const provider: CaptureProvider = {
     sources,
     async start(options) {
       starts.push(options.generation.capture!.source.id);
+      level = options.level;
       await options.write("inference", 0, { sampleRate: 16000, channels: 1 }, Buffer.alloc(64000));
       if (options.generation.settings.preferences.keepOriginalAudio)
         await options.write(
@@ -60,7 +63,18 @@ async function fixture() {
     { dataDirectory: directory, development: true, captureProvider: provider },
     new FakeInference(),
   );
-  const app = createHTTPServer(service, "fixture-token");
+  let recognitionHeader: string | undefined;
+  let feedbackHeader: string | undefined;
+  const app = createHTTPServer(service, "fixture-token", (server) => {
+    server.addHook("onRequest", async (request) => {
+      if (request.url.endsWith("/events")) {
+        const value = request.headers["x-sotto-recognition"];
+        recognitionHeader = typeof value === "string" ? value : undefined;
+        const feedback = request.headers["x-sotto-feedback"];
+        feedbackHeader = typeof feedback === "string" ? feedback : undefined;
+      }
+    });
+  });
   const address = await app.listen({ host: "127.0.0.1", port: 0 });
   cleanup.push(async () => {
     await service.shutdown();
@@ -71,6 +85,7 @@ async function fixture() {
   let unlocked = true;
   let deliveries = 0;
   let mode: "inserted" | "preview" | "uncertain" = "inserted";
+  let deliveryGate: Promise<void> | undefined;
   const notices: string[] = [];
   const desktop: Desktop = {
     unlocked: async () => unlocked,
@@ -78,6 +93,7 @@ async function fixture() {
       close() {},
       deliver: async () => {
         deliveries++;
+        await deliveryGate;
         return mode;
       },
     }),
@@ -104,14 +120,103 @@ async function fixture() {
     notices,
     desktop,
     deliveries: () => deliveries,
+    recognitionHeader: () => recognitionHeader,
+    feedbackHeader: () => feedbackHeader,
     lock: () => {
       unlocked = false;
     },
     delivery: (value: typeof mode) => {
       mode = value;
     },
+    waitForDelivery: (gate: Promise<void>) => {
+      deliveryGate = gate;
+    },
+    level: (peak: number) => level(peak),
   };
 }
+test("shortcut diagnostics block shortcut, GUI test and pairing captures until a held key is released", async () => {
+  const f = await fixture();
+  const check = new ShortcutCheck();
+  f.controller.captureAllowed = () => !check.blocked;
+  check.begin();
+  check.consume("start");
+  f.controller.start();
+  f.controller.start(undefined, true);
+  expect(f.controller.startButton("ticket", { hostID: "desktop", id: "dji" })).toBe(false);
+  expect(f.controller.busy).toBe(false);
+  expect(f.starts).toEqual([]);
+  check.end();
+  f.controller.start();
+  expect(f.controller.busy).toBe(false);
+  check.consume("stop");
+  f.controller.start(undefined, true);
+  await until(() => f.controller.activity.phase === "recording");
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.starts).toEqual(["dji"]);
+  expect(f.deliveries()).toBe(0);
+});
+test("live server feedback supplies real peaks but cannot deliver text; stopped and cancelled takes clear levels", async () => {
+  const f = await fixture();
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  f.level(0.65);
+  await until(() => f.controller.feedback.snapshot().levels.includes(0.65));
+  expect(f.recognitionHeader()).toBe("streaming-v1");
+  expect(f.feedbackHeader()).toBe("compact-v1");
+  expect(f.deliveries()).toBe(0);
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.controller.feedback.snapshot().levels).toEqual([]);
+  expect(f.deliveries()).toBe(1);
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  expect(f.controller.feedback.snapshot().partialText).toBe("");
+  await f.controller.cancel();
+  f.level(0.9);
+  await f.controller.settled();
+  expect(f.controller.feedback.snapshot().levels).toEqual([]);
+  expect(f.deliveries()).toBe(1);
+});
+test("failed live feedback remains advisory and cannot prevent the owned take from completing", async () => {
+  const f = await fixture();
+  f.api.events = async () => {
+    throw new Error("feedback connection failed");
+  };
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  expect(f.controller.feedback.snapshot()).toMatchObject({ streamAvailable: false, levels: [] });
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
+});
+test("provisional text never inserts and a cancelled stream cannot update the next take", async () => {
+  const f = await fixture();
+  let late: (() => void) | undefined;
+  f.api.events = async (id, signal, update) => {
+    const record = await f.api.get(id);
+    const publish = () =>
+      update({ ...record, recognition: { provider: "soniox", partialText: "Not final" } });
+    late ??= publish;
+    publish();
+    if (!signal.aborted)
+      await new Promise<void>((resolve) =>
+        signal.addEventListener("abort", () => resolve(), { once: true }),
+      );
+  };
+  f.controller.start();
+  await until(() => f.controller.feedback.snapshot().partialText === "Not final");
+  expect(f.deliveries()).toBe(0);
+  await f.controller.cancel();
+  await f.controller.settled();
+  f.api.events = async () => {};
+  f.controller.start();
+  await until(() => f.controller.activity.phase === "recording");
+  late!();
+  expect(f.controller.feedback.snapshot().partialText).toBe("");
+  expect(f.deliveries()).toBe(0);
+  await f.controller.cancel();
+});
 test("owned HTTP capture reuses history and delivers once, including duplicate release commands", async () => {
   const f = await fixture();
   f.controller.start();
@@ -133,7 +238,7 @@ test("definitive startup rejection permits one fallback with fresh owner and req
   const start = f.api.start.bind(f.api);
   const requests: { id: string; owner: string }[] = [];
   f.api.start = async (...args) => {
-    requests.push({ id: args[0], owner: args[3] });
+    requests.push({ id: args[0], owner: args[4] });
     if (requests.length === 1) throw new APIError(503, "source_unavailable");
     return start(...args);
   };
@@ -218,6 +323,67 @@ test("lock and heartbeat failure cancel capture without delivery", async () => {
     expect(f.deliveries()).toBe(0);
     expect(f.controller.result).toBeUndefined();
   }
+});
+test("a lock after one-shot delivery begins preserves its insertion result", async () => {
+  const f = await fixture();
+  const owner = "a".repeat(64);
+  const registration = crypto.randomUUID();
+  const source = { hostID: "desktop", id: "dji" };
+  f.service.buttons.input(source, "test-monitor");
+  await f.api.buttonRequest("", owner, {
+    id: registration,
+    device: { id: "desktop-client", name: "Omarchy" },
+  });
+  await f.api.buttonRequest(`/${registration}/select`, owner, {});
+  f.service.buttons.press("test-monitor", 1);
+  const ticket = f.service.buttons.state(registration).command!.takeID;
+  let release!: () => void;
+  f.waitForDelivery(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  try {
+    expect(f.controller.startButton(ticket, source)).toBe(true);
+    await until(() => f.controller.activity.phase === "recording");
+    f.controller.stopButton(ticket);
+    await until(() => f.controller.activity.phase === "delivering");
+    f.lock();
+    await f.controller.cancelButton(ticket);
+    await Bun.sleep(1100);
+  } finally {
+    release();
+  }
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
+  expect(f.controller.result?.delivery).toBe("inserted");
+  expect(f.controller.activity.phase).toBe("completed");
+});
+test("a lock during the delivery receipt preserves completed insertion", async () => {
+  const f = await fixture();
+  const saveDelivery = f.api.delivery.bind(f.api);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  f.api.delivery = async (...args) => {
+    await gate;
+    return saveDelivery(...args);
+  };
+  try {
+    f.controller.start();
+    await until(() => f.controller.activity.phase === "recording");
+    f.controller.stop();
+    await until(() => f.controller.activity.phase === "completed");
+    f.lock();
+    await Bun.sleep(1100);
+    expect(f.controller.result?.delivery).toBe("inserted");
+    expect(f.controller.activity.phase).toBe("completed");
+  } finally {
+    release();
+  }
+  await f.controller.settled();
+  expect(f.deliveries()).toBe(1);
 });
 test("clipboard fallback and ambiguous insertion never retry delivery, even if receipt fails", async () => {
   for (const mode of ["preview", "uncertain"] as const) {
@@ -391,4 +557,23 @@ test("a shortcut take begun before disarm cannot reselect a replacement registra
   await f.controller.settled();
   await Bun.sleep(40);
   expect(f.service.buttons.state().selected).toBeUndefined();
+});
+
+test("GUI microphone tests retain a preview without attempting desktop insertion or selecting a button destination", async () => {
+  const f = await fixture();
+  let selected = false;
+  f.controller.onComplete = (_id, _ticket, succeeded) => {
+    selected = succeeded;
+  };
+  f.controller.start(undefined, true);
+  await until(() => f.controller.activity.phase === "recording");
+  expect(f.controller.activity.trigger).toBe("test");
+  expect(f.controller.activity.source).toBe("dji");
+  f.controller.stop();
+  await f.controller.settled();
+  expect(f.controller.activity.phase).toBe("completed");
+  expect(f.controller.result?.delivery).toBe("preview");
+  expect((await f.api.get(f.controller.result!.id)).mode).toBe("test");
+  expect(f.deliveries()).toBe(0);
+  expect(selected).toBe(false);
 });

@@ -1,7 +1,9 @@
 import { connect, createServer } from "node:net";
 import { chmod, lstat, mkdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { acquireDataDirectoryLock } from "../../Server/src/data-lock.ts";
+import { ClientNotice } from "./errors.ts";
 export type Command =
   | "start"
   | "stop"
@@ -45,7 +47,7 @@ export async function send(command: Command): Promise<string> {
   return new Promise((resolve, reject) => {
     let value = "";
     socket.setTimeout(5000, () => socket.destroy(new Error("Sotto did not respond.")));
-    socket.on("connect", () => socket.end(command + "\n"));
+    socket.on("connect", () => socket.write(command + "\n"));
     socket.on("data", (data: Buffer) => {
       value += data.toString();
       if (value.length > 524288) socket.destroy(new Error("Oversized reply."));
@@ -57,6 +59,7 @@ export async function send(command: Command): Promise<string> {
 export async function serve(
   handler: (command: Command) => Promise<string>,
   onFailure: () => void = () => {},
+  gui?: (request: unknown) => Promise<unknown>,
 ): Promise<() => Promise<void>> {
   const socketPath = await path();
   const lock = acquireDataDirectoryLock(dirname(socketPath));
@@ -69,14 +72,46 @@ export async function serve(
     throw error;
   }
   const server = createServer({ allowHalfOpen: true }, (socket) => {
+    const decoder = new StringDecoder("utf8");
     let input = "";
     socket.setTimeout(2000, () => socket.destroy());
     socket.on("error", () => {});
-    socket.on("data", (data: Buffer) => {
-      input += data.toString();
-      if (input.length > 32) socket.destroy();
-    });
-    socket.on("end", () => {
+    let handled = false;
+    const dispatch = () => {
+      if (handled || socket.destroyed) return;
+      handled = true;
+      socket.setTimeout(15000, () => socket.destroy());
+      if (input.trimStart().startsWith("{")) {
+        void (async () => {
+          try {
+            if (!gui) throw new Error();
+            const request: unknown = JSON.parse(input);
+            if (request !== null && typeof request === "object" && "action" in request) {
+              if (request.action === "historyAudio")
+                socket.setTimeout(365_000, () => socket.destroy());
+              else if (request.action === "history")
+                socket.setTimeout(65_000, () => socket.destroy());
+              else if (request.action === "deleteHistory")
+                socket.setTimeout(70_000, () => socket.destroy());
+              else if (request.action === "saveShortcut")
+                socket.setTimeout(30_000, () => socket.destroy());
+            }
+            const data = await gui(request);
+            socket.end(JSON.stringify({ ok: true, data }) + "\n");
+          } catch (error) {
+            socket.end(
+              JSON.stringify({
+                ok: false,
+                error:
+                  error instanceof ClientNotice
+                    ? error.message
+                    : "Request failed. Check the connection and reload before trying again.",
+              }) + "\n",
+            );
+          }
+        })();
+        return;
+      }
       const command = input.trim();
       if (!isCommand(command)) {
         socket.end("Unknown command.\n");
@@ -86,6 +121,28 @@ export async function serve(
         (value) => socket.end(value + "\n"),
         () => socket.end("Command failed.\n"),
       );
+    };
+    socket.on("data", (data: Buffer) => {
+      if (handled) {
+        socket.destroy();
+        return;
+      }
+      input += decoder.write(data);
+      if (Buffer.byteLength(input) > 524288) {
+        handled = true;
+        socket.removeAllListeners("data");
+        socket.resume();
+        socket.end(
+          JSON.stringify({
+            ok: false,
+            error: "Settings are too large. Reduce the dictionary or vocabulary before saving.",
+          }) + "\n",
+        );
+      } else if (input.includes("\n")) dispatch();
+    });
+    socket.on("end", () => {
+      input += decoder.end();
+      dispatch();
     });
   });
   try {

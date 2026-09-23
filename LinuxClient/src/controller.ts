@@ -1,6 +1,8 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { APIError, type API, type Device, type Generation } from "./api.ts";
 import { candidates, sourceKey, type SourceID, type SourcePreferences } from "./sources.ts";
+import { RecordingFeedback } from "./feedback.ts";
+const recordingLimitMS = 174000;
 export interface Destination {
   deliver(text: string): Promise<"inserted" | "preview" | "uncertain">;
   close(): void;
@@ -23,6 +25,9 @@ type Take = {
   sealMayHaveSucceeded: boolean;
   button?: { ticket: string; source: SourceID };
   completed?: boolean;
+  preview: boolean;
+  feedbackAbort: AbortController;
+  atLimit: boolean;
 };
 export interface Result {
   id: string;
@@ -36,22 +41,47 @@ export class Controller {
   private watchdog?: ReturnType<typeof setInterval>;
   private watching = false;
   private lastTick = Date.now();
+  feedback = new RecordingFeedback();
+  captureAllowed: () => boolean = () => true;
   onStart?: (ticket?: string) => void;
   onComplete?: (id: string | undefined, ticket: string | undefined, succeeded: boolean) => void;
+  activity: {
+    phase:
+      | "idle"
+      | "preparing"
+      | "recording"
+      | "processing"
+      | "delivering"
+      | "completed"
+      | "cancelled"
+      | "failed";
+    source?: string;
+    startedAt?: number;
+    trigger?: "shortcut" | "pairing" | "test";
+  } = { phase: "idle" };
+  get busy() {
+    return this.take !== undefined;
+  }
+  updatePreferences(preferences: SourcePreferences) {
+    if (this.busy) throw new Error("Finish dictation before changing microphones.");
+    this.preferences = preferences;
+  }
   state = "idle";
   result?: Result;
   constructor(
     private api: Pick<
       API,
       "sources" | "start" | "heartbeat" | "stop" | "cancel" | "get" | "delivery"
-    >,
+    > &
+      Partial<Pick<API, "events">>,
     private desktop: Desktop,
     private device: Device,
     private preferences: SourcePreferences,
   ) {}
-  start(button?: Take["button"]): void {
-    if (this.take) return;
+  start(button?: Take["button"], preview = false): boolean {
+    if (this.take || !this.captureAllowed()) return false;
     this.result = undefined;
+    this.feedback = new RecordingFeedback();
     const take: Take = {
       owner: randomBytes(32).toString("hex"),
       requestID: randomUUID().toUpperCase(),
@@ -61,11 +91,19 @@ export class Controller {
       sealed: false,
       sealMayHaveSucceeded: false,
       button,
+      preview,
+      feedbackAbort: new AbortController(),
+      atLimit: false,
     };
     this.take = take;
+    this.activity = {
+      phase: "preparing",
+      startedAt: take.startedAt,
+      trigger: preview ? "test" : button ? "pairing" : "shortcut",
+    };
     this.onStart?.(button?.ticket);
     this.lastTick = Date.now();
-    this.setState("preparing");
+    this.setState("preparing", "preparing");
     this.watchdog = setInterval(() => {
       void this.watch(take);
     }, 1000);
@@ -76,6 +114,8 @@ export class Controller {
         await this.cancelTake(take);
       })
       .finally(() => {
+        take.feedbackAbort.abort();
+        this.feedback.finish(take.atLimit);
         take.destination?.close();
         if (this.take === take) {
           clearInterval(this.watchdog);
@@ -87,19 +127,19 @@ export class Controller {
           );
         }
       });
+    return true;
   }
   stop(): void {
     if (this.take && !this.take.button) this.take.released = true;
   }
   startButton(ticket: string, source: SourceID): boolean {
-    if (this.take) return false;
-    this.start({ ticket, source });
-    return true;
+    return this.start({ ticket, source });
   }
   stopButton(ticket: string): void {
     if (this.take?.button?.ticket === ticket) this.take.released = true;
   }
   async cancelButton(ticket?: string): Promise<void> {
+    if (["delivering", "completed"].includes(this.activity.phase)) return;
     if (this.take?.button && (!ticket || this.take.button.ticket === ticket)) await this.cancel();
   }
   toggle(): void {
@@ -109,7 +149,7 @@ export class Controller {
   async cancel(): Promise<void> {
     const take = this.take;
     this.result = undefined;
-    this.setState("cancelled");
+    this.setState("cancelled", "cancelled");
     if (take) await this.cancelTake(take);
   }
   async settled(): Promise<void> {
@@ -118,12 +158,16 @@ export class Controller {
   private live(take: Take) {
     return this.take === take && !take.cancelled;
   }
-  private setState(state: string) {
+  private setState(state: string, phase: Controller["activity"]["phase"] = "failed") {
+    this.activity = { ...this.activity, phase };
     this.state = state;
     this.desktop.notify(state);
   }
   private async cancelTake(take: Take) {
     take.cancelled = true;
+    take.feedbackAbort.abort();
+    this.feedback.finish(take.atLimit);
+    this.feedback.unavailable();
     take.destination?.close();
     if (take.id && !take.sealed && !take.sealMayHaveSucceeded)
       await this.api.cancel(take.id, take.owner).catch(() => {});
@@ -138,11 +182,11 @@ export class Controller {
       this.lastTick = now;
       const unlocked = await this.desktop.unlocked(take.startedAt);
       if (!this.live(take)) return;
+      if (["delivering", "completed"].includes(this.activity.phase)) return;
       if (slept || !unlocked) {
         await this.cancel();
         return;
       }
-      if (!take.released && now - take.startedAt >= 174000) take.released = true;
       if (take.id && !take.sealed && this.live(take)) {
         try {
           await this.api.heartbeat(take.id, take.owner);
@@ -161,7 +205,7 @@ export class Controller {
       }
     } catch {
       if (take.sealMayHaveSucceeded) return;
-      if (this.live(take)) {
+      if (this.live(take) && !["delivering", "completed"].includes(this.activity.phase)) {
         await this.cancelTake(take);
         this.setState("Connection lost; dictation cancelled.");
       }
@@ -171,7 +215,9 @@ export class Controller {
   }
   private async run(take: Take) {
     // Establish the focus-change guard immediately, before slower lock/discovery checks.
-    take.destination = await this.desktop.capture();
+    take.destination = take.preview
+      ? { deliver: async () => "preview", close() {} }
+      : await this.desktop.capture();
     if (!this.live(take)) return;
     if (!(await this.desktop.unlocked(take.startedAt)))
       throw new Error("Desktop is locked or unavailable.");
@@ -185,7 +231,7 @@ export class Controller {
     for (const source of options.slice(0, 2)) {
       if (!this.live(take)) return;
       if (take.released) {
-        this.setState("idle");
+        this.setState("idle", "idle");
         return;
       }
       const remaining = 3000 - (Date.now() - take.startedAt);
@@ -194,6 +240,7 @@ export class Controller {
         const record = await this.api.start(
           take.requestID,
           this.device,
+          take.preview ? "test" : "dictation",
           source.identity,
           take.owner,
           remaining,
@@ -211,7 +258,30 @@ export class Controller {
           record.requestID !== take.requestID
         )
           throw new Error("Invalid capture admission.");
-        this.setState(`recording · ${source.name}`);
+        this.activity = { ...this.activity, source: source.name };
+        this.feedback.begin(take.startedAt + recordingLimitMS);
+        if (this.api.events) {
+          void this.api
+            .events(record.id, take.feedbackAbort.signal, (update) => {
+              if (!this.live(take)) return;
+              this.verify(update, take);
+              if (
+                !update.capture ||
+                sourceKey(update.capture.source) !== sourceKey(source.identity)
+              )
+                throw new Error("Mismatched feedback source.");
+              this.feedback.update(
+                update.capture.state === "recording" ? update.capture.peak : undefined,
+                update.recognition?.partialText,
+                update.status,
+              );
+            })
+            .catch(() => {
+              if (this.live(take) && !take.feedbackAbort.signal.aborted)
+                this.feedback.unavailable();
+            });
+        }
+        this.setState(`recording · ${source.name}`, "recording");
         break;
       } catch (error) {
         if (take.button || !(error instanceof APIError && error.allowsFallback)) throw error;
@@ -220,9 +290,15 @@ export class Controller {
       }
     }
     if (!take.id) throw new Error("No available microphone.");
-    while (this.live(take) && !take.released) await Bun.sleep(40);
+    while (this.live(take) && !take.released) {
+      if (Date.now() >= take.startedAt + recordingLimitMS) {
+        take.atLimit = true;
+        take.released = true;
+      } else await Bun.sleep(40);
+    }
     if (!this.live(take)) return;
-    this.setState("processing");
+    this.feedback.finish(take.atLimit);
+    this.setState("processing", "processing");
     take.sealMayHaveSucceeded = true;
     let record = await this.api.stop(take.id, take.owner);
     this.verify(record, take);
@@ -244,6 +320,7 @@ export class Controller {
       return;
     }
     // Exactly one attempt; an uncertain result is never retried or auto-copied.
+    this.setState("Delivering text", "delivering");
     const delivery = await take.destination.deliver(record.insertionText);
     if (!this.live(take)) return;
     this.result = { id: take.id, text: record.insertionText, delivery };
@@ -253,8 +330,10 @@ export class Controller {
         : delivery === "uncertain"
           ? "Insertion uncertain. Check the field before copying."
           : "Text ready. Use sotto result or sotto copy.",
+      "completed",
     );
-    take.completed = Boolean(record.insertionText.trim()) && delivery !== "uncertain";
+    take.completed =
+      !take.preview && Boolean(record.insertionText.trim()) && delivery !== "uncertain";
     await this.api
       .delivery(
         take.id,

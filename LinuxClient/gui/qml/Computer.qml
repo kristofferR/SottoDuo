@@ -1,0 +1,102 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+ScrollView {
+    id: root
+    required property var ui
+    clip: true
+    contentWidth: availableWidth
+    ColumnLayout {
+        width: root.availableWidth
+        spacing: 22
+        SLabel {
+            ui: root.ui
+            text: "This computer"
+            font.pixelSize: 28
+            font.weight: Font.DemiBold
+        }
+        SLabel {
+            ui: root.ui
+            text: "Connection, appearance and desktop integration."
+            color: root.ui.c.muted
+        }
+        ConnectionSettings {
+            ui: root.ui
+        }
+        Group {
+            ui: root.ui
+            title: "APPEARANCE"
+            Setting {
+                ui: root.ui
+                title: "Theme"
+                detail: "Only this computer. All themes use the same layout."
+                ComboBox {
+                    implicitWidth: 245
+                    model: ["Follow system", "Sotto · Warm light", "Sotto · Glacier dark", "Omarchy · Active theme"]
+                    currentIndex: ["system", "light", "dark", "omarchy"].indexOf(bridge.theme)
+                    onActivated: bridge.theme = ["system", "light", "dark", "omarchy"][currentIndex]
+                }
+            }
+            Setting {
+                ui: root.ui
+                visible: bridge.theme === "omarchy"
+                title: "Omarchy colors"
+                detail: bridge.themeNote
+            }
+        }
+        ShortcutSettings {
+            ui: root.ui
+        }
+        DjiSettings {
+            ui: root.ui
+        }
+        Group {
+            ui: root.ui
+            title: "DESKTOP INTEGRATION"
+            Setting {
+                ui: root.ui
+                title: "Shortcuts and text insertion"
+                detail: "Use your Sotto shortcut while a text field is focused. This build supports dictation on Omarchy/Hyprland."
+            }
+            Setting {
+                ui: root.ui
+                title: "Launch at login"
+                detail: "Keep dictation feedback ready without opening this window. Your background dictation service must already be set up."
+                Switch {
+                    objectName: "launchAtLoginSwitch"
+                    Accessible.name: "Launch Sotto at login"
+                    checked: bridge.desktop.launchAtLogin
+                    enabled: !bridge.preview
+                    onClicked: {
+                        bridge.desktop.setLaunchAtLogin(checked);
+                        checked = Qt.binding(() => bridge.desktop.launchAtLogin);
+                    }
+                }
+            }
+            SLabel {
+                ui: root.ui
+                Layout.fillWidth: true
+                Layout.margins: 12
+                visible: bridge.desktop.error.length > 0
+                text: bridge.desktop.error
+                Accessible.role: Accessible.AlertMessage
+            }
+            Setting {
+                ui: root.ui
+                title: "Background dictation"
+                detail: "Closing this window keeps live feedback available. Open Sotto again from your launcher to return here."
+            }
+            Setting {
+                ui: root.ui
+                title: "Quit Sotto feedback"
+                detail: "Hides the live indicator until you reopen Sotto. Keyboard and pairing-button dictation stay running."
+                SButton {
+                    ui: root.ui
+                    text: "Quit"
+                    onClicked: bridge.desktop.quit()
+                }
+            }
+        }
+    }
+}
