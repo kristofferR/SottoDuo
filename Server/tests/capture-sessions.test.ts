@@ -351,7 +351,7 @@ test("owner lease expiry cancels recording even while source status remains fres
   ).toBe(409);
 }, 15_000);
 
-test("duplicate starts share pending readiness; a lost source before ready cancels without substitution", async () => {
+test("duplicate starts cannot open another source when readiness is lost", async () => {
   const f = await fixture();
   let ready!: () => void;
   f.provider.gate = new Promise((resolve) => {
@@ -363,7 +363,8 @@ test("duplicate starts share pending readiness; a lost source before ready cance
   f.provider.available = false;
   ready();
   expect((await first).statusCode).toBe(503);
-  expect((await second).statusCode).toBe(503);
+  // A retry admitted after cancellation sees the cancelled generation instead of pending readiness.
+  expect([503, 409]).toContain((await second).statusCode);
   expect(f.provider.calls).toBe(1);
   expect((await f.service.get(f.provider.options!.generation.id)).status).toBe("cancelled");
 });

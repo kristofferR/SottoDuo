@@ -22,8 +22,8 @@ final class SottoDuoBuildTests: XCTestCase {
     func testExistingSottoDataIsUsedUntilNewPreferencesExist() throws {
         let support = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: support) }
-        let old = support.appendingPathComponent("Sotto")
-        let current = support.appendingPathComponent("SottoDuo")
+        let old = support.appendingPathComponent("Sotto", isDirectory: true)
+        let current = support.appendingPathComponent("SottoDuo", isDirectory: true)
         try FileManager.default.createDirectory(at: old, withIntermediateDirectories: true)
         XCTAssertEqual(SottoDuoBuild.release.dataDirectory(in: support), old)
         try FileManager.default.createDirectory(at: current, withIntermediateDirectories: true)
