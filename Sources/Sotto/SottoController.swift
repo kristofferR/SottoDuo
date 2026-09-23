@@ -164,6 +164,10 @@ final class SottoController: ObservableObject {
     private let hotkey = HotkeyMonitor()
     private let djiMicButton = DJIMicButtonMonitor()
     private var djiSuspensions: Set<String> = []
+    private var remoteButtons: RemoteButtonDestination?
+    private var buttonSelectionAtStart: UUID?
+    private var remoteButtonSource: AudioSourceIdentity?
+    @Published private(set) var remoteButtonState: ButtonDestinationState?
     private var recordingTrigger: DictationTrigger?
     private let inserter = TextInserter()
     private var subscriptions: Set<AnyCancellable> = []
@@ -228,6 +232,7 @@ final class SottoController: ObservableObject {
         CapturedAudio.cleanupOrphans()
         try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("Sotto-remote-preview"))
         hasInitialized = true
+        refreshRemoteButtons()
         refreshDJIMicButton()
         updateLoginItem()
         refreshServer()
@@ -329,6 +334,7 @@ final class SottoController: ObservableObject {
             errorMessage = preferences.errorMessage
             return
         }
+        refreshRemoteButtons()
         continuationAnchors.removeAll()
         microphones.clearRemote()
         serverHealth = nil
@@ -722,7 +728,10 @@ final class SottoController: ObservableObject {
 
     private func resetSession() {
         liveTranscript = ""
+        if let ticket = recordingTrigger?.buttonTicket { remoteButtons?.complete(ticket) }
         recordingTrigger = nil
+        buttonSelectionAtStart = nil
+        remoteButtonSource = nil
         sessionID = UUID()
         microphoneStartTask?.cancel(); microphoneStartTask = nil
         activationTimeoutTask?.cancel(); activationTimeoutTask = nil
@@ -779,6 +788,7 @@ final class SottoController: ObservableObject {
     func shutdown() {
         guard !isShuttingDown else { return }
         isShuttingDown = true
+        remoteButtons?.close(); remoteButtons = nil
         wisprFlowPrepareTask?.cancel(); wisprFlowImportTask?.cancel()
         wisprFlowMaterializationTask?.cancel()
         wisprFlowPrepareGate?.cancel(waitForWorker: true)
@@ -862,6 +872,7 @@ final class SottoController: ObservableObject {
     private func beginDictation(trigger: DictationTrigger) {
         guard !isBusy, !isShuttingDown else { return }
         let isTest = trigger == .test
+        let buttonSource = trigger.buttonTicket == nil ? nil : remoteButtonSource
         stopShortcutCheck()
         guard isServerReady else { showError(serverStatusMessage); refreshServer(); onShowWindow?(); return }
         hudTask?.cancel(); errorMessage = nil
@@ -870,6 +881,7 @@ final class SottoController: ObservableObject {
         let current = sessionID
         isTestSession = isTest
         recordingTrigger = trigger
+        buttonSelectionAtStart = trigger == .keyboard ? remoteButtons?.registrationID : nil
         serverSealed = false
         recordingClipboardChangeCount = NSPasteboard.general.changeCount
         insertionDestination = nil
@@ -905,16 +917,31 @@ final class SottoController: ObservableObject {
             do {
                 // Discovery failure invalidates remote eligibility; local upload
                 // admission still checks server availability independently.
-                if microphones.prefersRemoteInput { try? await refreshAudioSources() }
+                if buttonSource != nil {
+                    let destination = await destinationTask?.value
+                    guard sessionID == current, activity == .starting, !Task.isCancelled else { return }
+                    guard destination?.target != nil else { throw ServerClientError.captureUnavailable("Focus an editable text field before starting a DJI button take.") }
+                    insertionDestination = destination
+                }
+                if microphones.prefersRemoteInput && buttonSource == nil { try? await refreshAudioSources() }
                 guard sessionID == current, activity == .starting, !Task.isCancelled else { return }
-                guard let input = microphones.resolution.device else {
+                let selectedInput: AudioInputDevice?
+                if let buttonSource {
+                    let connection = try client()
+                    let sources = try await connection.audioSources()
+                    guard let source = sources.first(where: { $0.identity == buttonSource && $0.isEligible() }) else {
+                        throw ServerClientError.captureUnavailable("The DJI receiver is unavailable. Button takes do not use microphone fallback.")
+                    }
+                    selectedInput = AudioInputDevice(uid: source.identity.id, name: source.name, transport: .usb, remote: .init(server: connection.endpoint.absoluteString, hostID: source.identity.hostID))
+                } else { selectedInput = microphones.resolution.device }
+                guard let input = selectedInput else {
                     throw ServerClientError.captureUnavailable("No microphone is ready. Connect an input and try again.")
                 }
                 do {
                     try await startInput(input, session: current, requestID: current, isTest: isTest, deadline: deadline)
                 } catch ServerClientError.captureUnavailable(let message) {
                     // Only a definitive pre-ready rejection permits one fresh admission.
-                    guard input.remote != nil, sessionID == current, activity == .starting,
+                    guard buttonSource == nil, input.remote != nil, sessionID == current, activity == .starting,
                           !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline,
                           let fallback = microphones.localFallback else { throw ServerClientError.captureUnavailable(message) }
                     try await startInput(fallback, session: current, requestID: UUID(), isTest: isTest, deadline: deadline)
@@ -945,7 +972,7 @@ final class SottoController: ObservableObject {
             statusMessage = "Starting remote microphone…"
             let requestedAt = ProcessInfo.processInfo.systemUptime
             let created = try await connection.startCapture(.init(requestID: requestID, device: device,
-                mode: isTest ? .test : .dictation, source: source), timeout: remaining)
+                mode: isTest ? .test : .dictation, source: source, buttonTicket: recordingTrigger?.buttonTicket), timeout: remaining)
             guard sessionID == current, activity == .starting, !Task.isCancelled else {
                 Task { try? await connection.cancel(created.id) }; return
             }
@@ -1097,6 +1124,12 @@ final class SottoController: ObservableObject {
                 activeGenerationID = nil; activeClient = nil; self.uploadTask = nil; self.uploadPipe = nil
                 destinationTask = nil; insertionDestination = nil; recordingListHint = nil; recordingInputName = nil
                 recorder.onChunk = nil
+                if let ticket = recordingTrigger?.buttonTicket { remoteButtons?.complete(ticket) }
+                else if recordingTrigger == .keyboard, let registrationID = buttonSelectionAtStart, !result.insertionText.isEmpty, lastDeliveryStatus != .failed, lastDeliveryStatus != .unconfirmed {
+                    let destination = remoteButtons
+                    Task { try? await destination?.select(generationID: id, registrationID: registrationID) }
+                }
+                recordingTrigger = nil; remoteButtonSource = nil; buttonSelectionAtStart = nil
                 activity = lastDeliveryStatus == .failed ? .failed : .success
                 dismissHUDAfter(seconds: lastDeliveryStatus == .failed || lastDeliveryStatus == .unconfirmed ? 4 : 1.7)
                 refreshServer()
@@ -1253,6 +1286,7 @@ final class SottoController: ObservableObject {
 
     private func restForSystem() {
         stopShortcutCheck()
+        remoteButtons?.disarm()
         if isBusy {
             let cancelServer = remoteCapture?.shouldCancelServer ?? !serverSealed
             failSession("Recording interrupted while your Mac was away. Check shared history for completed results.", cancelServer: cancelServer)
@@ -1260,6 +1294,47 @@ final class SottoController: ObservableObject {
         continuationAnchors.removeAll()
         refreshDJIMicButton()
     }
+
+    func refreshRemoteButtons() {
+        guard !isBusy else { return }
+        remoteButtons?.close(); remoteButtons = nil; remoteButtonState = nil
+        guard hasInitialized, !isShuttingDown, preferences.remoteButtonEnabled, let connection = try? client() else { return }
+        remoteButtons = RemoteButtonDestination(connection: connection,
+            device: .init(id: preferences.deviceID, name: preferences.deviceName),
+            available: { [weak self] in
+                guard let self, !isShuttingDown, djiSuspensions.isEmpty, permissions.accessibility else { return false }
+                guard let session = CGSessionCopyCurrentDictionary() as? [String: Any], session[kCGSessionOnConsoleKey as String] as? Bool == true else { return false }
+                return session["CGSSessionScreenIsLocked"] as? Bool != true
+            }, receive: { [weak self] command in
+                guard let self else { return false }
+                let ticket = command.takeID
+                switch command.action {
+                case .start:
+                    guard !isBusy, isServerReady, !isCheckingShortcut else { return false }
+                    remoteButtonSource = command.source
+                    beginDictation(trigger: .remoteButton(ticket))
+                    return recordingTrigger == .remoteButton(ticket)
+                case .stop:
+                    if recordingTrigger == .remoteButton(ticket) { finishDictation() }
+                case .cancel:
+                    if recordingTrigger == .remoteButton(ticket), !serverSealed { cancelDictation() }
+                }
+                return true
+            }, cancelled: { [weak self] in
+                guard let self, recordingTrigger?.buttonTicket != nil, !serverSealed else { return }
+                cancelDictation()
+            }, changed: { [weak self] in self?.remoteButtonState = $0 })
+        remoteButtons?.start()
+    }
+
+    func selectRemoteButtonDestination() {
+        Task { [weak self] in
+            guard let self, let remoteButtons else { return }
+            do { try await remoteButtons.select() } catch { errorMessage = error.localizedDescription }
+        }
+    }
+
+    func disarmRemoteButtonDestination() { remoteButtons?.disarm() }
 
     private func refreshDJIMicButton() {
         guard hasInitialized, !isShuttingDown else { return }

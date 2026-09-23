@@ -12,7 +12,12 @@ enum DictationDeliveryStatus: String, Equatable {
 }
 
 enum DictationTrigger: Equatable {
-    case keyboard, dji(UInt64), test
+    case keyboard, dji(UInt64), remoteButton(UUID), test
+
+    var buttonTicket: UUID? {
+        if case .remoteButton(let ticket) = self { return ticket }
+        return nil
+    }
 
     enum ButtonAction { case start, finish, ignore }
 

@@ -25,9 +25,10 @@ public struct StartCaptureRequest: Codable, Sendable, APIWireModel {
     public var device: DeviceIdentity
     public var mode: CaptureMode
     public var source: AudioSourceIdentity
+    public var buttonTicket: UUID?
 
-    public init(requestID: UUID, device: DeviceIdentity, mode: CaptureMode, source: AudioSourceIdentity) {
-        self.requestID = requestID; self.device = device; self.mode = mode; self.source = source
+    public init(requestID: UUID, device: DeviceIdentity, mode: CaptureMode, source: AudioSourceIdentity, buttonTicket: UUID? = nil) {
+        self.requestID = requestID; self.device = device; self.mode = mode; self.source = source; self.buttonTicket = buttonTicket
     }
 }
 
@@ -36,3 +37,15 @@ public struct StopCaptureRequest: Codable, Sendable, APIWireModel {
     public var continuationID: UUID?
     public init(continuationID: UUID? = nil) { self.continuationID = continuationID }
 }
+
+public typealias ButtonDestinationState = Components.Schemas.ButtonDestinationState
+public typealias ButtonCommand = Components.Schemas.ButtonCommand
+public typealias RegisterButtonDestination = Components.Schemas.RegisterButtonDestination
+public typealias HeartbeatButtonDestination = Components.Schemas.HeartbeatButtonDestination
+public typealias SelectButtonDestination = Components.Schemas.SelectButtonDestination
+public typealias CompleteButtonTake = Components.Schemas.CompleteButtonTake
+extension ButtonDestinationState: APIWireModel { public typealias Wire = Self }
+extension RegisterButtonDestination: APIWireModel { public typealias Wire = Self }
+extension HeartbeatButtonDestination: APIWireModel { public typealias Wire = Self }
+extension SelectButtonDestination: APIWireModel { public typealias Wire = Self }
+extension CompleteButtonTake: APIWireModel { public typealias Wire = Self }

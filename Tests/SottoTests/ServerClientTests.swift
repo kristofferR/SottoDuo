@@ -225,7 +225,7 @@ private final class RequestBodyCollector: @unchecked Sendable {
     func append(_ body: Data) { lock.withLock { bodies.append(body) } }
 }
 
-private final class HTTPFixture: @unchecked Sendable {
+final class HTTPFixture: @unchecked Sendable {
     let id = UUID().uuidString.lowercased()
     let session: URLSession
     private let lock = NSLock()

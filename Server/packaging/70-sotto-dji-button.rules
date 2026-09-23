@@ -1,0 +1,4 @@
+# Optional receiver Consumer Control access only, before 73-seat-late.rules.
+# The unprivileged helper rechecks USB IDs/name/physical receiver and uses EVIOCGRAB
+# to suppress its native volume-key side effect. Never grant blanket input access.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="DJI Technology Co., Ltd. Wireless Mic Rx Consumer Control", ENV{ID_VENDOR_ID}=="2ca3", ENV{ID_MODEL_ID}=="4011", TAG+="uaccess"

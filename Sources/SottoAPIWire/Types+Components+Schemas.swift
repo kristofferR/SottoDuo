@@ -612,6 +612,305 @@ extension Components {
                 ])
             }
         }
+        /// - Remark: Generated from `#/components/schemas/ButtonDestination`.
+        public struct ButtonDestination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ButtonDestination/id`.
+            public var id: Components.Schemas.Uuid
+            /// - Remark: Generated from `#/components/schemas/ButtonDestination/device`.
+            public var device: Components.Schemas.DeviceIdentity
+            /// Creates a new `ButtonDestination`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - device:
+            public init(
+                id: Components.Schemas.Uuid,
+                device: Components.Schemas.DeviceIdentity
+            ) {
+                self.id = id
+                self.device = device
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case device
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Components.Schemas.Uuid.self,
+                    forKey: .id
+                )
+                self.device = try container.decode(
+                    Components.Schemas.DeviceIdentity.self,
+                    forKey: .device
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "device"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RegisterButtonDestination`.
+        public struct RegisterButtonDestination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RegisterButtonDestination/id`.
+            public var id: Components.Schemas.Uuid
+            /// - Remark: Generated from `#/components/schemas/RegisterButtonDestination/device`.
+            public var device: Components.Schemas.DeviceIdentity
+            /// Creates a new `RegisterButtonDestination`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - device:
+            public init(
+                id: Components.Schemas.Uuid,
+                device: Components.Schemas.DeviceIdentity
+            ) {
+                self.id = id
+                self.device = device
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case device
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Components.Schemas.Uuid.self,
+                    forKey: .id
+                )
+                self.device = try container.decode(
+                    Components.Schemas.DeviceIdentity.self,
+                    forKey: .device
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "device"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ButtonCommand`.
+        public struct ButtonCommand: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ButtonCommand/id`.
+            public var id: Components.Schemas.Uuid
+            /// - Remark: Generated from `#/components/schemas/ButtonCommand/takeID`.
+            public var takeID: Components.Schemas.Uuid
+            /// - Remark: Generated from `#/components/schemas/ButtonCommand/action`.
+            @frozen public enum ActionPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case start = "start"
+                case stop = "stop"
+                case cancel = "cancel"
+            }
+            /// - Remark: Generated from `#/components/schemas/ButtonCommand/action`.
+            public var action: Components.Schemas.ButtonCommand.ActionPayload
+            /// - Remark: Generated from `#/components/schemas/ButtonCommand/source`.
+            public var source: Components.Schemas.AudioSourceIdentity
+            /// - Remark: Generated from `#/components/schemas/ButtonCommand/expiresAt`.
+            public var expiresAt: Foundation.Date
+            /// Creates a new `ButtonCommand`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - takeID:
+            ///   - action:
+            ///   - source:
+            ///   - expiresAt:
+            public init(
+                id: Components.Schemas.Uuid,
+                takeID: Components.Schemas.Uuid,
+                action: Components.Schemas.ButtonCommand.ActionPayload,
+                source: Components.Schemas.AudioSourceIdentity,
+                expiresAt: Foundation.Date
+            ) {
+                self.id = id
+                self.takeID = takeID
+                self.action = action
+                self.source = source
+                self.expiresAt = expiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case takeID
+                case action
+                case source
+                case expiresAt
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Components.Schemas.Uuid.self,
+                    forKey: .id
+                )
+                self.takeID = try container.decode(
+                    Components.Schemas.Uuid.self,
+                    forKey: .takeID
+                )
+                self.action = try container.decode(
+                    Components.Schemas.ButtonCommand.ActionPayload.self,
+                    forKey: .action
+                )
+                self.source = try container.decode(
+                    Components.Schemas.AudioSourceIdentity.self,
+                    forKey: .source
+                )
+                self.expiresAt = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .expiresAt
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "takeID",
+                    "action",
+                    "source",
+                    "expiresAt"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ButtonDestinationState`.
+        public struct ButtonDestinationState: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ButtonDestinationState/selected`.
+            public var selected: Components.Schemas.ButtonDestination?
+            /// - Remark: Generated from `#/components/schemas/ButtonDestinationState/destinations`.
+            public var destinations: [Components.Schemas.ButtonDestination]
+            /// - Remark: Generated from `#/components/schemas/ButtonDestinationState/source`.
+            public var source: Components.Schemas.AudioSourceIdentity?
+            /// - Remark: Generated from `#/components/schemas/ButtonDestinationState/available`.
+            public var available: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ButtonDestinationState/command`.
+            public var command: Components.Schemas.ButtonCommand?
+            /// Creates a new `ButtonDestinationState`.
+            ///
+            /// - Parameters:
+            ///   - selected:
+            ///   - destinations:
+            ///   - source:
+            ///   - available:
+            ///   - command:
+            public init(
+                selected: Components.Schemas.ButtonDestination? = nil,
+                destinations: [Components.Schemas.ButtonDestination],
+                source: Components.Schemas.AudioSourceIdentity? = nil,
+                available: Swift.Bool,
+                command: Components.Schemas.ButtonCommand? = nil
+            ) {
+                self.selected = selected
+                self.destinations = destinations
+                self.source = source
+                self.available = available
+                self.command = command
+            }
+            public enum CodingKeys: String, CodingKey {
+                case selected
+                case destinations
+                case source
+                case available
+                case command
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.selected = try container.decodeIfPresent(
+                    Components.Schemas.ButtonDestination.self,
+                    forKey: .selected
+                )
+                self.destinations = try container.decode(
+                    [Components.Schemas.ButtonDestination].self,
+                    forKey: .destinations
+                )
+                self.source = try container.decodeIfPresent(
+                    Components.Schemas.AudioSourceIdentity.self,
+                    forKey: .source
+                )
+                self.available = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .available
+                )
+                self.command = try container.decodeIfPresent(
+                    Components.Schemas.ButtonCommand.self,
+                    forKey: .command
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "selected",
+                    "destinations",
+                    "source",
+                    "available",
+                    "command"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HeartbeatButtonDestination`.
+        public struct HeartbeatButtonDestination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HeartbeatButtonDestination/acknowledgement`.
+            public var acknowledgement: Components.Schemas.Uuid?
+            /// Creates a new `HeartbeatButtonDestination`.
+            ///
+            /// - Parameters:
+            ///   - acknowledgement:
+            public init(acknowledgement: Components.Schemas.Uuid? = nil) {
+                self.acknowledgement = acknowledgement
+            }
+            public enum CodingKeys: String, CodingKey {
+                case acknowledgement
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.acknowledgement = try container.decodeIfPresent(
+                    Components.Schemas.Uuid.self,
+                    forKey: .acknowledgement
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "acknowledgement"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SelectButtonDestination`.
+        public struct SelectButtonDestination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SelectButtonDestination/generationID`.
+            public var generationID: Components.Schemas.Uuid?
+            /// Creates a new `SelectButtonDestination`.
+            ///
+            /// - Parameters:
+            ///   - generationID:
+            public init(generationID: Components.Schemas.Uuid? = nil) {
+                self.generationID = generationID
+            }
+            public enum CodingKeys: String, CodingKey {
+                case generationID
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.generationID = try container.decodeIfPresent(
+                    Components.Schemas.Uuid.self,
+                    forKey: .generationID
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "generationID"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CompleteButtonTake`.
+        public struct CompleteButtonTake: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CompleteButtonTake/takeID`.
+            public var takeID: Components.Schemas.Uuid
+            /// Creates a new `CompleteButtonTake`.
+            ///
+            /// - Parameters:
+            ///   - takeID:
+            public init(takeID: Components.Schemas.Uuid) {
+                self.takeID = takeID
+            }
+            public enum CodingKeys: String, CodingKey {
+                case takeID
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.takeID = try container.decode(
+                    Components.Schemas.Uuid.self,
+                    forKey: .takeID
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "takeID"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/AudioSourceIdentity`.
         public struct AudioSourceIdentity: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/AudioSourceIdentity/hostID`.
@@ -886,6 +1185,8 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/StartCaptureRequest`.
         public struct StartCaptureRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/buttonTicket`.
+            public var buttonTicket: Components.Schemas.Uuid?
             /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/requestID`.
             public var requestID: Components.Schemas.Uuid
             /// - Remark: Generated from `#/components/schemas/StartCaptureRequest/device`.
@@ -902,22 +1203,26 @@ extension Components {
             /// Creates a new `StartCaptureRequest`.
             ///
             /// - Parameters:
+            ///   - buttonTicket:
             ///   - requestID:
             ///   - device:
             ///   - mode:
             ///   - source:
             public init(
+                buttonTicket: Components.Schemas.Uuid? = nil,
                 requestID: Components.Schemas.Uuid,
                 device: Components.Schemas.DeviceIdentity,
                 mode: Components.Schemas.StartCaptureRequest.ModePayload,
                 source: Components.Schemas.AudioSourceIdentity
             ) {
+                self.buttonTicket = buttonTicket
                 self.requestID = requestID
                 self.device = device
                 self.mode = mode
                 self.source = source
             }
             public enum CodingKeys: String, CodingKey {
+                case buttonTicket
                 case requestID
                 case device
                 case mode
@@ -925,6 +1230,10 @@ extension Components {
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.buttonTicket = try container.decodeIfPresent(
+                    Components.Schemas.Uuid.self,
+                    forKey: .buttonTicket
+                )
                 self.requestID = try container.decode(
                     Components.Schemas.Uuid.self,
                     forKey: .requestID
@@ -942,6 +1251,7 @@ extension Components {
                     forKey: .source
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "buttonTicket",
                     "requestID",
                     "device",
                     "mode",

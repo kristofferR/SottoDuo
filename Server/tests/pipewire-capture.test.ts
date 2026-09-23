@@ -48,6 +48,34 @@ test("DJI status rejects queued, corrupt, unsupported and stale reports without 
   expect(decoder.snapshot(8800)?.mask).toBe(2);
 });
 
+test("DJI extra full reports preserve fresh status without keeping stale status alive", () => {
+  const decoder = new DJIStatus(0);
+  decoder.push(statusFrame(1), 100);
+  decoder.push(statusFrame(1), 1200);
+  decoder.push(statusFrame(1), 1423); // Extra report observed during the physical button trial.
+  expect(decoder.snapshot(1423)).toEqual({ mask: 1, at: 1200 });
+  decoder.push(statusFrame(1), 2200);
+  expect(decoder.snapshot(2200)).toEqual({ mask: 1, at: 2200 });
+  for (let now = 2300; now <= 4800; now += 100) decoder.push(statusFrame(1), now);
+  expect(decoder.snapshot(4800)).toBeUndefined();
+  decoder.push(statusFrame(1), 5800);
+  expect(decoder.snapshot(5800)).toEqual({ mask: 1, at: 5800 });
+});
+
+test("DJI rapid changed masks invalidate immediately and cannot restore connection in a burst", () => {
+  for (const mask of [0, 2, 3]) {
+    const decoder = new DJIStatus(0);
+    decoder.push(statusFrame(1), 100);
+    decoder.push(statusFrame(1), 1200);
+    decoder.push(statusFrame(mask), 1423);
+    expect(decoder.snapshot(1423)).toBeUndefined();
+    decoder.push(statusFrame(1), 1500);
+    expect(decoder.snapshot(1500)).toBeUndefined();
+    decoder.push(statusFrame(1), 2500);
+    expect(decoder.snapshot(2500)?.mask).toBe(1);
+  }
+});
+
 const node = (serial = 100) => ({
   id: serial,
   type: "PipeWire:Interface:Node",

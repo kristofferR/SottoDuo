@@ -34,20 +34,35 @@ struct ServerClient: Sendable {
     let endpoint: URL
     private let token: String
     private let captureOwner: String?
+    private let destinationOwner: String?
     let session: URLSession
 
-    init(endpoint: String, token: String, session: URLSession? = nil, captureOwner: String? = nil) throws {
+    init(endpoint: String, token: String, session: URLSession? = nil, captureOwner: String? = nil, destinationOwner: String? = nil) throws {
         self.endpoint = try ServerEndpoint(endpoint).url
         self.token = token
         self.captureOwner = captureOwner
+        self.destinationOwner = destinationOwner
         self.session = session ?? Self.defaultSession
     }
 
-    func owningCapture() throws -> ServerClient {
-        let secret = SymmetricKey(size: .bits256).withUnsafeBytes { bytes in
+    private static func newOwnerSecret() -> String {
+        SymmetricKey(size: .bits256).withUnsafeBytes { bytes in
             bytes.map { String(format: "%02x", $0) }.joined()
         }
+    }
+
+    func owningCapture() throws -> ServerClient {
+        let secret = Self.newOwnerSecret()
         return try ServerClient(endpoint: endpoint.absoluteString, token: token, session: session, captureOwner: secret)
+    }
+
+    func owningDestination() throws -> ServerClient {
+        let secret = Self.newOwnerSecret()
+        return try ServerClient(endpoint: endpoint.absoluteString, token: token, session: session, destinationOwner: secret)
+    }
+
+    func buttonDestination(_ path: String = "", method: String = "POST", body: Data? = nil) async throws -> ButtonDestinationState {
+        try await json(path: "/v1/button-destinations" + path, method: method, body: body, timeout: 1.5)
     }
 
     private static let defaultSession: URLSession = {
@@ -74,6 +89,7 @@ struct ServerClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("streaming-v1", forHTTPHeaderField: "X-Sotto-Recognition")
         request.setValue("capture-v1", forHTTPHeaderField: "X-Sotto-Capture")
+        if let destinationOwner { request.setValue(destinationOwner, forHTTPHeaderField: "X-Sotto-Destination-Owner") }
         if let captureOwner { request.setValue(captureOwner, forHTTPHeaderField: "X-Sotto-Capture-Owner") }
         if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         return request

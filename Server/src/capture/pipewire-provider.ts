@@ -8,6 +8,8 @@ import { DJIStatus } from "./dji-status.ts";
 import { captureHelper } from "./helper.ts";
 import { pipeWireInputs, type PipeWireInput } from "./pipewire-discovery.ts";
 import { recordPipeWire } from "./pipewire-recording.ts";
+import { DJIButtonInput } from "./dji-button.ts";
+import type { ButtonDestinations } from "../button-destinations.ts";
 
 export interface PipeWireConfiguration {
   helper: string;
@@ -29,6 +31,7 @@ export class PipeWireCaptureProvider implements CaptureProvider {
   private probes = new Map<string, Probe>();
   private timer?: ReturnType<typeof setTimeout>;
   private closed = false;
+  private buttons?: DJIButtonInput;
   private refreshWork: Promise<void> = Promise.resolve();
   private active?: {
     input: PipeWireInput;
@@ -37,6 +40,10 @@ export class PipeWireCaptureProvider implements CaptureProvider {
     lost(): void;
   };
   private constructor(private readonly configuration: PipeWireConfiguration) {}
+
+  attachButtons(helper: string, sourceID: string, router: ButtonDestinations) {
+    this.buttons = new DJIButtonInput(helper, sourceID, router);
+  }
 
   static async open(configuration: PipeWireConfiguration) {
     if (process.platform !== "linux") throw new Error("PipeWire capture requires Linux.");
@@ -122,6 +129,7 @@ export class PipeWireCaptureProvider implements CaptureProvider {
       await Promise.all(probes.map((probe) => probe.process.kill()));
     }
     this.checkActive();
+    await this.buttons?.refresh(this.inputs);
   }
   sources() {
     return this.inputs.map((input) => {
@@ -210,6 +218,7 @@ export class PipeWireCaptureProvider implements CaptureProvider {
   async close() {
     this.closed = true;
     clearTimeout(this.timer);
+    await this.buttons?.close();
     const active = this.active;
     if (active) {
       active.lost();

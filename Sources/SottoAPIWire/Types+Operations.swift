@@ -12,6 +12,923 @@ public import struct Foundation.Date
 public import Foundation
 /// API operations, with input and output types, generated from `#/paths` in the OpenAPI document.
 public enum Operations {
+    /// - Remark: HTTP `GET /v1/button-destinations`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/get(getButtonDestinations)`.
+    public enum GetButtonDestinations {
+        public static let id: Swift.String = "getButtonDestinations"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/button-destinations/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetButtonDestinations.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetButtonDestinations.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetButtonDestinations.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetButtonDestinations.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/button-destinations/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ButtonDestinationState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ButtonDestinationState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetButtonDestinations.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetButtonDestinations.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Live button-destination state. Selection and commands never survive expiry or restart.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/get(getButtonDestinations)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetButtonDestinations.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetButtonDestinations.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/get(getButtonDestinations)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/post(registerButtonDestination)`.
+    public enum RegisterButtonDestination {
+        public static let id: Swift.String = "registerButtonDestination"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/button-destinations/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///
+                /// - Remark: Generated from `#/paths/v1/button-destinations/POST/header/X-Sotto-Destination-Owner`.
+                public var xSottoDestinationOwner: Swift.String
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RegisterButtonDestination.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoDestinationOwner: Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///   - accept:
+                public init(
+                    xSottoDestinationOwner: Swift.String,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RegisterButtonDestination.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoDestinationOwner = xSottoDestinationOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RegisterButtonDestination.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/button-destinations/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RegisterButtonDestination)
+            }
+            public var body: Operations.RegisterButtonDestination.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.RegisterButtonDestination.Input.Headers,
+                body: Operations.RegisterButtonDestination.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/button-destinations/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ButtonDestinationState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ButtonDestinationState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RegisterButtonDestination.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RegisterButtonDestination.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Live button-destination state. Selection and commands never survive expiry or restart.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/post(registerButtonDestination)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.RegisterButtonDestination.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.RegisterButtonDestination.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/post(registerButtonDestination)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/heartbeat`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/heartbeat/post(heartbeatButtonDestination)`.
+    public enum HeartbeatButtonDestination {
+        public static let id: Swift.String = "heartbeatButtonDestination"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/path/id`.
+                public var id: Components.Schemas.Uuid
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Components.Schemas.Uuid) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.HeartbeatButtonDestination.Input.Path
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/header/X-Sotto-Destination-Owner`.
+                public var xSottoDestinationOwner: Swift.String
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.HeartbeatButtonDestination.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoDestinationOwner: Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///   - accept:
+                public init(
+                    xSottoDestinationOwner: Swift.String,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.HeartbeatButtonDestination.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoDestinationOwner = xSottoDestinationOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.HeartbeatButtonDestination.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.HeartbeatButtonDestination)
+            }
+            public var body: Operations.HeartbeatButtonDestination.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.HeartbeatButtonDestination.Input.Path,
+                headers: Operations.HeartbeatButtonDestination.Input.Headers,
+                body: Operations.HeartbeatButtonDestination.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/heartbeat/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ButtonDestinationState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ButtonDestinationState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.HeartbeatButtonDestination.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.HeartbeatButtonDestination.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Live button-destination state. Selection and commands never survive expiry or restart.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/heartbeat/post(heartbeatButtonDestination)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.HeartbeatButtonDestination.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.HeartbeatButtonDestination.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/heartbeat/post(heartbeatButtonDestination)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/select`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/select/post(selectButtonDestination)`.
+    public enum SelectButtonDestination {
+        public static let id: Swift.String = "selectButtonDestination"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/path/id`.
+                public var id: Components.Schemas.Uuid
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Components.Schemas.Uuid) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.SelectButtonDestination.Input.Path
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/header/X-Sotto-Destination-Owner`.
+                public var xSottoDestinationOwner: Swift.String
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SelectButtonDestination.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoDestinationOwner: Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///   - accept:
+                public init(
+                    xSottoDestinationOwner: Swift.String,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SelectButtonDestination.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoDestinationOwner = xSottoDestinationOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.SelectButtonDestination.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.SelectButtonDestination)
+            }
+            public var body: Operations.SelectButtonDestination.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.SelectButtonDestination.Input.Path,
+                headers: Operations.SelectButtonDestination.Input.Headers,
+                body: Operations.SelectButtonDestination.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/select/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ButtonDestinationState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ButtonDestinationState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.SelectButtonDestination.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.SelectButtonDestination.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Live button-destination state. Selection and commands never survive expiry or restart.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/select/post(selectButtonDestination)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.SelectButtonDestination.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.SelectButtonDestination.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/select/post(selectButtonDestination)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/complete`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/complete/post(completeButtonTake)`.
+    public enum CompleteButtonTake {
+        public static let id: Swift.String = "completeButtonTake"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/path/id`.
+                public var id: Components.Schemas.Uuid
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Components.Schemas.Uuid) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.CompleteButtonTake.Input.Path
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/header/X-Sotto-Destination-Owner`.
+                public var xSottoDestinationOwner: Swift.String
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CompleteButtonTake.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoDestinationOwner: Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///   - accept:
+                public init(
+                    xSottoDestinationOwner: Swift.String,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CompleteButtonTake.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoDestinationOwner = xSottoDestinationOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CompleteButtonTake.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.CompleteButtonTake)
+            }
+            public var body: Operations.CompleteButtonTake.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.CompleteButtonTake.Input.Path,
+                headers: Operations.CompleteButtonTake.Input.Headers,
+                body: Operations.CompleteButtonTake.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/complete/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ButtonDestinationState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ButtonDestinationState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CompleteButtonTake.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CompleteButtonTake.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Live button-destination state. Selection and commands never survive expiry or restart.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/complete/post(completeButtonTake)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.CompleteButtonTake.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.CompleteButtonTake.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/complete/post(completeButtonTake)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `DELETE /v1/button-destinations/{id}`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/delete(unregisterButtonDestination)`.
+    public enum UnregisterButtonDestination {
+        public static let id: Swift.String = "unregisterButtonDestination"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/DELETE/path/id`.
+                public var id: Components.Schemas.Uuid
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Components.Schemas.Uuid) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.UnregisterButtonDestination.Input.Path
+            /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                /// Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/DELETE/header/X-Sotto-Destination-Owner`.
+                public var xSottoDestinationOwner: Swift.String
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UnregisterButtonDestination.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - xSottoDestinationOwner: Fresh 256-bit secret for this in-memory destination registration. Never persist or log it.
+                ///   - accept:
+                public init(
+                    xSottoDestinationOwner: Swift.String,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UnregisterButtonDestination.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.xSottoDestinationOwner = xSottoDestinationOwner
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UnregisterButtonDestination.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.UnregisterButtonDestination.Input.Path,
+                headers: Operations.UnregisterButtonDestination.Input.Headers
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/button-destinations/{id}/DELETE/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ButtonDestinationState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ButtonDestinationState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UnregisterButtonDestination.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UnregisterButtonDestination.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Live button-destination state. Selection and commands never survive expiry or restart.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/delete(unregisterButtonDestination)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UnregisterButtonDestination.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UnregisterButtonDestination.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// A request, admission, or server error.
+            ///
+            /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/delete(unregisterButtonDestination)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.APIError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.APIError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// - Remark: HTTP `GET /v1/audio-sources`.
     /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)`.
     public enum ListAudioSources {

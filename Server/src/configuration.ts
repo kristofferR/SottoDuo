@@ -19,6 +19,7 @@ export interface ServerConfiguration {
   soniox?: SonioxConfiguration;
   inference: InferenceConfiguration;
   capture?: PipeWireConfiguration;
+  button?: { helper: string; sourceID: string };
 }
 
 export const usage = `Sotto server — independent dictation service
@@ -31,6 +32,7 @@ Whisper remains the automatic offline fallback.
 Models must already exist. The server never downloads or imports personal data automatically.
 Use persistent storage for --data-dir. Remote bindings require --token-file.
 Optional Linux capture: --capture-helper PATH --capture-host-id STABLE_NAME.
+Optional device-scoped button routing: --button-helper PATH --button-source-id STABLE_SOURCE_ID.
 Run in the desktop user's PipeWire session; without these options the server stays headless.
 `;
 
@@ -47,6 +49,8 @@ const names = new Set([
   "proof-model",
   "capture-helper",
   "capture-host-id",
+  "button-helper",
+  "button-source-id",
 ]);
 export const isLoopbackHost = (host: string) => ["localhost", "127.0.0.1", "::1"].includes(host);
 const expandPath = (value: string) =>
@@ -129,6 +133,15 @@ export async function parseConfiguration(
     );
   const captureHelper = value("capture-helper", "SOTTO_CAPTURE_HELPER");
   const captureHostID = value("capture-host-id", "SOTTO_CAPTURE_HOST_ID");
+  const buttonHelper = value("button-helper", "SOTTO_BUTTON_HELPER");
+  const buttonSourceID = value("button-source-id", "SOTTO_BUTTON_SOURCE_ID");
+  if (
+    (buttonHelper || buttonSourceID) &&
+    (!captureHelper || !buttonHelper || !buttonSourceID || !/^[a-f0-9]{64}$/.test(buttonSourceID))
+  )
+    throw new Error(
+      "Button routing requires capture plus --button-helper and the exact --button-source-id from audio discovery.",
+    );
   if (
     (captureHelper || captureHostID) &&
     (!captureHelper || !captureHostID || !/^[a-zA-Z0-9._-]{1,128}$/.test(captureHostID))
@@ -137,6 +150,10 @@ export async function parseConfiguration(
       "Configure both --capture-helper and a stable --capture-host-id (letters, digits, dots, underscores or hyphens).",
     );
   return {
+    button:
+      buttonHelper && buttonSourceID
+        ? { helper: expandPath(buttonHelper), sourceID: buttonSourceID }
+        : undefined,
     capture:
       captureHelper && captureHostID
         ? { helper: expandPath(captureHelper), hostID: captureHostID }

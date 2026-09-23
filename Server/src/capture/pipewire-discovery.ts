@@ -32,8 +32,21 @@ export function pipeWireInputs(value: unknown, hostID: string): PipeWireInput[] 
     const name = props["node.name"],
       serial = props["object.serial"];
     if (typeof name !== "string" || !Number.isSafeInteger(serial) || Number(serial) <= 0) continue;
-    const device = entries(value).find((d) => d.id === props["device.id"]);
+    const device = entries(value).find(
+      (d) => d.type === "PipeWire:Interface:Device" && d.id === props["device.id"],
+    );
     const deviceProps = object(object(device?.info)?.props);
+    const bluetoothDevice = deviceProps?.["device.api"] === "bluez5";
+    if (props["api.bluez5.internal"] === true) continue;
+    const bluetooth =
+      bluetoothDevice || props["device.api"] === "bluez5" || name.startsWith("bluez_");
+    const bluetoothInput =
+      bluetoothDevice && (props["device.api"] === "bluez5" || props["bluez5.loopback"] === true);
+    const connection = deviceProps?.["api.bluez5.connection"];
+    const bluetoothLink =
+      bluetoothDevice && (connection === "connected" || connection === "disconnected")
+        ? connection
+        : "unknown";
     const path = deviceProps?.["device.bus-path"];
     const id = createHash("sha256")
       .update(JSON.stringify([name, path ?? ""]))
@@ -41,7 +54,12 @@ export function pipeWireInputs(value: unknown, hostID: string): PipeWireInput[] 
     const raw = entries(params?.EnumFormat).find(
       (f) => f.mediaType === "audio" && f.mediaSubtype === "raw",
     );
-    const rate = nativeNumber(raw?.rate),
+    // WirePlumber's headset auto-switch source advertises channels but no rate.
+    // Request 48 kHz from that loopback; this is its delivered PCM, not the radio codec rate.
+    const rate =
+        bluetoothInput && props["bluez5.loopback"] === true && raw && raw.rate === undefined
+          ? 48000
+          : nativeNumber(raw?.rate),
       channels = nativeNumber(raw?.channels);
     const format =
       typeof rate === "number" &&
@@ -55,8 +73,6 @@ export function pipeWireInputs(value: unknown, hostID: string): PipeWireInput[] 
         ? { sampleRate: rate, channels }
         : undefined;
     const dji = props["alsa.components"] === "USB2ca3:4011";
-    const bluetooth =
-      props["device.api"] === "bluez5" || String(props["node.name"]).startsWith("bluez_");
     const muted = entries(params?.Props).some(
       (p) =>
         p.mute === true ||
@@ -65,15 +81,18 @@ export function pipeWireInputs(value: unknown, hostID: string): PipeWireInput[] 
           p.channelVolumes.length > 0 &&
           p.channelVolumes.every((v) => v === 0)),
     );
-    const supported = props["device.api"] === "alsa" && !!format;
+    const supported = (props["device.api"] === "alsa" || bluetoothInput) && !!format;
     const source: Source = {
       identity: { hostID, id },
       name: String(props["node.description"] || "PipeWire microphone").slice(0, 128),
       transport: bluetooth ? "bluetooth" : props["device.bus"] === "usb" ? "usb" : "builtIn",
       present: true,
-      link: dji || bluetooth ? "unknown" : "notApplicable",
+      link: bluetooth ? bluetoothLink : dji ? "unknown" : "notApplicable",
       capture:
-        !supported || muted || info?.state === "error"
+        !supported ||
+        muted ||
+        info?.state === "error" ||
+        (bluetooth && bluetoothLink !== "connected")
           ? "unavailable"
           : dji
             ? "unknown"
@@ -83,10 +102,12 @@ export function pipeWireInputs(value: unknown, hostID: string): PipeWireInput[] 
       reason: muted
         ? "The PipeWire input is muted."
         : !supported
-          ? "This provider supports ALSA mono/stereo inputs with a known native format."
-          : dji
-            ? "Waiting for fresh DJI transmitter status; USB presence does not prove readiness."
-            : undefined,
+          ? "This provider supports ALSA and associated Bluetooth mono/stereo inputs with a usable capture format."
+          : bluetooth && bluetoothLink !== "connected"
+            ? "The Bluetooth microphone connection is not confirmed."
+            : dji
+              ? "Waiting for fresh DJI transmitter status; USB presence does not prove readiness."
+              : undefined,
     };
     result.push({
       source,

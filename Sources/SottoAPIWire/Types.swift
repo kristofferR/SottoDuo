@@ -12,6 +12,24 @@ public import struct Foundation.Date
 public import Foundation
 /// A type that performs HTTP operations defined by the OpenAPI document.
 public protocol APIProtocol: Sendable {
+    /// - Remark: HTTP `GET /v1/button-destinations`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/get(getButtonDestinations)`.
+    func getButtonDestinations(_ input: Operations.GetButtonDestinations.Input) async throws -> Operations.GetButtonDestinations.Output
+    /// - Remark: HTTP `POST /v1/button-destinations`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/post(registerButtonDestination)`.
+    func registerButtonDestination(_ input: Operations.RegisterButtonDestination.Input) async throws -> Operations.RegisterButtonDestination.Output
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/heartbeat`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/heartbeat/post(heartbeatButtonDestination)`.
+    func heartbeatButtonDestination(_ input: Operations.HeartbeatButtonDestination.Input) async throws -> Operations.HeartbeatButtonDestination.Output
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/select`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/select/post(selectButtonDestination)`.
+    func selectButtonDestination(_ input: Operations.SelectButtonDestination.Input) async throws -> Operations.SelectButtonDestination.Output
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/complete`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/complete/post(completeButtonTake)`.
+    func completeButtonTake(_ input: Operations.CompleteButtonTake.Input) async throws -> Operations.CompleteButtonTake.Output
+    /// - Remark: HTTP `DELETE /v1/button-destinations/{id}`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/delete(unregisterButtonDestination)`.
+    func unregisterButtonDestination(_ input: Operations.UnregisterButtonDestination.Input) async throws -> Operations.UnregisterButtonDestination.Output
     /// - Remark: HTTP `GET /v1/audio-sources`.
     /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)`.
     func listAudioSources(_ input: Operations.ListAudioSources.Input) async throws -> Operations.ListAudioSources.Output
@@ -87,6 +105,72 @@ public protocol APIProtocol: Sendable {
 
 /// Convenience overloads for operation inputs.
 extension APIProtocol {
+    /// - Remark: HTTP `GET /v1/button-destinations`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/get(getButtonDestinations)`.
+    public func getButtonDestinations(headers: Operations.GetButtonDestinations.Input.Headers = .init()) async throws -> Operations.GetButtonDestinations.Output {
+        try await getButtonDestinations(Operations.GetButtonDestinations.Input(headers: headers))
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/post(registerButtonDestination)`.
+    public func registerButtonDestination(
+        headers: Operations.RegisterButtonDestination.Input.Headers,
+        body: Operations.RegisterButtonDestination.Input.Body
+    ) async throws -> Operations.RegisterButtonDestination.Output {
+        try await registerButtonDestination(Operations.RegisterButtonDestination.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/heartbeat`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/heartbeat/post(heartbeatButtonDestination)`.
+    public func heartbeatButtonDestination(
+        path: Operations.HeartbeatButtonDestination.Input.Path,
+        headers: Operations.HeartbeatButtonDestination.Input.Headers,
+        body: Operations.HeartbeatButtonDestination.Input.Body
+    ) async throws -> Operations.HeartbeatButtonDestination.Output {
+        try await heartbeatButtonDestination(Operations.HeartbeatButtonDestination.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/select`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/select/post(selectButtonDestination)`.
+    public func selectButtonDestination(
+        path: Operations.SelectButtonDestination.Input.Path,
+        headers: Operations.SelectButtonDestination.Input.Headers,
+        body: Operations.SelectButtonDestination.Input.Body
+    ) async throws -> Operations.SelectButtonDestination.Output {
+        try await selectButtonDestination(Operations.SelectButtonDestination.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/button-destinations/{id}/complete`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/complete/post(completeButtonTake)`.
+    public func completeButtonTake(
+        path: Operations.CompleteButtonTake.Input.Path,
+        headers: Operations.CompleteButtonTake.Input.Headers,
+        body: Operations.CompleteButtonTake.Input.Body
+    ) async throws -> Operations.CompleteButtonTake.Output {
+        try await completeButtonTake(Operations.CompleteButtonTake.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `DELETE /v1/button-destinations/{id}`.
+    /// - Remark: Generated from `#/paths//v1/button-destinations/{id}/delete(unregisterButtonDestination)`.
+    public func unregisterButtonDestination(
+        path: Operations.UnregisterButtonDestination.Input.Path,
+        headers: Operations.UnregisterButtonDestination.Input.Headers
+    ) async throws -> Operations.UnregisterButtonDestination.Output {
+        try await unregisterButtonDestination(Operations.UnregisterButtonDestination.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// - Remark: HTTP `GET /v1/audio-sources`.
     /// - Remark: Generated from `#/paths//v1/audio-sources/get(listAudioSources)`.
     public func listAudioSources(headers: Operations.ListAudioSources.Input.Headers = .init()) async throws -> Operations.ListAudioSources.Output {

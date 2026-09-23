@@ -76,6 +76,26 @@ private struct DevicePreferencesForm: View {
             }
 
             Section {
+                Toggle("Receive the server's DJI button", isOn: $preferences.remoteButtonEnabled)
+                    .disabled(controller.isBusy)
+                    .onChange(of: preferences.remoteButtonEnabled) { _, _ in controller.refreshRemoteButtons() }
+                if preferences.remoteButtonEnabled {
+                    LabeledContent("Destination", value: controller.remoteButtonState?.selected?.device.name ?? "Not selected")
+                    Text(controller.remoteButtonState?.available == true ? "DJI receiver ready" : "DJI receiver unavailable")
+                        .font(.caption).foregroundStyle(SottoPalette.muted)
+                    HStack {
+                        Button("Use this Mac", action: controller.selectRemoteButtonDestination)
+                            .disabled(controller.remoteButtonState?.available != true || controller.isBusy)
+                        Button("Deselect this Mac", action: controller.disarmRemoteButtonDestination)
+                            .disabled(controller.isBusy
+                                || controller.remoteButtonState?.selected?.device.id != preferences.deviceID)
+                    }
+                    Text("A successful shortcut take selects this Mac too. Tap the DJI button to start, then tap to stop. Button takes use only the server's DJI receiver; shortcut takes keep microphone fallback. Locking or disconnecting clears selection.")
+                        .font(.caption).foregroundStyle(SottoPalette.muted)
+                }
+            } header: { Text("DJI receiver on server").textCase(nil) }
+
+            Section {
                 PermissionRow(title: "Microphone", detail: "Capture audio while dictating.", granted: controller.permissions.microphone,
                               reviewGranted: true, action: controller.requestMicrophone)
                 PermissionRow(title: "Accessibility", detail: "Recognize your hold key and insert text.", granted: controller.permissions.accessibility,
@@ -134,7 +154,7 @@ private struct DJIMicButtonPreferences: View {
                     Button("Allow Input Monitoring", action: controller.requestInputMonitoring)
                 }
                 Button("Check receiver", action: controller.retryDJIMicButton)
-                Text("Uses the input selected under Microphone. Bluetooth-only connections do not send button presses. Disable other DJI button mappings before enabling this.")
+                Text("Uses the input selected under Microphone. Direct Bluetooth button support has not been verified. Disable other DJI button mappings before enabling this.")
                     .font(.caption)
                     .foregroundStyle(SottoPalette.muted)
             }

@@ -1,4 +1,84 @@
 export interface paths {
+  "/v1/button-destinations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getButtonDestinations"];
+    put?: never;
+    post: operations["registerButtonDestination"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/button-destinations/{id}/heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["heartbeatButtonDestination"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/button-destinations/{id}/select": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["selectButtonDestination"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/button-destinations/{id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["completeButtonTake"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/button-destinations/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["unregisterButtonDestination"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/audio-sources": {
     parameters: {
       query?: never;
@@ -428,6 +508,39 @@ export interface components {
       proofreading: components["schemas"]["ModelRuntimeInfo"];
       message?: string;
     };
+    ButtonDestination: {
+      id: components["schemas"]["UUID"];
+      device: components["schemas"]["DeviceIdentity"];
+    };
+    RegisterButtonDestination: {
+      id: components["schemas"]["UUID"];
+      device: components["schemas"]["DeviceIdentity"];
+    };
+    ButtonCommand: {
+      id: components["schemas"]["UUID"];
+      takeID: components["schemas"]["UUID"];
+      /** @enum {string} */
+      action: "start" | "stop" | "cancel";
+      source: components["schemas"]["AudioSourceIdentity"];
+      /** Format: date-time */
+      expiresAt: string;
+    };
+    ButtonDestinationState: {
+      selected?: components["schemas"]["ButtonDestination"];
+      destinations: components["schemas"]["ButtonDestination"][];
+      source?: components["schemas"]["AudioSourceIdentity"];
+      available: boolean;
+      command?: components["schemas"]["ButtonCommand"];
+    };
+    HeartbeatButtonDestination: {
+      acknowledgement?: components["schemas"]["UUID"];
+    };
+    SelectButtonDestination: {
+      generationID?: components["schemas"]["UUID"];
+    };
+    CompleteButtonTake: {
+      takeID: components["schemas"]["UUID"];
+    };
     AudioSourceIdentity: {
       hostID: string;
       id: string;
@@ -459,6 +572,7 @@ export interface components {
       peak?: number;
     };
     StartCaptureRequest: {
+      buttonTicket?: components["schemas"]["UUID"];
       requestID: components["schemas"]["UUID"];
       device: components["schemas"]["DeviceIdentity"];
       /** @enum {string} */
@@ -681,6 +795,171 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  getButtonDestinations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Live button-destination state. Selection and commands never survive expiry or restart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ButtonDestinationState"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  registerButtonDestination: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
+        "X-Sotto-Destination-Owner": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterButtonDestination"];
+      };
+    };
+    responses: {
+      /** @description Live button-destination state. Selection and commands never survive expiry or restart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ButtonDestinationState"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  heartbeatButtonDestination: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
+        "X-Sotto-Destination-Owner": string;
+      };
+      path: {
+        id: components["schemas"]["UUID"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HeartbeatButtonDestination"];
+      };
+    };
+    responses: {
+      /** @description Live button-destination state. Selection and commands never survive expiry or restart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ButtonDestinationState"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  selectButtonDestination: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
+        "X-Sotto-Destination-Owner": string;
+      };
+      path: {
+        id: components["schemas"]["UUID"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SelectButtonDestination"];
+      };
+    };
+    responses: {
+      /** @description Live button-destination state. Selection and commands never survive expiry or restart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ButtonDestinationState"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  completeButtonTake: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
+        "X-Sotto-Destination-Owner": string;
+      };
+      path: {
+        id: components["schemas"]["UUID"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CompleteButtonTake"];
+      };
+    };
+    responses: {
+      /** @description Live button-destination state. Selection and commands never survive expiry or restart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ButtonDestinationState"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
+  unregisterButtonDestination: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Fresh 256-bit secret for this in-memory destination registration. Never persist or log it. */
+        "X-Sotto-Destination-Owner": string;
+      };
+      path: {
+        id: components["schemas"]["UUID"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Live button-destination state. Selection and commands never survive expiry or restart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ButtonDestinationState"];
+        };
+      };
+      default: components["responses"]["APIError"];
+    };
+  };
   listAudioSources: {
     parameters: {
       query?: never;

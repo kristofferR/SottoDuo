@@ -114,3 +114,25 @@ test("Soniox credentials are optional, bounded, server-only, and may come from a
     parseConfiguration([], { ...environment, SONIOX_API_KEY: "bad key" }),
   ).rejects.toThrow("Soniox key");
 });
+
+test("button capture requires explicit helper, capture provider and exact stable source", async () => {
+  expect((await parseConfiguration([], environment)).button).toBeUndefined();
+  const args = ["--capture-helper", "/tmp/capture", "--capture-host-id", "desktop"];
+  for (const extra of [
+    ["--button-helper", "/tmp/button"],
+    ["--button-source-id", "dji"],
+    ["--button-helper", "/tmp/button", "--button-source-id", "dji"],
+  ])
+    await expect(parseConfiguration([...args, ...extra], environment)).rejects.toThrow(
+      "Button routing",
+    );
+  const sourceID = "a".repeat(64);
+  expect(
+    (
+      await parseConfiguration(
+        [...args, "--button-helper", "/tmp/button", "--button-source-id", sourceID],
+        environment,
+      )
+    ).button,
+  ).toEqual({ helper: "/tmp/button", sourceID });
+});
