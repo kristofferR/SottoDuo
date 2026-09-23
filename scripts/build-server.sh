@@ -90,6 +90,7 @@ if [[ "${SOTTODUO_BUILD_CAPTURE:-0}" == 1 ]]; then
         exit 1
     fi
     bash "$project_dir/scripts/build-capture.sh" "$staging_dir/helpers/sottoduo-capture"
+    bash "$project_dir/scripts/build-button.sh" "$staging_dir/helpers/sottoduo-dji-button"
     cp -R Server/packaging "$staging_dir/packaging"
     cp docs/pipewire-capture.md "$staging_dir/CAPTURE.md"
 fi
