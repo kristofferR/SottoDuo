@@ -65,7 +65,7 @@ export class ClientRuntime {
     const controller = this.current?.controller;
     if (
       controller?.busy &&
-      ["preparing", "recording", "processing", "delivering"].includes(controller.activity.phase)
+      ["preparing", "recording", "processing"].includes(controller.activity.phase)
     )
       void controller.cancel().catch(() => {});
   }

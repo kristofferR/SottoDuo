@@ -63,6 +63,25 @@ final class MicrophonePreferencesStoreTests: XCTestCase {
         }
     }
 
+    func testLocalFallbackSkipsOtherReadyRemoteInputs() async throws {
+        try await withPreferences { store, _ in
+            store.update(devices: [builtIn], systemDefaultUID: builtIn.uid)
+            let sources = ["first", "second"].map { id in
+                AudioSource(identity: .init(hostID: "desk", id: id), name: id, transport: .usb,
+                    present: true, link: .connected, capture: .available, audioHealth: .unknown, observedAt: Date())
+            }
+            store.updateRemote(sources, server: "https://desktop:8391")
+            let remote = store.availableDevices.filter { $0.remote != nil }
+            remote.forEach(store.addToPriority)
+            store.addToPriority(builtIn)
+            XCTAssertEqual(store.resolution.device, remote.first)
+            XCTAssertEqual(store.resolution(excluding: remote[0].id).device, remote[1])
+            XCTAssertEqual(store.localFallback, builtIn)
+            store.update(devices: [], systemDefaultUID: nil)
+            XCTAssertNil(store.localFallback)
+        }
+    }
+
     func testPreferredDeviceReturnsWithoutLosingSavedOrder() async throws {
         try await withPreferences { store, fixture in
             store.update(devices: [builtIn, usb], systemDefaultUID: builtIn.uid)

@@ -89,9 +89,10 @@ afterEach(async () => {
     await service?.shutdown();
     await provider?.close();
   } finally {
-    if (daemon && daemon.exitCode === null) {
+    if (daemon && daemon.exitCode === null && daemon.signalCode === null) {
+      const closed = new Promise((resolve) => daemon.once("close", resolve));
       daemon.kill();
-      await new Promise((resolve) => daemon.once("close", resolve));
+      await closed;
     }
     if (previous.runtime === undefined) delete process.env.PIPEWIRE_RUNTIME_DIR;
     else process.env.PIPEWIRE_RUNTIME_DIR = previous.runtime;
@@ -202,22 +203,27 @@ nativeTest("parent crash kills its native helper", async () => {
     ],
     { stdio: ["ignore", "pipe", "ignore"] },
   );
-  const pid = await new Promise<number>((resolve) =>
-    parent.stdout.once("data", (bytes) => resolve(Number(bytes.toString().trim()))),
-  );
   const exited = new Promise((resolve) => parent.once("close", resolve));
-  await connect();
-  parent.kill("SIGKILL");
-  await exited;
-  await until(async () => {
-    try {
-      const stat = await Bun.file(`/proc/${pid}/stat`).text();
-      return stat.split(") ")[1]?.startsWith("Z") ? true : undefined;
-    } catch {
-      return true;
-    }
-  });
-  await noCapture();
+  try {
+    const pid = await new Promise<number>((resolve) =>
+      parent.stdout.once("data", (bytes) => resolve(Number(bytes.toString().trim()))),
+    );
+    await connect();
+    parent.kill("SIGKILL");
+    await exited;
+    await until(async () => {
+      try {
+        const stat = await Bun.file(`/proc/${pid}/stat`).text();
+        return stat.split(") ")[1]?.startsWith("Z") ? true : undefined;
+      } catch {
+        return true;
+      }
+    });
+    await noCapture();
+  } finally {
+    if (parent.exitCode === null && parent.signalCode === null) parent.kill("SIGKILL");
+    await exited;
+  }
 });
 nativeTest("service shutdown releases capture and restart permits a fresh take", async () => {
   const { record } = await begin();
