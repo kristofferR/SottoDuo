@@ -90,11 +90,20 @@ QString quotedServiceExecutable(QString path) {
 }
 } // namespace
 
+QString defaultClientExecutable(const QString &guiDirectory) {
+  const QDir guiDir(guiDirectory);
+  const QString besideGui = guiDir.filePath("sotto");
+  if (QFileInfo(besideGui).isExecutable() || guiDir.dirName() != "linux-gui")
+    return besideGui;
+  const QString buildOutput = QDir::cleanPath(guiDir.filePath("../linux-client/sotto"));
+  return QFileInfo(buildOutput).isExecutable() ? buildOutput : besideGui;
+}
+
 DesktopIntegration::DesktopIntegration(bool preview, QObject *parent,
                                        const QString &clientExecutable)
     : QObject(parent), m_preview(preview),
       m_clientExecutable(clientExecutable.isEmpty()
-                             ? QCoreApplication::applicationDirPath() + "/sotto"
+                             ? defaultClientExecutable(QCoreApplication::applicationDirPath())
                              : clientExecutable) {}
 
 QString DesktopIntegration::entryPath() const {

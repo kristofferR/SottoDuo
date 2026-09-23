@@ -1,6 +1,8 @@
 #pragma once
 #include <QObject>
+#include <QString>
 class QProcess;
+QString defaultClientExecutable(const QString &guiDirectory);
 
 class DesktopIntegration : public QObject {
   Q_OBJECT

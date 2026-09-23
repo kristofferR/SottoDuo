@@ -20,6 +20,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 
 class BridgeTest : public QObject {
   Q_OBJECT
@@ -134,6 +135,40 @@ private slots:
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.connected(), 2500);
     QVERIFY(bridge.snapshot().isEmpty());
     QCOMPARE(bridge.connectionStatus(), "unavailable");
+  }
+  void portalEdgesPreserveRepeatedPressRelease() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QStringList edges;
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
+        if (!socket->canReadLine())
+          return;
+        const QString action = QJsonDocument::fromJson(socket->readLine())
+                                   .object()["action"].toString();
+        if (action == "snapshot") {
+          socket->write("{\"ok\":true,\"data\":{\"version\":1}}\n");
+          return;
+        }
+        edges.append(action);
+        auto respond = [socket] { socket->write("{\"ok\":true,\"data\":{}}\n"); };
+        if (edges.size() == 2)
+          QTimer::singleShot(100, socket, respond);
+        else
+          respond();
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    for (const auto &action : {"start", "stop", "start", "stop"})
+      bridge.requestShortcutEdge(action);
+    QTRY_COMPARE_WITH_TIMEOUT(edges.size(), 4, 3000);
+    QCOMPARE(edges, (QStringList{"start", "stop", "start", "stop"}));
   }
   void offlinePagesShareOneConnectionNotice() {
     QTemporaryDir directory;
@@ -1058,13 +1093,16 @@ private slots:
     QVERIFY(window);
     QTRY_VERIFY(window->property("serverReady").toBool());
     auto *button = window->findChild<QQuickItem *>("microphoneTestButton");
+    auto *cancel = window->findChild<QQuickItem *>("cancelDictationButton");
     QVERIFY(button && button->isEnabled());
+    QVERIFY(cancel);
     auto snapshot = [](const QString &phase, const QString &trigger) {
       return QVariantMap{
           {"busy", true},
           {"activity", QVariantMap{{"phase", phase}, {"trigger", trigger}}}};
     };
     window->setProperty("snapshot", snapshot("recording", "test"));
+    QVERIFY(cancel->isVisible());
     emit bridge.reply(
         "connection",
         QVariantMap{{"ready", false},
@@ -1085,11 +1123,16 @@ private slots:
     // start.
     QCOMPARE(failed.first().at(0).toString(), "stop");
     window->setProperty("snapshot", snapshot("processing", "test"));
+    QVERIFY(cancel->isVisible());
     QVERIFY(!button->isEnabled());
     QCOMPARE(button->property("text").toString(), "Transcribing…");
     window->setProperty("snapshot", snapshot("recording", "shortcut"));
     QVERIFY(!button->isEnabled());
     QCOMPARE(button->property("text").toString(), "Test microphone");
+    window->setProperty("snapshot", snapshot("delivering", "shortcut"));
+    QVERIFY(!cancel->isVisible());
+    window->setProperty("snapshot", snapshot("completed", "shortcut"));
+    QVERIFY(!cancel->isVisible());
     window->setProperty(
         "snapshot",
         QVariantMap{{"busy", false},

@@ -13,6 +13,28 @@
 class DesktopTest : public QObject {
   Q_OBJECT
 private slots:
+  void buildTreeClientIsFoundBesideGuiBuild() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString gui = directory.path() + "/build/linux-gui";
+    const QString client = directory.path() + "/build/linux-client";
+    QVERIFY(QDir().mkpath(gui));
+    QVERIFY(QDir().mkpath(client));
+    QFile builtClient(client + "/sotto");
+    QVERIFY(builtClient.open(QIODevice::WriteOnly));
+    builtClient.write("#!/bin/sh\n");
+    builtClient.close();
+    QVERIFY(builtClient.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                       QFile::ExeOwner));
+    QCOMPARE(defaultClientExecutable(gui), client + "/sotto");
+    QFile installedClient(gui + "/sotto");
+    QVERIFY(installedClient.open(QIODevice::WriteOnly));
+    installedClient.write("#!/bin/sh\n");
+    installedClient.close();
+    QVERIFY(installedClient.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                           QFile::ExeOwner));
+    QCOMPARE(defaultClientExecutable(gui), gui + "/sotto");
+  }
   void loginEntryPersistsAndPreviewCannotChangeIt() {
     QTemporaryDir config;
     QVERIFY(config.isValid());

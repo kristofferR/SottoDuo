@@ -68,9 +68,9 @@ int main(int argc, char **argv) {
   PortalShortcuts portalShortcuts(!preview);
   if (!preview) {
     QObject::connect(&portalShortcuts, &PortalShortcuts::pressed, &bridge,
-                     [&bridge] { bridge.request("start"); });
+                     [&bridge] { bridge.requestShortcutEdge("start"); });
     QObject::connect(&portalShortcuts, &PortalShortcuts::released, &bridge,
-                     [&bridge] { bridge.request("stop"); });
+                     [&bridge] { bridge.requestShortcutEdge("stop"); });
   }
   if (parser.isSet("theme"))
     bridge.setTheme(parser.value("theme"));
