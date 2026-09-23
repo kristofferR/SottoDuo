@@ -74,7 +74,7 @@ export class ConnectionSettings {
   private assertUnchanged() {
     if (read(this.file) !== this.disk)
       throw new ClientNotice(
-        "Connection settings changed outside Sotto. Restart background dictation and try again.",
+        "Connection settings changed outside SottoDuo. Restart background dictation and try again.",
       );
   }
   async test(request: Record<string, unknown>) {
@@ -121,7 +121,7 @@ export class ConnectionSettings {
       health = await api.health();
       if (health.apiVersion !== 1)
         throw new ClientNotice(
-          "This server uses an incompatible API version. Update Sotto on both computers.",
+          "This server uses an incompatible API version. Update SottoDuo on both computers.",
         );
       hosts = [...new Set((await api.sources()).map((source) => source.identity.hostID))].sort();
       const savedHost = this.config?.server === server ? this.config.sources.hostID : undefined;
@@ -134,7 +134,7 @@ export class ConnectionSettings {
           "The server rejected this access token. Check the token and try again.",
         );
       throw new ClientNotice(
-        "Could not verify this Sotto server. Check its address, network connection and that the server is running.",
+        "Could not verify this SottoDuo server. Check its address, network connection and that the server is running.",
       );
     }
     if (attempt !== this.attempt)

@@ -178,7 +178,7 @@
     "preferences": {
       "recognitionMode": "automatic",
       "language": "auto",
-      "vocabulary": "Sotto\nPipeWire\nKubernetes\nFjord",
+      "vocabulary": "SottoDuo\nPipeWire\nKubernetes\nFjord",
       "dictionary": {
         "lists": [
           {
@@ -186,8 +186,8 @@
             "name": "Personal",
             "entries": [
               {
-                "id": "sotto",
-                "term": "Sotto",
+                "id": "sottoduo",
+                "term": "SottoDuo",
                 "aliases": [
                   "so toe"
                 ],

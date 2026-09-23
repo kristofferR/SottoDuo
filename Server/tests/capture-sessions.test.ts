@@ -72,7 +72,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0)) await close();
 });
 async function fixture(provider: FakeCapture | undefined = new FakeCapture()) {
-  const directory = await mkdtemp(join(tmpdir(), "sotto-capture-"));
+  const directory = await mkdtemp(join(tmpdir(), "sottoduo-capture-"));
   const service = await GenerationService.open(
     { dataDirectory: directory, development: true, captureProvider: provider },
     new FakeInference(),
@@ -86,8 +86,8 @@ async function fixture(provider: FakeCapture | undefined = new FakeCapture()) {
   const owner = randomBytes(32).toString("hex");
   const headers = {
     authorization: "Bearer server-access",
-    "x-sotto-capture-owner": owner,
-    "x-sotto-capture": "capture-v1",
+    "x-sottoduo-capture-owner": owner,
+    "x-sottoduo-capture": "capture-v1",
   };
   const request: components["schemas"]["StartCaptureRequest"] = {
     requestID: randomUUID(),
@@ -120,7 +120,7 @@ test("remote capture pins destination/source, shares generation processing and p
     method: "POST",
     url: "/v1/captures?trace=1",
     payload: f.request,
-    headers: { authorization: "Bearer server-access", "x-sotto-capture-owner": f.owner },
+    headers: { authorization: "Bearer server-access", "x-sottoduo-capture-owner": f.owner },
   });
   expect(response.statusCode).toBe(201);
   const record = validateBody("GenerationRecord", response.json());
@@ -148,7 +148,7 @@ test("remote capture pins destination/source, shares generation processing and p
   expect(final.device.id).toBe("mac");
   const legacy = await f.app.inject({
     url: `/v1/generations/${record.id}`,
-    headers: { authorization: "Bearer server-access", "x-sotto-recognition": "streaming-v1" },
+    headers: { authorization: "Bearer server-access", "x-sottoduo-recognition": "streaming-v1" },
   });
   expect(legacy.json().capture).toBeUndefined();
   expect(legacy.body).not.toContain(f.owner);
@@ -189,7 +189,7 @@ test("remote capture pins destination/source, shares generation processing and p
       await f.app.inject({
         method: "POST",
         url: `/v1/generations/${record.id}/delivery`,
-        headers: { ...f.headers, "x-sotto-capture-owner": "e".repeat(64) },
+        headers: { ...f.headers, "x-sottoduo-capture-owner": "e".repeat(64) },
         payload: receipt,
       })
     ).statusCode,
@@ -213,7 +213,7 @@ test("one admission wins racing clients; device labels and request IDs do not gr
     f.app.inject({
       method: "POST",
       url: "/v1/captures",
-      headers: { ...f.headers, "x-sotto-capture-owner": "a".repeat(64) },
+      headers: { ...f.headers, "x-sottoduo-capture-owner": "a".repeat(64) },
       payload: {
         ...f.request,
         requestID: randomUUID(),
@@ -236,7 +236,7 @@ test("one admission wins racing clients; device labels and request IDs do not gr
   const forged = await f.app.inject({
     method: "POST",
     url: "/v1/captures",
-    headers: { ...f.headers, "x-sotto-capture-owner": "b".repeat(64) },
+    headers: { ...f.headers, "x-sottoduo-capture-owner": "b".repeat(64) },
     payload: f.request,
   });
   expect(forged.statusCode).toBe(403);
@@ -425,7 +425,7 @@ test("source loss stops without splicing another mic; stale ownership cannot con
   const next = await f.app.inject({
     method: "POST",
     url: "/v1/captures",
-    headers: { ...f.headers, "x-sotto-capture-owner": nextOwner },
+    headers: { ...f.headers, "x-sottoduo-capture-owner": nextOwner },
     payload: { ...f.request, requestID: randomUUID() },
   });
   expect(next.statusCode).toBe(201);
@@ -515,7 +515,7 @@ test("DJI destination owner gates capture, pins its source, and disarming aborts
   const f = await fixture();
   const id = randomUUID().toUpperCase();
   const destinationOwner = randomBytes(32).toString("hex");
-  const headers = { ...f.headers, "x-sotto-destination-owner": destinationOwner };
+  const headers = { ...f.headers, "x-sottoduo-destination-owner": destinationOwner };
   f.service.buttons.input(f.request.source, "input-epoch");
   const call = (suffix: string, payload: Record<string, unknown> = {}) =>
     f.app.inject({ method: "POST", url: `/v1/button-destinations${suffix}`, headers, payload });

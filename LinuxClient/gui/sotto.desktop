@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Sotto
-Comment=Dictation across your computers
-Exec=sotto-gui
-Icon=sotto
-Terminal=false
-Categories=AudioVideo;Utility;

@@ -1,6 +1,6 @@
 # HTTP API
 
-API version 1, default port **8391**. [`Server/api/openapi.yaml`](../Server/api/openapi.yaml) defines the transport contract and generates TypeScript and Swift types. [`Sources/SottoAPI/API.swift`](../Sources/SottoAPI/API.swift) preserves the Swift client-facing facade and defaults. JSON uses whole-second ISO-8601 UTC dates. macOS and Linux expose the same API. See [server setup](../Server/README.md#remote-access) for authentication and endpoint configuration.
+API version 1, default port **8391**. [`Server/api/openapi.yaml`](../Server/api/openapi.yaml) defines the transport contract and generates TypeScript and Swift types. [`Sources/SottoDuoAPI/API.swift`](../Sources/SottoDuoAPI/API.swift) preserves the Swift client-facing facade and defaults. JSON uses whole-second ISO-8601 UTC dates. macOS and Linux expose the same API. See [server setup](../Server/README.md#remote-access) for authentication and endpoint configuration.
 
 ## Routes
 
@@ -35,7 +35,7 @@ Errors are `APIErrorResponse`; relevant codes 400 invalid input, 401 auth, 404 m
 
 ## Generation semantics
 
-Server-attached microphones use the additive [remote capture session contract](remote-capture.md): source discovery, owned start/heartbeat/stop controls, capture readiness and bounded cleanup. Existing local uploads remain unchanged. Send `X-Sotto-Capture: capture-v1` to receive the optional `capture` source/state object in existing generation and event responses. Remote recording control and delivery additionally require their session-specific `X-Sotto-Capture-Owner` secret; public audio upload/finish routes reject remote generations. Explicit deletion of terminal shared history retains existing authorization.
+Server-attached microphones use the additive [remote capture session contract](remote-capture.md): source discovery, owned start/heartbeat/stop controls, capture readiness and bounded cleanup. Existing local uploads remain unchanged. Send `X-SottoDuo-Capture: capture-v1` to receive the optional `capture` source/state object in existing generation and event responses. Remote recording control and delivery additionally require their session-specific `X-SottoDuo-Capture-Owner` secret; public audio upload/finish routes reject remote generations. Explicit deletion of terminal shared history retains existing authorization.
 
 - Server owns settings/dictionary, inference, formatting, proofreading, rewrite guards, composition, artifacts and history. Client owns only ephemeral capture/AX anchors and device preferences.
 - Inference audio is mono 16k float32. Original is input microphone format normalized to interleaved float32, retained/uploaded only if the accepted settings snapshot says keepOriginalAudio. Both audio intervals must match. Min take 0.25 s, max 180 s. Soniox recognition runs during upload; only sealed complete uploads can complete a generation or run Whisper fallback.
@@ -48,7 +48,7 @@ Server-attached microphones use the additive [remote capture session contract](r
 
 ## Shared preferences
 
-Send `X-Sotto-Recognition: streaming-v1` to receive the optional recognition fields in JSON and NDJSON. Without this header, responses retain the legacy v1 shape for strict older clients.
+Send `X-SottoDuo-Recognition: streaming-v1` to receive the optional recognition fields in JSON and NDJSON. Without this header, responses retain the legacy v1 shape for strict older clients.
 
 GET/PUT use `{ "revision": N, "preferences": { ... } }`. A save must include the current revision; successful validation returns the incremented snapshot. Active generations keep their admission-time snapshot.
 

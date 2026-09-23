@@ -8,7 +8,7 @@ ColumnLayout {
     spacing: height < 620 ? 16 : 22
     SLabel {
         ui: root.ui
-        text: "Sotto · Dictation"
+        text: "SottoDuo · Dictation"
         font.pixelSize: 18
         font.weight: Font.DemiBold
     }
@@ -73,7 +73,7 @@ ColumnLayout {
         }
         SLabel {
             ui: root.ui
-            text: root.ui.activity.trigger === "test" ? "Test in Sotto" : root.ui.snapshot.device?.name || "This computer"
+            text: root.ui.activity.trigger === "test" ? "Test in SottoDuo" : root.ui.snapshot.device?.name || "This computer"
             color: root.ui.c.muted
         }
     }

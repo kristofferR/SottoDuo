@@ -26,11 +26,11 @@ int main(int argc, char **argv) {
 #pragma GCC diagnostic pop
 #endif
   QApplication app(argc, argv);
-  app.setOrganizationName("Sotto");
-  app.setApplicationName("Sotto");
-  app.setDesktopFileName("sotto");
+  app.setOrganizationName("SottoDuo");
+  app.setApplicationName("SottoDuo");
+  app.setDesktopFileName("sottoduo");
   QCommandLineParser parser;
-  parser.setApplicationDescription("Sotto for Linux");
+  parser.setApplicationDescription("SottoDuo for Linux");
   parser.addHelpOption();
   parser.addOption(
       {"preview", "Show sample data without connecting to a client."});
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
   }
   QQuickStyle::setStyle("Basic");
   qmlRegisterSingletonType<HudSurface>(
-      "Sotto.Native", 1, 0, "HudSurface",
+      "SottoDuo.Native", 1, 0, "HudSurface",
       [](QQmlEngine *, QJSEngine *) -> QObject * { return new HudSurface; });
   Bridge bridge(preview);
   PortalShortcuts portalShortcuts(!preview);
@@ -81,13 +81,13 @@ int main(int argc, char **argv) {
   QObject::connect(
       &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
       [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
-  engine.loadFromModule("Sotto", "Main");
+  engine.loadFromModule("SottoDuo", "Main");
   if (engine.rootObjects().isEmpty())
     return 1;
   auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
   if (!window)
     return 1;
-  QSystemTrayIcon tray(QIcon(":/qt/qml/Sotto/mark.svg"));
+  QSystemTrayIcon tray(QIcon(":/qt/qml/SottoDuo/mark.svg"));
   QMenu menu;
   auto *connectionStatus = menu.addAction("Checking server");
   menu.addSeparator();
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
     window->requestActivate();
   };
   QObject::connect(&instance, &GuiInstance::showRequested, &app, show);
-  menu.addAction("Open Sotto", &app, show);
+  menu.addAction("Open SottoDuo", &app, show);
   auto quit = [window, &app] {
     window->setProperty("quitRequested", true);
     if (window->close())
@@ -121,12 +121,12 @@ int main(int argc, char **argv) {
     }
   };
   menu.addAction(portalShortcuts.plasma()
-                     ? "Quit Sotto feedback (Plasma shortcut stops)"
-                     : "Quit Sotto feedback (dictation stays running)",
+                     ? "Quit SottoDuo feedback (Plasma shortcut stops)"
+                     : "Quit SottoDuo feedback (dictation stays running)",
                  &app, quit);
   QObject::connect(bridge.desktop(), &DesktopIntegration::quitRequested, &app,
                    quit);
-  tray.setToolTip("Sotto");
+  tray.setToolTip("SottoDuo");
   tray.setContextMenu(&menu);
   QObject::connect(&tray, &QSystemTrayIcon::activated, &app,
                    [show](QSystemTrayIcon::ActivationReason reason) {

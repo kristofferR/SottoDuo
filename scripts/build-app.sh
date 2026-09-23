@@ -12,16 +12,16 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --dev ) ]]; then
     exit 2
 fi
 if [[ "${1:-}" == --dev ]]; then
-    app_name="Sotto Dev"
+    app_name="SottoDuo Dev"
     info_plist=Resources/Info-Dev.plist
 else
-    app_name=Sotto
+    app_name=SottoDuo
     info_plist=Resources/Info.plist
 fi
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")
-build_jobs="${SOTTO_BUILD_JOBS:-8}"
+build_jobs="${SOTTODUO_BUILD_JOBS:-8}"
 macos_sdk=$(xcrun --sdk macosx --show-sdk-path)
-swift_flags=(--scratch-path .build/client-swift -c release --jobs "$build_jobs" --product Sotto
+swift_flags=(--scratch-path .build/client-swift -c release --jobs "$build_jobs" --product SottoDuo
     --force-resolved-versions
     -Xswiftc -Xclang-linker -Xswiftc -isysroot
     -Xswiftc -Xclang-linker -Xswiftc "$macos_sdk")
@@ -34,18 +34,18 @@ staging_dir=$(mktemp -d "$project_dir/build/.app.XXXXXX")
 trap 'rm -rf "$staging_dir"' EXIT
 staged_app="$staging_dir/$app_name.app"
 mkdir -p "$staged_app/Contents/MacOS" "$staged_app/Contents/Resources"
-cp "$swift_bin/Sotto" "$staged_app/Contents/MacOS/Sotto"
+cp "$swift_bin/SottoDuo" "$staged_app/Contents/MacOS/SottoDuo"
 cp "$info_plist" "$staged_app/Contents/Info.plist"
 cp Resources/swift-openapi-runtime-LICENSE.txt Resources/swift-http-types-LICENSE.txt \
     THIRD_PARTY_NOTICES.md "$staged_app/Contents/Resources/"
-swift scripts/make-icon.swift "$project_dir/.build/Sotto.iconset"
-iconutil -c icns .build/Sotto.iconset -o "$staged_app/Contents/Resources/Sotto.icns"
+swift scripts/make-icon.swift "$project_dir/.build/SottoDuo.iconset"
+iconutil -c icns .build/SottoDuo.iconset -o "$staged_app/Contents/Resources/SottoDuo.icns"
 
-signing_identity="${SOTTO_SIGNING_IDENTITY:-}"
+signing_identity="${SOTTODUO_SIGNING_IDENTITY:-}"
 if [[ -z "$signing_identity" ]]; then
     available_identities=$(security find-identity -v -p codesigning)
     identities=""
-    if [[ "$app_name" == Sotto ]]; then
+    if [[ "$app_name" == SottoDuo ]]; then
         developer_identities=$(printf '%s\n' "$available_identities" | awk '/"Developer ID Application:/ {print $2}')
         developer_id_count=$(printf '%s\n' "$developer_identities" | awk 'NF {n++} END {print n+0}')
         if [[ "$developer_id_count" == 1 ]]; then identities="$developer_identities"; fi
@@ -57,7 +57,7 @@ if [[ -z "$signing_identity" ]]; then
     if [[ "$identity_count" == 1 ]]; then signing_identity="$identities"; else signing_identity=-; fi
 fi
 codesign --force --sign "$signing_identity" --options runtime \
-    --entitlements Resources/Sotto.entitlements --identifier "$bundle_id" "$staged_app"
+    --entitlements Resources/SottoDuo.entitlements --identifier "$bundle_id" "$staged_app"
 codesign --verify --deep --strict "$staged_app"
 if [[ -d "$app_path" ]]; then
     existing_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist")

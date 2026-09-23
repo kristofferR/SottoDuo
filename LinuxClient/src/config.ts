@@ -14,8 +14,8 @@ export interface Config {
   destinationHelper: string;
 }
 export const configPath = () =>
-  process.env.SOTTO_CLIENT_CONFIG ??
-  join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "sotto", "linux-client.json");
+  process.env.SOTTODUO_CLIENT_CONFIG ??
+  join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "sottoduo", "linux-client.json");
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }

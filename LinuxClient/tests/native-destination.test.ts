@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import { resolve } from "node:path";
 // Opt in only in a disposable test display or during an explicitly supervised desktop trial.
-const nativeTest = process.env.SOTTO_TEST_DESKTOP === "1" ? test : test.skip;
+const nativeTest = process.env.SOTTODUO_TEST_DESKTOP === "1" ? test : test.skip;
 nativeTest(
   "real GTK field: Unicode insertion once; changed text/caret/selection/focus/password reject",
   async () => {
     const root = resolve(import.meta.dir, "../..");
-    const helper = `${root}/build/linux-client/sotto-destination`;
+    const helper = `${root}/build/linux-client/sottoduo-destination`;
     const entry = Bun.spawn([`${root}/.local/entry-fixture`], {
       stdin: "pipe",
       stdout: "pipe",
@@ -67,7 +67,7 @@ nativeTest(
   async () => {
     const { HyprlandDesktop } = await import("../src/desktop.ts");
     const root = resolve(import.meta.dir, "../..");
-    const desktop = new HyprlandDesktop(`${root}/build/linux-client/sotto-destination`);
+    const desktop = new HyprlandDesktop(`${root}/build/linux-client/sottoduo-destination`);
     await desktop.monitorSession(() => {});
     const entry = Bun.spawn([`${root}/.local/entry-fixture`], {
       stdin: "pipe",

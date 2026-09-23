@@ -181,7 +181,7 @@ Group {
         Layout.margins: 12
         visible: root.showHelp
         font.pixelSize: 12
-        text: "On the computer running the server: connect the USB receiver, turn on the transmitter, and check that they are linked.\n\nOn Linux, Sotto needs the DJI-only receiver and pairing-button access rules, and an active local login. If capture works but the pairing button is unavailable, check the pairing-button interface permission and server setup.\n\nCheck receiver reads status only. It does not record, reset the receiver, change Bluetooth connections, or select a destination."
+        text: "On the computer running the server: connect the USB receiver, turn on the transmitter, and check that they are linked.\n\nOn Linux, SottoDuo needs the DJI-only receiver and pairing-button access rules, and an active local login. If capture works but the pairing button is unavailable, check the pairing-button interface permission and server setup.\n\nCheck receiver reads status only. It does not record, reset the receiver, change Bluetooth connections, or select a destination."
     }
     SLabel {
         ui: root.ui

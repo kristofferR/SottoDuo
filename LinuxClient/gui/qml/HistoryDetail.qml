@@ -82,7 +82,7 @@ ColumnLayout {
         visible: !!root.record
         color: root.ui.c.muted
         font.pixelSize: 12
-        text: root.record ? root.record.device.name + " · " + (root.record.importedSource ? "Wispr Flow · " : "Sotto · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
+        text: root.record ? root.record.device.name + " · " + (root.record.importedSource ? "Wispr Flow · " : "SottoDuo · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
     }
 
     ScrollView {

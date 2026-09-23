@@ -1,7 +1,7 @@
 # Generated language bindings use this file as their source of truth.
 openapi: "3.1.0"
 info:
-  title: "Sotto API"
+  title: "SottoDuo API"
   version: "1.0.0"
   description: "Shared transport contract for the Swift client and TypeScript server. Optional properties are omitted rather than encoded as null. Dates use whole-second ISO8601 UTC timestamps."
 servers:
@@ -10,12 +10,12 @@ servers:
 security:
   -
     bearerAuth: []
-x-sotto-apiVersion: 1
-x-sotto-defaultPort: 8391
-x-sotto-maximumRecordingSeconds: 180
-x-sotto-maximumChunkBytes: 1048576
-x-sotto-maximumArtifactBytes: 8388608
-x-sotto-maximumDictionaryBytes: 8388608
+x-sottoduo-apiVersion: 1
+x-sottoduo-defaultPort: 8391
+x-sottoduo-maximumRecordingSeconds: 180
+x-sottoduo-maximumChunkBytes: 1048576
+x-sottoduo-maximumArtifactBytes: 8388608
+x-sottoduo-maximumDictionaryBytes: 8388608
 paths:
   /v1/button-destinations:
     get:
@@ -35,7 +35,7 @@ paths:
       operationId: registerButtonDestination
       parameters:
         - &a1
-          name: X-Sotto-Destination-Owner
+          name: X-SottoDuo-Destination-Owner
           in: header
           required: true
           schema:
@@ -297,7 +297,7 @@ paths:
           schema:
             type: "string"
             enum:
-              - "sotto"
+              - "sottoduo"
               - "wispr-flow"
     post:
       operationId: "createGeneration"
@@ -1673,7 +1673,7 @@ components:
         - "message"
   parameters:
     CaptureView:
-      name: "X-Sotto-Capture"
+      name: "X-SottoDuo-Capture"
       in: "header"
       required: false
       description: "Opt in to remote capture source/state fields; omit for the legacy generation shape."
@@ -1681,7 +1681,7 @@ components:
         type: "string"
         enum: [capture-v1]
     CaptureMutationOwner:
-      name: "X-Sotto-Capture-Owner"
+      name: "X-SottoDuo-Capture-Owner"
       in: "header"
       required: false
       description: "Required for remote-generation cancellation and delivery; omitted by legacy local-upload clients."
@@ -1689,7 +1689,7 @@ components:
         type: "string"
         pattern: "^[0-9a-f]{64}$"
     CaptureOwner:
-      name: "X-Sotto-Capture-Owner"
+      name: "X-SottoDuo-Capture-Owner"
       in: "header"
       required: true
       description: "Client-generated 256-bit lowercase hexadecimal secret, unique per capture request. Required in addition to server authorization for remote recording control and delivery. Never put it in URLs or history."

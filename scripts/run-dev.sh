@@ -6,19 +6,19 @@ cd "$project_dir"
 action="${1:-start}"
 if [[ "$action" == --skip-build ]]; then action=start; skip_build=true; else skip_build=false; fi
 if [[ "${2:-}" == --skip-build ]]; then skip_build=true; fi
-server_binary="$project_dir/build/server/sotto-server"
+server_binary="$project_dir/build/server/sottoduo-server"
 state_dir="$project_dir/.local"
 pid_file="$state_dir/server.pid"
 log_file="$state_dir/server.log"
-server_port="${SOTTO_SERVER_PORT:-8391}"
+server_port="${SOTTODUO_SERVER_PORT:-8391}"
 client_dir="$state_dir/client"
 mkdir -p "$state_dir"
 chmod 700 "$state_dir"
 
 launch_client() {
     [[ "$(uname -s)" == Darwin ]] || return 0
-    local client_app="$project_dir/build/Sotto Dev.app"
-    if [[ ! -x "$client_app/Contents/MacOS/Sotto" ]]; then
+    local client_app="$project_dir/build/SottoDuo Dev.app"
+    if [[ ! -x "$client_app/Contents/MacOS/SottoDuo" ]]; then
         printf 'Build the client with scripts/build-dev-app.sh; the server remains running.\n' >&2
         return 1
     fi
@@ -26,8 +26,8 @@ launch_client() {
     chmod 700 "$client_dir"
     # LaunchServices does not inherit the shell environment. Pass only the
     # workspace preference root and the local endpoint; credentials use Keychain.
-    open --env "SOTTO_CLIENT_DATA_DIR=$client_dir" \
-        --env "SOTTO_SERVER_URL=http://127.0.0.1:$server_port" "$client_app"
+    open --env "SOTTODUO_CLIENT_DATA_DIR=$client_dir" \
+        --env "SOTTODUO_SERVER_URL=http://127.0.0.1:$server_port" "$client_app"
 }
 
 server_pid=""
@@ -115,7 +115,7 @@ if is_running; then
 fi
 rm -f "$pid_file"
 if ! valid_port "$server_port"; then
-    printf 'SOTTO_SERVER_PORT must be an integer from 1 to 65535.\n' >&2
+    printf 'SOTTODUO_SERVER_PORT must be an integer from 1 to 65535.\n' >&2
     exit 1
 fi
 server_port="$((10#$server_port))"
@@ -128,8 +128,8 @@ if [[ ! -x "$server_binary" ]]; then
     exit 1
 fi
 
-speech_model="${SOTTO_SPEECH_MODEL:-}"
-proof_model="${SOTTO_TEXT_MODEL:-}"
+speech_model="${SOTTODUO_SPEECH_MODEL:-}"
+proof_model="${SOTTODUO_TEXT_MODEL:-}"
 if [[ "$(uname -s)" == Darwin ]]; then
     # Reuse model weights only. User recordings, preferences, and credentials
     # are never imported from the installed app.
@@ -137,17 +137,17 @@ if [[ "$(uname -s)" == Darwin ]]; then
     proof_model="${proof_model:-$HOME/.murmur/models/Qwen3-4B-Instruct-2507-MLX-4bit}"
 fi
 if [[ ! -f "$speech_model" || ! -e "$proof_model" ]]; then
-    printf 'Set SOTTO_SPEECH_MODEL and SOTTO_TEXT_MODEL to installed Whisper and Qwen weights.\n' >&2
+    printf 'Set SOTTODUO_SPEECH_MODEL and SOTTODUO_TEXT_MODEL to installed Whisper and Qwen weights.\n' >&2
     exit 1
 fi
 server_args=(--host 127.0.0.1 --port "$server_port" --dev
-    --data-dir "${SOTTO_SERVER_DATA_DIR:-$state_dir/server}"
-    --speech-helper "${SOTTO_ENGINE_PATH:-$project_dir/build/server/helpers/sotto-engine}"
+    --data-dir "${SOTTODUO_SERVER_DATA_DIR:-$state_dir/server}"
+    --speech-helper "${SOTTODUO_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-engine}"
     --speech-model "$speech_model"
-    --vad-model "${SOTTO_VAD_PATH:-$project_dir/build/server/resources/silero-vad.bin}"
-    --proof-helper "${SOTTO_TEXT_ENGINE_PATH:-$project_dir/build/server/helpers/sotto-text-engine}"
+    --vad-model "${SOTTODUO_VAD_PATH:-$project_dir/build/server/resources/silero-vad.bin}"
+    --proof-helper "${SOTTODUO_TEXT_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-text-engine}"
     --proof-model "$proof_model")
-if [[ -n "${SOTTO_SERVER_TOKEN_FILE:-}" ]]; then server_args+=(--token-file "$SOTTO_SERVER_TOKEN_FILE"); fi
+if [[ -n "${SOTTODUO_SERVER_TOKEN_FILE:-}" ]]; then server_args+=(--token-file "$SOTTODUO_SERVER_TOKEN_FILE"); fi
 umask 077
 nohup "$server_binary" "${server_args[@]}" >> "$log_file" 2>&1 < /dev/null &
 server_pid=$!

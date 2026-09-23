@@ -42,7 +42,7 @@ Bridge::Bridge(bool preview, QObject *parent)
   connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this,
           [this] { updateColors(); });
   if (m_preview) {
-    QFile fixture(":/qt/qml/Sotto/preview.json");
+    QFile fixture(":/qt/qml/SottoDuo/preview.json");
     if (!fixture.open(QIODevice::ReadOnly))
       qFatal("Missing preview fixture.");
     m_fixture =
@@ -65,15 +65,15 @@ QString Bridge::connectionStatus() const {
     return "connected";
   if (!m_connectionChecked)
     return "connecting";
-  QString config = qEnvironmentVariable("SOTTO_CLIENT_CONFIG");
-  if (!qEnvironmentVariableIsSet("SOTTO_CLIENT_CONFIG")) {
+  QString config = qEnvironmentVariable("SOTTODUO_CLIENT_CONFIG");
+  if (!qEnvironmentVariableIsSet("SOTTODUO_CLIENT_CONFIG")) {
     const QString xdgConfigHome = qEnvironmentVariable("XDG_CONFIG_HOME");
     const QString configHome =
         xdgConfigHome.isEmpty()
             ? QStandardPaths::writableLocation(
                   QStandardPaths::GenericConfigLocation)
             : xdgConfigHome;
-    config = QDir(configHome).filePath("sotto/linux-client.json");
+    config = QDir(configHome).filePath("sottoduo/linux-client.json");
   }
   return m_hasConnected || QFileInfo(config).isFile() ? "unavailable"
                                                       : "setupRequired";
@@ -261,7 +261,7 @@ void Bridge::sendRequest(const QString &action, const QVariantMap &arguments,
     finish(false);
     return;
   }
-  socket->connectToServer(runtime + "/sotto-client/control.sock");
+  socket->connectToServer(runtime + "/sottoduo-client/control.sock");
 }
 void Bridge::receive(const QString &action, const QByteArray &bytes,
                      const QString &requestID) {

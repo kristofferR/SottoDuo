@@ -40,11 +40,11 @@ export class API {
       signal: AbortSignal.timeout(timeout),
       headers: {
         Authorization: `Bearer ${this.token}`,
-        ...(destinationOwner ? { "X-Sotto-Destination-Owner": destinationOwner } : {}),
+        ...(destinationOwner ? { "X-SottoDuo-Destination-Owner": destinationOwner } : {}),
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        "X-Sotto-Capture": "capture-v1",
-        "X-Sotto-Recognition": "streaming-v1",
-        ...(owner ? { "X-Sotto-Capture-Owner": owner } : {}),
+        "X-SottoDuo-Capture": "capture-v1",
+        "X-SottoDuo-Recognition": "streaming-v1",
+        ...(owner ? { "X-SottoDuo-Capture-Owner": owner } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -171,9 +171,9 @@ export class API {
       headers: {
         Authorization: `Bearer ${this.token}`,
         Accept: "application/x-ndjson",
-        "X-Sotto-Capture": "capture-v1",
-        "X-Sotto-Recognition": "streaming-v1",
-        "X-Sotto-Feedback": "compact-v1",
+        "X-SottoDuo-Capture": "capture-v1",
+        "X-SottoDuo-Recognition": "streaming-v1",
+        "X-SottoDuo-Feedback": "compact-v1",
       },
     });
     if (!response.ok || !response.body) {

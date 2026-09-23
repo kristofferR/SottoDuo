@@ -13,7 +13,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0)) await close();
 });
 async function fixture(token?: string, beforeRoutes?: Parameters<typeof createHTTPServer>[2]) {
-  const directory = await mkdtemp(join(tmpdir(), "sotto-http-"));
+  const directory = await mkdtemp(join(tmpdir(), "sottoduo-http-"));
   const service = await GenerationService.open(
     { dataDirectory: directory, development: true },
     new FakeInference(),
@@ -280,7 +280,7 @@ describe("Fastify API contract", () => {
 
 test("v1 responses negotiate recognition fields across preferences, history and events", async () => {
   const { app, service } = await fixture();
-  const headers = { "x-sotto-recognition": "streaming-v1" };
+  const headers = { "x-sottoduo-recognition": "streaming-v1" };
   const settings = await service.getPreferences();
   settings.preferences.recognitionMode = "local";
   await service.updatePreferences(settings);

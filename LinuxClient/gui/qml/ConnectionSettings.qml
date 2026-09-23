@@ -165,7 +165,7 @@ Group {
         SLabel {
             ui: root.ui
             Layout.fillWidth: true
-            text: "Connect this computer to your Sotto server. Shared transcription settings are in Server preferences."
+            text: "Connect this computer to your SottoDuo server. Shared transcription settings are in Server preferences."
             color: root.ui.c.muted
         }
         SLabel {
@@ -317,7 +317,7 @@ Group {
         Layout.fillWidth: true
         Layout.margins: 12
         visible: text.length > 0
-        text: !bridge.connected ? "Start the installed background dictation service, then reconnect. In a terminal: systemctl --user start sotto-client.service" : root.message || root.ui.snapshot.setupMessage || ""
+        text: !bridge.connected ? "Start the installed background dictation service, then reconnect. In a terminal: systemctl --user start sottoduo-client.service" : root.message || root.ui.snapshot.setupMessage || ""
         Accessible.role: Accessible.AlertMessage
     }
     SButton {

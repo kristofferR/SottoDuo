@@ -1,5 +1,5 @@
 {
-  "name": "@sotto/server",
+  "name": "@sottoduo/server",
   "private": true,
   "type": "module",
   "scripts": {
