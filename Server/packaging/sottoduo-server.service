@@ -5,7 +5,8 @@ Wants=pipewire.service
 
 [Service]
 Type=simple
-EnvironmentFile=%h/.config/sottoduo/server.env
+EnvironmentFile=-%h/.config/sotto/server.env
+EnvironmentFile=-%h/.config/sottoduo/server.env
 ExecStart=%h/.local/opt/sottoduo/current/sottoduo-server
 Restart=on-failure
 RestartSec=3

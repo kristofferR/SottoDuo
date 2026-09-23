@@ -143,7 +143,7 @@ docker run --rm --name sottoduo-server \
   -p 127.0.0.1:8391:8391 \
   --mount type=volume,source=sotto-data,target=/data \
   --mount type=bind,source=/absolute/path/to/models,target=/models,readonly \
-  --mount type=bind,source=/absolute/path/to/token,target=/run/secrets/sottoduo-token,readonly \
+  --mount type=bind,source=/absolute/path/to/token,target=/run/secrets/sotto-token,readonly \
   sottoduo-server:cpu
 ```
 

@@ -231,6 +231,7 @@ final class SottoDuoController: ObservableObject {
         // Capture files are temporary only; server history is never examined here.
         CapturedAudio.cleanupOrphans()
         try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("SottoDuo-remote-preview"))
+        try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("Sotto-remote-preview"))
         hasInitialized = true
         refreshRemoteButtons()
         refreshDJIMicButton()

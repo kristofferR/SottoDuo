@@ -61,6 +61,28 @@ private slots:
     QVERIFY(entry.open(QIODevice::ReadOnly));
     QVERIFY(entry.readAll().contains("Hidden=true\n"));
   }
+  void managedLegacyLoginEntryMovesToSottoDuo() {
+    QTemporaryDir config;
+    QVERIFY(config.isValid());
+    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
+    QVERIFY(QDir().mkpath(config.path() + "/autostart"));
+    QFile legacy(config.path() + "/autostart/org.sotto.Gui.desktop");
+    QVERIFY(legacy.open(QIODevice::WriteOnly));
+    legacy.write("# Managed by Sotto\n[Desktop Entry]\nHidden=false\nExec=sotto-gui --background\n");
+    legacy.close();
+    DesktopIntegration preview(true);
+    QVERIFY(!preview.launchAtLogin());
+    QVERIFY(legacy.exists());
+    DesktopIntegration desktop(false);
+    QVERIFY2(desktop.error().isEmpty(), qPrintable(desktop.error()));
+    QVERIFY(desktop.launchAtLogin());
+    QVERIFY(!legacy.exists());
+    QFile current(config.path() + "/autostart/org.sottoduo.Gui.desktop");
+    QVERIFY(current.open(QIODevice::ReadOnly));
+    const auto data = current.readAll();
+    QVERIFY(data.startsWith("# Managed by SottoDuo\n"));
+    QVERIFY(data.contains("Hidden=false\n"));
+  }
   void externalLoginEntryAndWriteFailuresRemainVisible() {
     QTemporaryDir config;
     qputenv("XDG_CONFIG_HOME", config.path().toUtf8());

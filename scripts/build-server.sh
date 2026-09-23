@@ -31,7 +31,7 @@ if [[ "${SOTTODUO_SKIP_NATIVE:-0}" != 1 && \
     git submodule update --init --recursive
 fi
 
-native_flags=(-DCMAKE_BUILD_TYPE=Release "-DSOTTODUO_CUDA=${SOTTODUO_CUDA:-OFF}")
+native_flags=(-DCMAKE_BUILD_TYPE=Release "-DSOTTODUO_CUDA=${SOTTODUO_CUDA:-${SOTTO_CUDA:-OFF}}")
 if [[ "$server_platform" == Darwin ]]; then
     if [[ "$server_architecture" != arm64 ]]; then
         printf 'The macOS server uses MLX and requires Apple Silicon.\n' >&2
@@ -39,8 +39,9 @@ if [[ "$server_platform" == Darwin ]]; then
     fi
     native_flags+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_OSX_ARCHITECTURES=arm64)
 fi
-if [[ -n "${SOTTODUO_CUDA_ARCHITECTURES:-}" ]]; then
-    native_flags+=("-DCMAKE_CUDA_ARCHITECTURES=$SOTTODUO_CUDA_ARCHITECTURES")
+cuda_architectures="${SOTTODUO_CUDA_ARCHITECTURES:-${SOTTO_CUDA_ARCHITECTURES:-}}"
+if [[ -n "$cuda_architectures" ]]; then
+    native_flags+=("-DCMAKE_CUDA_ARCHITECTURES=$cuda_architectures")
 fi
 if [[ -n "${SOTTODUO_NATIVE:-}" ]]; then
     native_flags+=("-DGGML_NATIVE=$SOTTODUO_NATIVE")

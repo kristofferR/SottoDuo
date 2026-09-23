@@ -11,8 +11,14 @@
 
 namespace {
 const QByteArray marker = "# Managed by SottoDuo\n";
+const QByteArray legacyMarker = "# Managed by Sotto\n";
 const QByteArray serviceMarker = "# Managed by SottoDuo Linux GUI\n";
 const QByteArray legacyServiceMarker = "# Managed by Sotto Linux GUI\n";
+
+QString legacyEntryPath() {
+  return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
+         "/autostart/org.sotto.Gui.desktop";
+}
 
 struct ServiceUnit {
   bool available = false;
@@ -106,7 +112,22 @@ DesktopIntegration::DesktopIntegration(bool preview, QObject *parent,
     : QObject(parent), m_preview(preview),
       m_clientExecutable(clientExecutable.isEmpty()
                              ? defaultClientExecutable(QCoreApplication::applicationDirPath())
-                             : clientExecutable) {}
+                             : clientExecutable) {
+  if (m_preview)
+    return;
+  QFile legacy(legacyEntryPath());
+  if (!legacy.open(QIODevice::ReadOnly))
+    return;
+  const auto data = legacy.readAll();
+  legacy.close();
+  if (!data.startsWith(legacyMarker))
+    return;
+  if (!QFileInfo::exists(entryPath()) && data.contains("\nHidden=false\n")) {
+    setLaunchAtLogin(true);
+  } else if (!legacy.remove()) {
+    m_error = "Couldn’t remove the previous login entry.";
+  }
+}
 
 QString DesktopIntegration::entryPath() const {
   return QStandardPaths::writableLocation(
@@ -330,9 +351,12 @@ bool DesktopIntegration::launchAtLogin() const {
     return false;
   QFile entry(entryPath());
   if (!entry.open(QIODevice::ReadOnly))
+    entry.setFileName(legacyEntryPath());
+  if (!entry.isOpen() && !entry.open(QIODevice::ReadOnly))
     return false;
   const auto data = entry.readAll();
-  return data.startsWith(marker) && data.contains("\nHidden=false\n");
+  const auto expectedMarker = entry.fileName() == entryPath() ? marker : legacyMarker;
+  return data.startsWith(expectedMarker) && data.contains("\nHidden=false\n");
 }
 
 void DesktopIntegration::setLaunchAtLogin(bool enabled) {
@@ -387,6 +411,15 @@ void DesktopIntegration::setLaunchAtLogin(bool enabled) {
     fail("Couldn’t save login startup. Check the permissions of your startup "
          "folder.");
     return;
+  }
+  QFile legacy(legacyEntryPath());
+  if (legacy.open(QIODevice::ReadOnly)) {
+    const bool managed = legacy.readAll().startsWith(legacyMarker);
+    legacy.close();
+    if (managed && !legacy.remove()) {
+      fail("Couldn’t remove the previous login entry.");
+      return;
+    }
   }
   emit changed();
 }
