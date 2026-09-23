@@ -124,6 +124,16 @@ export class CaptureSessions {
       const existing = await this.service.findRequest(request.requestID, request.device.id);
       const active = this.active;
       if (existing && active?.id === existing.id) {
+        if (
+          !existing.capture ||
+          !sameSource(existing.capture.source, request.source) ||
+          existing.mode !== request.mode
+        )
+          throw new ServiceError(
+            409,
+            "conflicting_request",
+            "This request already selects another source or mode.",
+          );
         await this.service.authorizeCapture(existing.id, owner);
         if (this.active !== active) throw closed();
         return { ready: active.ready };
