@@ -1,6 +1,6 @@
 # Architecture
 
-SottoDuo's native Swift macOS client handles microphone capture, shortcuts, and cursor insertion. An independent TypeScript/Fastify server, compiled with Bun, owns inference, shared settings, and history. Both processes use the same OpenAPI v1 contract whether they run on one machine or across the network.
+SottoDuo's native Swift macOS client handles microphone capture, shortcuts, and cursor insertion. An independent TypeScript/Fastify server, compiled with Bun, owns inference, shared settings, and history. Both processes use the same OpenAPI v2 contract whether they run on one machine or across the network.
 
 ## Code map
 

@@ -11,7 +11,7 @@ legacy_server_binary="$project_dir/build/server/sotto-server"
 state_dir="$project_dir/.local"
 pid_file="$state_dir/server.pid"
 log_file="$state_dir/server.log"
-server_port="${SOTTODUO_SERVER_PORT:-8391}"
+server_port="${SOTTODUO_SERVER_PORT:-${SOTTO_SERVER_PORT:-8391}}"
 client_dir="$state_dir/client"
 mkdir -p "$state_dir"
 chmod 700 "$state_dir"
@@ -144,13 +144,14 @@ if [[ ! -f "$speech_model" || ! -e "$proof_model" ]]; then
     exit 1
 fi
 server_args=(--host 127.0.0.1 --port "$server_port" --dev
-    --data-dir "${SOTTODUO_SERVER_DATA_DIR:-$state_dir/server}"
-    --speech-helper "${SOTTODUO_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-engine}"
+    --data-dir "${SOTTODUO_SERVER_DATA_DIR:-${SOTTO_SERVER_DATA_DIR:-$state_dir/server}}"
+    --speech-helper "${SOTTODUO_ENGINE_PATH:-${SOTTO_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-engine}}"
     --speech-model "$speech_model"
-    --vad-model "${SOTTODUO_VAD_PATH:-$project_dir/build/server/resources/silero-vad.bin}"
-    --proof-helper "${SOTTODUO_TEXT_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-text-engine}"
+    --vad-model "${SOTTODUO_VAD_PATH:-${SOTTO_VAD_PATH:-$project_dir/build/server/resources/silero-vad.bin}}"
+    --proof-helper "${SOTTODUO_TEXT_ENGINE_PATH:-${SOTTO_TEXT_ENGINE_PATH:-$project_dir/build/server/helpers/sottoduo-text-engine}}"
     --proof-model "$proof_model")
-if [[ -n "${SOTTODUO_SERVER_TOKEN_FILE:-}" ]]; then server_args+=(--token-file "$SOTTODUO_SERVER_TOKEN_FILE"); fi
+token_file="${SOTTODUO_SERVER_TOKEN_FILE:-${SOTTO_SERVER_TOKEN_FILE:-}}"
+if [[ -n "$token_file" ]]; then server_args+=(--token-file "$token_file"); fi
 umask 077
 nohup "$server_binary" "${server_args[@]}" >> "$log_file" 2>&1 < /dev/null &
 server_pid=$!

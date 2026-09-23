@@ -4,6 +4,7 @@ set -euo pipefail
 project_dir=$(cd "$(dirname "$0")/.." && pwd)
 cd "$project_dir"
 build_jobs="${SOTTODUO_BUILD_JOBS:-8}"
+skip_native="${SOTTODUO_SKIP_NATIVE:-${SOTTO_SKIP_NATIVE:-0}}"
 server_platform=$(uname -s)
 server_architecture=$(uname -m)
 if [[ "$server_platform" != Darwin && "$server_platform" != Linux ]]; then
@@ -16,7 +17,7 @@ if [[ "$server_platform" == Linux && "$server_architecture" != x86_64 && \
     exit 1
 fi
 dependencies=(bun)
-if [[ "${SOTTODUO_SKIP_NATIVE:-0}" != 1 ]]; then
+if [[ "$skip_native" != 1 ]]; then
     dependencies+=(cmake)
     if [[ "$server_platform" == Darwin ]]; then dependencies+=(swift); fi
 fi
@@ -26,7 +27,7 @@ for dependency in "${dependencies[@]}"; do
         exit 1
     fi
 done
-if [[ "${SOTTODUO_SKIP_NATIVE:-0}" != 1 && \
+if [[ "$skip_native" != 1 && \
       ( ! -f vendor/whisper.cpp/include/whisper.h || ! -f vendor/llama.cpp/include/llama.h ) ]]; then
     git submodule update --init --recursive
 fi
@@ -47,16 +48,16 @@ native_optimization="${SOTTODUO_NATIVE:-${SOTTO_NATIVE:-}}"
 if [[ -n "$native_optimization" ]]; then
     native_flags+=("-DGGML_NATIVE=$native_optimization")
 fi
-if [[ "${SOTTODUO_SKIP_NATIVE:-0}" == 1 ]]; then
+if [[ "$skip_native" == 1 ]]; then
     # Reuse explicitly selected helpers without rebuilding or modifying them.
     # This is useful for isolated server development beside an installed app.
-    : "${SOTTODUO_ENGINE_PATH:?Set SOTTODUO_ENGINE_PATH when SOTTODUO_SKIP_NATIVE=1}"
-    : "${SOTTODUO_TEXT_ENGINE_PATH:?Set SOTTODUO_TEXT_ENGINE_PATH when SOTTODUO_SKIP_NATIVE=1}"
-    : "${SOTTODUO_VAD_PATH:?Set SOTTODUO_VAD_PATH when SOTTODUO_SKIP_NATIVE=1}"
-    speech_helper="$SOTTODUO_ENGINE_PATH"
-    text_helper="$SOTTODUO_TEXT_ENGINE_PATH"
+    speech_helper="${SOTTODUO_ENGINE_PATH:-${SOTTO_ENGINE_PATH:-}}"
+    text_helper="${SOTTODUO_TEXT_ENGINE_PATH:-${SOTTO_TEXT_ENGINE_PATH:-}}"
+    vad_model="${SOTTODUO_VAD_PATH:-${SOTTO_VAD_PATH:-}}"
+    : "${speech_helper:?Set SOTTODUO_ENGINE_PATH (or SOTTO_ENGINE_PATH) when skipping native builds}"
+    : "${text_helper:?Set SOTTODUO_TEXT_ENGINE_PATH (or SOTTO_TEXT_ENGINE_PATH) when skipping native builds}"
+    : "${vad_model:?Set SOTTODUO_VAD_PATH (or SOTTO_VAD_PATH) when skipping native builds}"
     text_helper_dir=$(dirname "$text_helper")
-    vad_model="$SOTTODUO_VAD_PATH"
 else
     cmake -S . -B .build/server-native "${native_flags[@]}"
     cmake --build .build/server-native --target sottoduo-engine --parallel "$build_jobs"
@@ -109,7 +110,7 @@ fi
 cp "$vad_model" "$staging_dir/resources/silero-vad.bin"
 for library in whisper llama; do
     license_path="$project_dir/vendor/$library.cpp/LICENSE"
-    if [[ ! -f "$license_path" && "${SOTTODUO_SKIP_NATIVE:-0}" == 1 ]]; then
+    if [[ ! -f "$license_path" && "$skip_native" == 1 ]]; then
         license_path="$(dirname "$vad_model")/$library-LICENSE.txt"
     fi
     if [[ ! -f "$license_path" ]]; then
