@@ -126,8 +126,12 @@ export class ButtonDestinations {
       existing.until = this.now() + buttonLimits.leaseMS;
       return this.state(id);
     }
-    for (const [other, registration] of this.registrations)
-      if (registration.destination.device.id === request.device.id) this.remove(other);
+    const replacements = [...this.registrations].filter(
+      ([, registration]) => registration.destination.device.id === request.device.id,
+    );
+    if (replacements.some(([, registration]) => !timingSafeEqual(registration.hash, hash)))
+      throw unavailable();
+    for (const [other] of replacements) this.remove(other);
     if (this.registrations.size >= buttonLimits.destinations)
       throw new ServiceError(429, "too_many_destinations", "Too many connected destinations.");
     this.registrations.set(id, {

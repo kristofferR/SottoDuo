@@ -83,6 +83,28 @@ test("only explicit selection routes taps; duplicates and rapid double-taps do n
   expect(claim.signal.aborted).toBe(true);
   expect(f.broker.state().selected?.id).toBe(f.b);
 });
+test("another owner cannot replace a live destination with the same device ID", async () => {
+  const f = fixture();
+  await f.broker.select(f.a, {}, f.owner);
+  f.broker.press("epoch", 1);
+  const ticket = f.broker.state(f.a).command!.takeID;
+  const claim = f.broker.claim(
+    {
+      requestID: randomUUID(),
+      device: { id: "mac", name: "Mac" },
+      mode: "dictation",
+      source: f.source,
+      buttonTicket: ticket,
+    },
+    f.owner,
+  );
+  claim.ready();
+  expect(() =>
+    f.broker.register({ id: randomUUID(), device: { id: "mac", name: "Mac" } }, "b".repeat(64)),
+  ).toThrow();
+  expect(claim.signal.aborted).toBe(false);
+  expect(f.broker.state().selected?.id).toBe(f.a);
+});
 test("lease expiry and input restarts discard selection and revoke pending tickets", async () => {
   const f = fixture();
   await f.broker.select(f.a, {}, f.owner);
