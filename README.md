@@ -15,18 +15,23 @@
 </p>
 
 <p align="center">
-  <a href="#get-started">Get started</a> ·
+  <a href="#build-from-source">Build from source</a> ·
   <a href="#changes-from-upstream-sotto">Changes from upstream Sotto</a> ·
   <a href="#documentation">Documentation</a>
 </p>
 
 ---
 
-SottoDuo is a fork of [Sotto](https://github.com/davis7dotsh/sotto) with a Linux
-desktop client, Soniox streaming, and shared microphone support. The native
-Swift and Qt Quick clients connect to a self-hosted server on macOS or Linux.
-Run it locally or on a separate machine; dictionaries, optional Qwen cleanup,
-and history are shared between clients.
+SottoDuo is an MIT-licensed fork of [Sotto](https://github.com/davis7dotsh/sotto)
+with a Linux desktop client, Soniox streaming, and shared microphone support.
+Local recognition and cleanup run on hardware you control, with no required
+service account, subscription, or word quota. Cloud recognition is optional;
+recordings and history are stored on your own server.
+
+The native Swift and Qt Quick clients connect to a self-hosted macOS or Linux
+server. Run everything on one machine, or offload inference from your laptop to
+a separate server. Dictionaries, cleanup settings, and history are shared across
+clients, so vocabulary and cleanup changes only need to be made once.
 
 ## Changes from upstream Sotto
 
@@ -36,9 +41,9 @@ history, and Wispr Flow import come from upstream. SottoDuo adds:
 | Addition | What it does |
 | --- | --- |
 | **Linux desktop app** | Qt Quick client for Omarchy/Hyprland and experimental KDE Plasma Wayland, with history, microphone priorities, shared preferences, and a recording overlay. Light, dark, and Omarchy themes. |
-| **Soniox streaming** | Live transcript previews and optional Whisper fallback. Local-only recognition remains available. |
-| **Remote microphones** | PipeWire capture on a Linux server, selectable from either desktop. Mac microphone priorities can mix local and remote inputs. |
-| **DJI button routing** | USB receiver support on Mac or Linux. Route the transmitter's linking button to a selected computer for start/stop dictation. |
+| **Soniox streaming** | Live transcript previews with optional local Whisper fallback if cloud recognition fails. Choose cloud, local, or automatic mode without switching apps. |
+| **Remote microphones** | Share a microphone connected to a Linux server between desktops without moving the receiver. Mac microphone priorities can mix local and remote inputs. |
+| **DJI button routing** | Start and stop dictation from the transmitter's linking button, with the receiver connected to Mac or Linux. Select which computer receives the text. |
 
 Linux insertion depends on application accessibility support; terminals use explicit
 copy and paste. Omarchy/Hyprland is the verified Linux desktop; Plasma integration
@@ -57,7 +62,14 @@ imported records.
 Choose the mode under **Server preferences**. Soniox requires your own API key;
 configure it on the server using `SONIOX_API_KEY` or `--soniox-key-file`.
 Cloud recognition sends normalized speech audio and vocabulary hints to Soniox.
-Optional Qwen proofreading runs on your own server in every mode.
+Optional Qwen proofreading runs on your own server in every mode, so using cloud
+recognition does not require cloud cleanup too.
+
+Cleanup is configurable: edit the full prompt, set exact phrase replacements,
+or disable Qwen while keeping dictionary corrections. Validation checks can
+reject rewrites that alter quantities, negations, or too much of the original
+wording. History exposes the original transcript, cleanup outcome, and model
+details so you can investigate errors rather than seeing only the final text.
 
 History and retained recordings live in the server's data directory. Original
 microphone audio is kept by default; **Keep original microphone audio** controls
@@ -67,9 +79,7 @@ The desktop apps always need a reachable server, including in Local only mode.
 See [Soniox setup and fallback behavior](docs/soniox-streaming.md) and
 [server storage](docs/architecture.md#storage).
 
-## Get started
-
-Source builds only for now.
+## Build from source
 
 | Component | Requirements |
 | --- | --- |
