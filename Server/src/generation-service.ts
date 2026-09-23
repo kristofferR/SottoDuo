@@ -320,7 +320,7 @@ export class GenerationService {
                 : "Server models are unavailable.";
       if (!state.speechLoaded && !this.warming && !this.activeID) this.beginWarmup();
       return {
-        apiVersion: 1,
+        apiVersion: 2,
         serverVersion: "0.1.0",
         isDev: this.configuration.development,
         ready: ready && !this.activeID,

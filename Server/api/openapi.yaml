@@ -2,7 +2,7 @@
 openapi: "3.1.0"
 info:
   title: "SottoDuo API"
-  version: "1.0.0"
+  version: "2.0.0"
   description: "Shared transport contract for the Swift client and TypeScript server. Optional properties are omitted rather than encoded as null. Dates use whole-second ISO8601 UTC timestamps."
 servers:
   -
@@ -10,7 +10,7 @@ servers:
 security:
   -
     bearerAuth: []
-x-sottoduo-apiVersion: 1
+x-sottoduo-apiVersion: 2
 x-sottoduo-defaultPort: 8391
 x-sottoduo-maximumRecordingSeconds: 180
 x-sottoduo-maximumChunkBytes: 1048576

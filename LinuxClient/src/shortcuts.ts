@@ -74,6 +74,8 @@ const codes: Record<Key, number[]> = { Menu: [135, 147], F8: [74], F9: [75], F10
 const actions = ["start dictation", "stop dictation", "cancel dictation", "copy last result"];
 const begin = "-- BEGIN SottoDuo shortcuts\n",
   end = "-- END SottoDuo shortcuts\n";
+const legacyBegin = "-- BEGIN Sotto shortcuts\n",
+  legacyEnd = "-- END Sotto shortcuts\n";
 const documentedMenuBlock = `-- Kris selected Menu for SottoDuo, replacing its Voxtype toggle binding.
 -- Remove the existing Menu binding once, then add both press and release actions.
 hl.unbind("Menu")
@@ -84,6 +86,8 @@ o.bind("SUPER + Menu", "SottoDuo: cancel dictation", hl.dsp.event("sottoduo:canc
 o.bind("SUPER + SHIFT + Menu", "SottoDuo: copy last result", hl.dsp.event("sottoduo:copy"))
 `;
 const revision = (text: string) => createHash("sha256").update(text).digest("hex");
+const legacy = (text: string) =>
+  text.replaceAll("SottoDuo", "Sotto").replaceAll("sottoduo:", "sotto:");
 export function shortcutBlock(key: Key) {
   return `o.rebind("${key}", "SottoDuo: start dictation", hl.dsp.event("sottoduo:start"))\no.bind("${key}", "SottoDuo: stop dictation", hl.dsp.event("sottoduo:stop"), { release = true, ignore_mods = true })\no.bind("SUPER + ${key}", "SottoDuo: cancel dictation", hl.dsp.event("sottoduo:cancel"))\no.bind("SUPER + SHIFT + ${key}", "SottoDuo: copy last result", hl.dsp.event("sottoduo:copy"))\n`;
 }
@@ -93,14 +97,19 @@ function section(text: string) {
       begin + shortcutBlock(key) + end,
       `-- SottoDuo dictation: hold ${key}; release to transcribe.\n` + shortcutBlock(key),
       ...(key === "Menu" ? [documentedMenuBlock] : []),
+      legacyBegin + legacy(shortcutBlock(key)) + legacyEnd,
+      `-- Sotto dictation: hold ${key}; release to transcribe.\n` + legacy(shortcutBlock(key)),
+      ...(key === "Menu" ? [legacy(documentedMenuBlock)] : []),
     ]) {
       const at = text.indexOf(block);
       if (
         at >= 0 &&
         !text.replace(block, "").includes("sottoduo:") &&
-        !text.replace(block, "").includes("BEGIN SottoDuo shortcuts")
+        !text.replace(block, "").includes("sotto:") &&
+        !text.replace(block, "").includes("BEGIN SottoDuo shortcuts") &&
+        !text.replace(block, "").includes("BEGIN Sotto shortcuts")
       )
-        return { key, block, at };
+        return { key, block, at, isLegacy: block.includes("sotto:") };
     }
   }
   throw new ClientNotice(
@@ -112,8 +121,10 @@ function records(value: unknown): Record<string, unknown>[] {
     throw new ClientNotice("Could not read the desktop shortcuts.");
   return value;
 }
-function own(binding: Record<string, unknown>, key: Key) {
-  const index = actions.map((action) => `SottoDuo: ${action}`).indexOf(String(binding.description));
+function own(binding: Record<string, unknown>, key: Key, isLegacy = false) {
+  const index = actions
+    .map((action) => `${isLegacy ? "Sotto" : "SottoDuo"}: ${action}`)
+    .indexOf(String(binding.description));
   return (
     index >= 0 &&
     binding.key === key &&
@@ -124,18 +135,22 @@ function own(binding: Record<string, unknown>, key: Key) {
     binding.dispatcher === "__lua"
   );
 }
-function verify(bindings: Record<string, unknown>[], key: Key) {
+function verify(bindings: Record<string, unknown>[], key: Key, isLegacy = false) {
   return actions.every(
     (action) =>
-      bindings.filter((b) => own(b, key) && b.description === `SottoDuo: ${action}`).length === 1,
+      bindings.filter(
+        (b) =>
+          own(b, key, isLegacy) &&
+          b.description === `${isLegacy ? "Sotto" : "SottoDuo"}: ${action}`,
+      ).length === 1,
   );
 }
-function conflict(bindings: Record<string, unknown>[], key: Key, current: Key) {
+function conflict(bindings: Record<string, unknown>[], key: Key, current: Key, isLegacy = false) {
   return bindings.find(
     (b) =>
       (String(b.key).toLowerCase() === key.toLowerCase() ||
         codes[key].includes(Number(b.keycode))) &&
-      !own(b, current),
+      !own(b, current, isLegacy),
   );
 }
 type Run = (args: string[]) => Promise<string>;
@@ -185,7 +200,8 @@ export class ShortcutSettings {
         current = section(text);
       const bindings = records(JSON.parse(await this.run(["hyprctl", "-j", "binds"])));
       const supported =
-        verify(bindings, current.key) && !conflict(bindings, current.key, current.key);
+        verify(bindings, current.key, current.isLegacy) &&
+        !conflict(bindings, current.key, current.key, current.isLegacy);
       this.state = {
         supported,
         key: supported ? current.key : undefined,
@@ -194,7 +210,7 @@ export class ShortcutSettings {
           ? "Hold to dictate; release to transcribe."
           : "The active shortcuts differ from SottoDuo’s saved bindings. Reload or repair the desktop configuration first.",
         choices: keys.map((key) => {
-          const other = conflict(bindings, key, current.key);
+          const other = conflict(bindings, key, current.key, current.isLegacy);
           return {
             key,
             available: !other,
@@ -250,11 +266,11 @@ export class ShortcutSettings {
           "Repair the existing desktop configuration errors before changing shortcuts.",
         );
       const bindings = records(JSON.parse(await this.run(["hyprctl", "-j", "binds"])));
-      if (!verify(bindings, current.key))
+      if (!verify(bindings, current.key, current.isLegacy))
         throw new ClientNotice(
           "The active SottoDuo shortcuts no longer match. Reload this page first.",
         );
-      if (conflict(bindings, selected, current.key))
+      if (conflict(bindings, selected, current.key, current.isLegacy))
         throw new ClientNotice(
           "That key is already used by another desktop action. Choose an available key.",
         );

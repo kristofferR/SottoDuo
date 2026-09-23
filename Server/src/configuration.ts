@@ -63,7 +63,9 @@ export async function parseConfiguration(
   environment: NodeJS.ProcessEnv = process.env,
 ) {
   const options = new Map<string, string>();
-  let development = environment.SOTTODUO_DEV === "1";
+  const env = (variable: string) =>
+    environment[variable] ?? environment[variable.replace(/^SOTTODUO_/, "SOTTO_")];
+  let development = env("SOTTODUO_DEV") === "1";
   for (let index = 0; index < args.length; index++) {
     const argument = args[index]!;
     if (argument === "--dev") {
@@ -83,7 +85,7 @@ export async function parseConfiguration(
     options.set(name, value);
     index++;
   }
-  const value = (name: string, variable: string) => options.get(name) ?? environment[variable];
+  const value = (name: string, variable: string) => options.get(name) ?? env(variable);
   const path = (name: string, variable: string) => {
     const raw = value(name, variable);
     if (!raw) throw new Error(`Configure --${name} or ${variable}.`);

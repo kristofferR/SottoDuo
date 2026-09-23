@@ -38,7 +38,9 @@ final class SottoDuoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
     private var reopenRequested = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let root = ProcessInfo.processInfo.environment["SOTTODUO_CLIENT_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let environment = ProcessInfo.processInfo.environment
+        let root = (environment["SOTTODUO_CLIENT_DATA_DIR"] ?? environment["SOTTO_CLIENT_DATA_DIR"])
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? SottoDuoBuild.current.dataDirectory
         let configuration = ConfigurationStore(
             file: ConfigurationFile(url: root.appendingPathComponent("config.json"))

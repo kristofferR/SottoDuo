@@ -29,7 +29,8 @@ final class ClientPreferencesStore: ObservableObject {
         url = root.appendingPathComponent("client.json")
         credentialAccount = root.standardizedFileURL.path
         let saved = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(Settings.self, from: $0) }
-        let resolvedEndpoint = environment["SOTTODUO_SERVER_URL"] ?? saved?.endpoint ?? "http://127.0.0.1:8391"
+        let resolvedEndpoint = environment["SOTTODUO_SERVER_URL"] ?? environment["SOTTO_SERVER_URL"]
+            ?? saved?.endpoint ?? "http://127.0.0.1:8391"
         endpoint = resolvedEndpoint
         deviceID = saved?.deviceID ?? UUID().uuidString.lowercased()
         deviceName = saved?.deviceName ?? Host.current().localizedName ?? "My Mac"
@@ -39,7 +40,13 @@ final class ClientPreferencesStore: ObservableObject {
             let validated = try ServerEndpoint(resolvedEndpoint)
             endpoint = validated.address
             let account = credentialAccount + "|" + validated.address
-            token = readCredential?(account) ?? Self.readToken(account: account)
+            if let readCredential {
+                token = readCredential(account)
+            } else {
+                token = Self.readToken(account: account, service: SottoDuoBuild.current.credentialService)
+                    ?? Self.readToken(account: account, service: SottoDuoBuild.current.legacyCredentialService)
+                    ?? ""
+            }
             if saved == nil { persist() }
         } catch {
             errorMessage = error.localizedDescription
@@ -99,20 +106,20 @@ final class ClientPreferencesStore: ObservableObject {
         }
     }
 
-    private static func keychainQuery(account: String) -> [String: Any] {
+    private static func keychainQuery(account: String, service: String = SottoDuoBuild.current.credentialService) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: SottoDuoBuild.current.credentialService,
+         kSecAttrService as String: service,
          kSecAttrAccount as String: account]
     }
 
-    private static func readToken(account: String) -> String {
-        var query = keychainQuery(account: account)
+    private static func readToken(account: String, service: String) -> String? {
+        var query = keychainQuery(account: account, service: service)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private static func writeToken(_ token: String, account: String) -> Bool {

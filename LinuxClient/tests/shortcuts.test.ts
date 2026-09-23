@@ -50,7 +50,7 @@ test("an expired check cannot turn a held or repeated press into dictation", () 
     clock.mockRestore();
   }
 });
-function bindings(key: string) {
+function bindings(key: string, brand = "SottoDuo") {
   return ["start dictation", "stop dictation", "cancel dictation", "copy last result"].map(
     (action, index) => ({
       key,
@@ -59,7 +59,7 @@ function bindings(key: string) {
       release: index === 1,
       submap: "",
       dispatcher: "__lua",
-      description: `SottoDuo: ${action}`,
+      description: `${brand}: ${action}`,
     }),
   );
 }
@@ -141,6 +141,46 @@ test("shortcut settings recognize and migrate the documented Menu bindings", asy
     const saved = await readFile(file, "utf8");
     expect(saved).toContain("-- BEGIN SottoDuo shortcuts");
     expect(saved).toContain('o.rebind("F8"');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("legacy Sotto shortcuts can be replaced with SottoDuo bindings", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sottoduo-shortcuts-upgrade-"));
+  const file = join(dir, "bindings.lua");
+  const oldBlock = shortcutBlock("Menu")
+    .replaceAll("SottoDuo", "Sotto")
+    .replaceAll("sottoduo:", "sotto:");
+  let active = bindings("Menu", "Sotto");
+  const run = async (args: string[]) => {
+    if (args.includes("binds")) return JSON.stringify(active);
+    if (args.includes("configerrors")) return "";
+    if (args.includes("reload")) {
+      active = bindings("F8");
+      return "ok";
+    }
+    throw new Error("Unexpected command");
+  };
+  try {
+    await writeFile(file, `-- BEGIN Sotto shortcuts\n${oldBlock}-- END Sotto shortcuts\n`);
+    const settings = new ShortcutSettings(run, () => false, file);
+    const state = await settings.refresh();
+    expect(state).toMatchObject({ supported: true, key: "Menu" });
+    expect((await settings.save("F8", state.revision)).supported).toBe(true);
+    const saved = await readFile(file, "utf8");
+    expect(saved).toContain("-- BEGIN SottoDuo shortcuts");
+    expect(saved).not.toContain("sotto:start");
+
+    active = bindings("Menu", "Sotto");
+    const documented = await readFile(join(import.meta.dir, "../integration/bindings.lua"), "utf8");
+    await writeFile(
+      file,
+      documented.replaceAll("SottoDuo", "Sotto").replaceAll("sottoduo:", "sotto:"),
+    );
+    const documentedState = await settings.refresh();
+    expect(documentedState).toMatchObject({ supported: true, key: "Menu" });
+    expect((await settings.save("F8", documentedState.revision)).supported).toBe(true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
