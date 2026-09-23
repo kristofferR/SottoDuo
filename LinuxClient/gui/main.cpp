@@ -112,9 +112,10 @@ int main(int argc, char **argv) {
   QObject::connect(&instance, &GuiInstance::showRequested, &app, show);
   menu.addAction("Open Sotto", &app, show);
   auto quit = [window, &app] {
+    window->setProperty("quitRequested", true);
     if (window->close())
       app.quit();
-    else {
+    else if (!window->property("quitRequested").toBool()) {
       window->show();
       window->requestActivate();
     }

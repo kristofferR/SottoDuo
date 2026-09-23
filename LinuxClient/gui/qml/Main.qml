@@ -11,8 +11,16 @@ ApplicationWindow {
     onClosing: close => {
         if (microphoneTestActive) {
             close.accepted = false;
+            quitRequested = false;
             page = 0;
             notice = "Finish or cancel the microphone test before closing Sotto.";
+        } else if (quitRequested && (portalShortcuts.plasma && bridge.connected || shortcutCheckPending || shortcut.check && shortcut.check.active || endingShortcutCheck)) {
+            close.accepted = false;
+            if (portalShortcuts.plasma && bridge.connected && !portalReleasePending) {
+                portalReleasePending = true;
+                bridge.request("releasePortalShortcut");
+            }
+            finishShortcutCheck();
         }
     }
     onVisibleChanged: {
@@ -37,6 +45,9 @@ ApplicationWindow {
     readonly property bool shortcutBlocked: !!shortcut.changing || (!!shortcut.check && !!shortcut.check.blocked)
     property bool shortcutCheckPending: false
     property bool finishShortcutCheckAfterReply: false
+    property bool endingShortcutCheck: false
+    property bool quitRequested: false
+    property bool portalReleasePending: false
     property bool microphoneTestStarting: false
     readonly property bool microphoneTestActive: microphoneTestStarting || (busy && activity.trigger === "test")
     property var feedback: snapshot.feedback || ({})
@@ -108,7 +119,8 @@ ApplicationWindow {
     function finishShortcutCheck() {
         if (shortcutCheckPending) {
             finishShortcutCheckAfterReply = true;
-        } else if (shortcut.check && shortcut.check.active) {
+        } else if (shortcut.check && shortcut.check.active && !endingShortcutCheck) {
+            endingShortcutCheck = true;
             bridge.request("endShortcutCheck");
         }
     }
@@ -165,8 +177,19 @@ ApplicationWindow {
                 app.shortcutCheckPending = false;
                 if (app.finishShortcutCheckAfterReply) {
                     app.finishShortcutCheckAfterReply = false;
+                    app.endingShortcutCheck = true;
                     bridge.request("endShortcutCheck");
                 }
+            }
+            if (action === "endShortcutCheck") {
+                app.endingShortcutCheck = false;
+                if (app.quitRequested && !app.portalReleasePending)
+                    Qt.quit();
+            }
+            if (action === "releasePortalShortcut" && app.portalReleasePending) {
+                app.portalReleasePending = false;
+                if (!app.shortcutCheckPending && !app.endingShortcutCheck && !app.finishShortcutCheckAfterReply)
+                    Qt.quit();
             }
             if (action === "saveConnection") {
                 app.sourcesChecked = false;
@@ -194,7 +217,21 @@ ApplicationWindow {
                 app.microphoneTestStarting = false;
             if (action === "checkShortcut") {
                 app.shortcutCheckPending = false;
-                app.finishShortcutCheckAfterReply = false;
+                if (app.finishShortcutCheckAfterReply || app.quitRequested) {
+                    app.finishShortcutCheckAfterReply = false;
+                    app.endingShortcutCheck = true;
+                    bridge.request("endShortcutCheck");
+                }
+            }
+            if (action === "endShortcutCheck") {
+                app.endingShortcutCheck = false;
+                if (app.quitRequested && !app.portalReleasePending)
+                    Qt.quit();
+            }
+            if (action === "releasePortalShortcut" && app.portalReleasePending) {
+                app.portalReleasePending = false;
+                app.quitRequested = false;
+                app.notice = "Could not release the Plasma shortcut. Reconnect before quitting.";
             }
             if (!bridge.connected)
                 return;

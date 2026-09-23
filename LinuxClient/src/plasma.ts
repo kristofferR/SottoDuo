@@ -28,6 +28,12 @@ export function plasmaLockEvent(text: string) {
   return /AboutToLock|ActiveChanged\s*\(\s*true\s*,?\s*\)/.test(text);
 }
 
+export function loginSessionPath(reply: string) {
+  const path = /^o "(\/org\/freedesktop\/login1\/session\/[A-Za-z0-9_]+)"\s*$/.exec(reply.trim());
+  if (!path) throw new Error("Could not identify the current login session.");
+  return path[1];
+}
+
 /** Plasma owns global shortcut registration through its portal in the GUI.
  * This adapter pins insertion to a focused AT-SPI object and fails closed on
  * unknown screen-lock/session state. */
@@ -42,6 +48,23 @@ export class PlasmaDesktop implements Desktop {
   async monitorSession(unsafe: () => void): Promise<void> {
     if (process.env.XDG_SESSION_TYPE !== "wayland")
       throw new Error("Start Sotto inside a Plasma Wayland session.");
+    const sessionID = (
+      await command(["loginctl", "show-session", "auto", "-p", "Id", "--value"])
+    ).trim();
+    if (!sessionID) throw new Error("Could not identify the current login session.");
+    const sessionPath = loginSessionPath(
+      await command([
+        "busctl",
+        "--system",
+        "call",
+        "org.freedesktop.login1",
+        "/org/freedesktop/login1",
+        "org.freedesktop.login1.Manager",
+        "GetSession",
+        "s",
+        sessionID,
+      ]),
+    );
     this.screen = Bun.spawn(
       ["gdbus", "monitor", "--session", "--dest", "org.freedesktop.ScreenSaver"],
       { stdout: "pipe", stderr: "ignore" },
@@ -62,7 +85,7 @@ export class PlasmaDesktop implements Desktop {
         "dbus-monitor",
         "--system",
         "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'",
-        "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace='/org/freedesktop/login1/session'",
+        `type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='${sessionPath}'`,
       ],
       { stdout: "pipe", stderr: "ignore" },
     );

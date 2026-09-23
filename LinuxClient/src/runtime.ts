@@ -74,7 +74,9 @@ export class ClientRuntime {
       request &&
       typeof request === "object" &&
       "action" in request &&
-      (request.action === "start" || request.action === "stop")
+      (request.action === "start" ||
+        request.action === "stop" ||
+        request.action === "releasePortalShortcut")
     ) {
       const next = this.shortcutQueue.then(() => this.handleGUI(request));
       this.shortcutQueue = next.catch(() => {});
@@ -116,6 +118,10 @@ export class ClientRuntime {
         connectionChanging: this.changing,
         connectionRevision: this.generation,
       };
+    }
+    if (action === "releasePortalShortcut") {
+      this.current?.controller.stop();
+      return {};
     }
     if (action !== "stop" && !(await this.desktop.unlocked()))
       throw new ClientNotice("Unlock this computer first.");

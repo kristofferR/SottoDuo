@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { isPlasmaDesktop, plasmaLockEvent, plasmaUnlocked } from "../src/plasma.ts";
+import {
+  isPlasmaDesktop,
+  loginSessionPath,
+  plasmaLockEvent,
+  plasmaUnlocked,
+} from "../src/plasma.ts";
 
 const active = "LockedHint=no\nActive=yes\nType=wayland\nState=active\n";
 
@@ -22,4 +27,12 @@ test("Plasma lock events invalidate an in-progress destination", () => {
   expect(plasmaLockEvent("org.freedesktop.ScreenSaver: AboutToLock ()")).toBe(true);
   expect(plasmaLockEvent("ActiveChanged (true,)")).toBe(true);
   expect(plasmaLockEvent("ActiveChanged (false,)")).toBe(false);
+});
+
+test("logind monitoring selects only the current session path", () => {
+  expect(loginSessionPath('o "/org/freedesktop/login1/session/_32"\n')).toBe(
+    "/org/freedesktop/login1/session/_32",
+  );
+  expect(() => loginSessionPath('o "/org/freedesktop/login1/session/_32\'"')).toThrow();
+  expect(() => loginSessionPath('o "/org/freedesktop/login1/user/_1000"')).toThrow();
 });

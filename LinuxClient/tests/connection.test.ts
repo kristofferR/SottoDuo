@@ -146,7 +146,7 @@ test("first setup tests without recording, saves private credentials and starts 
   expect(settings.config?.sources).toEqual(sourcePreferences);
 });
 
-test("runtime handles a delayed shortcut press before its release and permits release while locked", async () => {
+test("runtime serializes a delayed press, key release, and GUI shutdown release while locked", async () => {
   const f = await fixture();
   const settings = await ConnectionSettings.open("/sotto-destination", f.file);
   const checked = await settings.test({
@@ -181,13 +181,14 @@ test("runtime handles a delayed shortcut press before its release and permits re
   };
   const press = runtime.gui({ version: 1, action: "start" });
   const release = runtime.gui({ version: 1, action: "stop" });
+  const shutdownRelease = runtime.gui({ version: 1, action: "releasePortalShortcut" });
   await Bun.sleep(0);
   expect(checks).toBe(1);
   expect(actions).toEqual([]);
   allowPress?.();
-  await Promise.all([press, release]);
+  await Promise.all([press, release, shutdownRelease]);
   expect(checks).toBe(2);
-  expect(actions).toEqual(["start", "stop"]);
+  expect(actions).toEqual(["start", "stop", "stop"]);
 });
 
 test("failed authentication and edited or expired proposals preserve config; new origins require a new token", async () => {
