@@ -150,6 +150,11 @@ final class SottoController: ObservableObject {
     var canTest: Bool { isServerReady && microphones.resolution.device != nil && !isBusy }
     var selectedInputName: String { microphones.resolution.device?.displayName ?? "No microphone available" }
     var usesRemoteInput: Bool { microphones.resolution.device?.remote != nil }
+    var mayUseLocalMicrophone: Bool {
+        guard let selected = microphones.resolution.device else { return false }
+        if selected.remote == nil { return true }
+        return microphones.resolution(excluding: selected.id).device?.remote == nil
+    }
     var allPermissionsGranted: Bool { (usesRemoteInput || permissions.microphone) && permissions.accessibility }
     var onHUDVisibility: ((Bool) -> Void)?
     var onShowWindow: (() -> Void)?
