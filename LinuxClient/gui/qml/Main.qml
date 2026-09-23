@@ -14,9 +14,9 @@ ApplicationWindow {
             quitRequested = false;
             page = 0;
             notice = "Finish or cancel the microphone test before closing Sotto.";
-        } else if (quitRequested && (portalShortcuts.plasma && bridge.connected || shortcutCheckPending || shortcut.check && shortcut.check.active || endingShortcutCheck)) {
+        } else if (quitRequested && (portalShortcuts.plasma || shortcutCheckPending || shortcut.check && shortcut.check.active || endingShortcutCheck)) {
             close.accepted = false;
-            if (portalShortcuts.plasma && bridge.connected && !portalReleasePending) {
+            if (portalShortcuts.plasma && !portalReleasePending) {
                 portalReleasePending = true;
                 bridge.request("releasePortalShortcut");
             }

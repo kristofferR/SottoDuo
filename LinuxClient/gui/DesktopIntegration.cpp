@@ -148,6 +148,14 @@ void DesktopIntegration::refreshClientService() {
 }
 
 void DesktopIntegration::setUpClientService() {
+  configureClientService(false);
+}
+
+void DesktopIntegration::restartClientService() {
+  configureClientService(true);
+}
+
+void DesktopIntegration::configureClientService(bool restartRunning) {
   if (m_preview || m_clientServiceBusy)
     return;
   ++m_serviceRefresh;
@@ -161,7 +169,7 @@ void DesktopIntegration::setUpClientService() {
     emit changed();
     refreshClientService();
   };
-  serviceUnit(this, [this, fail](ServiceUnit loaded) {
+  serviceUnit(this, [this, fail, restartRunning](ServiceUnit loaded) {
     const QString path = servicePath();
     QFileInfo unit(path);
     if (!loaded.available) {
@@ -237,12 +245,12 @@ void DesktopIntegration::setUpClientService() {
       m_clientServiceBusy = false;
       refreshClientService();
     };
-    auto enable = [this, complete, updated, created] {
+    auto enable = [this, complete, updated, created, restartRunning] {
       runSystemctl(
           this, {"--user", "enable", "--now", "sotto-client.service"},
-          [this, complete, updated, created](ProcessResult result) {
-            if (result.available && result.exitCode == 0 && created &&
-                updated) {
+          [this, complete, updated, created, restartRunning](ProcessResult result) {
+            if (result.available && result.exitCode == 0 &&
+                (restartRunning || (created && updated))) {
               runSystemctl(this, {"--user", "restart", "sotto-client.service"},
                            complete, 10000);
             } else {

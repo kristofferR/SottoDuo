@@ -64,11 +64,14 @@ async function fixture() {
     new FakeInference(),
   );
   let recognitionHeader: string | undefined;
+  let feedbackHeader: string | undefined;
   const app = createHTTPServer(service, "fixture-token", (server) => {
     server.addHook("onRequest", async (request) => {
       if (request.url.endsWith("/events")) {
         const value = request.headers["x-sotto-recognition"];
         recognitionHeader = typeof value === "string" ? value : undefined;
+        const feedback = request.headers["x-sotto-feedback"];
+        feedbackHeader = typeof feedback === "string" ? feedback : undefined;
       }
     });
   });
@@ -116,6 +119,7 @@ async function fixture() {
     desktop,
     deliveries: () => deliveries,
     recognitionHeader: () => recognitionHeader,
+    feedbackHeader: () => feedbackHeader,
     lock: () => {
       unlocked = false;
     },
@@ -154,6 +158,7 @@ test("live server feedback supplies real peaks but cannot deliver text; stopped 
   f.level(0.65);
   await until(() => f.controller.feedback.snapshot().levels.includes(0.65));
   expect(f.recognitionHeader()).toBe("streaming-v1");
+  expect(f.feedbackHeader()).toBe("compact-v1");
   expect(f.deliveries()).toBe(0);
   f.controller.stop();
   await f.controller.settled();

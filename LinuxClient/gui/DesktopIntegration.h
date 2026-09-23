@@ -20,6 +20,7 @@ public:
   Q_INVOKABLE void setLaunchAtLogin(bool enabled);
   Q_INVOKABLE void refreshClientService();
   Q_INVOKABLE void setUpClientService();
+  Q_INVOKABLE void restartClientService();
   Q_INVOKABLE void quit() { emit quitRequested(); }
 signals:
   void changed();
@@ -28,6 +29,7 @@ signals:
 private:
   QString entryPath() const;
   QString servicePath() const;
+  void configureClientService(bool restartRunning);
   bool m_preview;
   QString m_clientExecutable;
   QString m_clientService;

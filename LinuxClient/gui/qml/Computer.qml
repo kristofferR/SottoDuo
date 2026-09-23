@@ -100,10 +100,10 @@ ScrollView {
                 }
                 SButton {
                     ui: root.ui
-                    visible: bridge.desktop.clientService !== "Running" && bridge.desktop.clientService !== "Systemd user service unavailable"
-                    text: bridge.desktop.clientServiceBusy ? "Starting…" : "Set up and start"
+                    visible: bridge.desktop.clientService !== "Systemd user service unavailable"
+                    text: bridge.desktop.clientServiceBusy ? "Working…" : bridge.desktop.clientService === "Running" ? "Restart background dictation" : "Set up and start"
                     enabled: !bridge.preview && !bridge.desktop.clientServiceBusy
-                    onClicked: bridge.desktop.setUpClientService()
+                    onClicked: bridge.desktop.clientService === "Running" ? bridge.desktop.restartClientService() : bridge.desktop.setUpClientService()
                 }
             }
             Setting {

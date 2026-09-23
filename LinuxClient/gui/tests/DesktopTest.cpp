@@ -121,6 +121,11 @@ private slots:
     desktop.setUpClientService();
     QTRY_VERIFY_WITH_TIMEOUT(!desktop.clientServiceBusy(), 3000);
     QCOMPARE(desktop.clientService(), "Running");
+    desktop.restartClientService();
+    QTRY_VERIFY_WITH_TIMEOUT(!desktop.clientServiceBusy(), 3000);
+    QVERIFY(desktop.error().isEmpty());
+    QVERIFY(QFile::exists(directory.path() + "/active.restarted"));
+    QVERIFY(QFile::remove(directory.path() + "/active.restarted"));
     QFile unit(directory.path() + "/systemd/user/sotto-client.service");
     QVERIFY(unit.open(QIODevice::ReadOnly));
     const auto installed = unit.readAll();
