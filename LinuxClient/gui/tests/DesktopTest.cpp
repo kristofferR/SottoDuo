@@ -13,6 +13,28 @@
 class DesktopTest : public QObject {
   Q_OBJECT
 private slots:
+  void buildTreeClientIsFoundBesideGuiBuild() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString gui = directory.path() + "/build/linux-gui";
+    const QString client = directory.path() + "/build/linux-client";
+    QVERIFY(QDir().mkpath(gui));
+    QVERIFY(QDir().mkpath(client));
+    QFile builtClient(client + "/sotto");
+    QVERIFY(builtClient.open(QIODevice::WriteOnly));
+    builtClient.write("#!/bin/sh\n");
+    builtClient.close();
+    QVERIFY(builtClient.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                       QFile::ExeOwner));
+    QCOMPARE(defaultClientExecutable(gui), client + "/sotto");
+    QFile installedClient(gui + "/sotto");
+    QVERIFY(installedClient.open(QIODevice::WriteOnly));
+    installedClient.write("#!/bin/sh\n");
+    installedClient.close();
+    QVERIFY(installedClient.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                           QFile::ExeOwner));
+    QCOMPARE(defaultClientExecutable(gui), gui + "/sotto");
+  }
   void loginEntryPersistsAndPreviewCannotChangeIt() {
     QTemporaryDir config;
     QVERIFY(config.isValid());
@@ -63,6 +85,85 @@ private slots:
     desktop.setLaunchAtLogin(true);
     QVERIFY(!desktop.error().isEmpty());
     QVERIFY(!desktop.launchAtLogin());
+  }
+  void backgroundClientSetupInstallsAUserServiceAndStartsIt() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto oldPath = qgetenv("PATH");
+    const auto oldConfig = qgetenv("XDG_CONFIG_HOME");
+    qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
+    qputenv("PATH", directory.path().toUtf8() + ':' + oldPath);
+    qputenv("SOTTO_TEST_ACTIVE", (directory.path() + "/active").toUtf8());
+    QFile fakeSystemctl(directory.path() + "/systemctl");
+    QVERIFY(fakeSystemctl.open(QIODevice::WriteOnly));
+    fakeSystemctl.write(
+        "#!/bin/sh\ncase \"$2\" in\n"
+        "is-active) test -f \"$SOTTO_TEST_ACTIVE\" && echo active;;\n"
+        "show) printf 'LoadState=%s\\nFragmentPath=%s\\n' "
+        "\"${SOTTO_TEST_LOAD_STATE:-not-found}\" "
+        "\"${SOTTO_TEST_FRAGMENT:-}\";;\n"
+        "daemon-reload) exit 0;;\n"
+        "enable) case \" $* \" in *\" --now \"*) touch "
+        "\"$SOTTO_TEST_ACTIVE\";; esac;;\n"
+        "restart) touch \"$SOTTO_TEST_ACTIVE.restarted\";;\n"
+        "start) touch \"$SOTTO_TEST_ACTIVE\";;\n"
+        "esac\n");
+    fakeSystemctl.close();
+    QVERIFY(fakeSystemctl.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                         QFile::ExeOwner));
+    QFile client(directory.path() + "/sotto");
+    QVERIFY(client.open(QIODevice::WriteOnly));
+    client.write("#!/bin/sh\nexit 0\n");
+    client.close();
+    QVERIFY(client.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                  QFile::ExeOwner));
+    DesktopIntegration desktop(false, nullptr, client.fileName());
+    desktop.setUpClientService();
+    QTRY_VERIFY_WITH_TIMEOUT(!desktop.clientServiceBusy(), 3000);
+    QCOMPARE(desktop.clientService(), "Running");
+    desktop.restartClientService();
+    QTRY_VERIFY_WITH_TIMEOUT(!desktop.clientServiceBusy(), 3000);
+    QVERIFY(desktop.error().isEmpty());
+    QVERIFY(QFile::exists(directory.path() + "/active.restarted"));
+    QVERIFY(QFile::remove(directory.path() + "/active.restarted"));
+    QFile unit(directory.path() + "/systemd/user/sotto-client.service");
+    QVERIFY(unit.open(QIODevice::ReadOnly));
+    const auto installed = unit.readAll();
+    QVERIFY(installed.startsWith("# Managed by Sotto Linux GUI\n"));
+    QVERIFY(installed.contains("ExecStart=\"" + client.fileName().toUtf8() +
+                               "\" daemon\n"));
+    QFile movedClient(directory.path() + "/moved-sotto");
+    QVERIFY(movedClient.open(QIODevice::WriteOnly));
+    movedClient.write("#!/bin/sh\nexit 0\n");
+    movedClient.close();
+    QVERIFY(movedClient.setPermissions(QFile::ReadOwner | QFile::WriteOwner |
+                                       QFile::ExeOwner));
+    DesktopIntegration moved(false, nullptr, movedClient.fileName());
+    moved.setUpClientService();
+    QTRY_VERIFY_WITH_TIMEOUT(!moved.clientServiceBusy(), 3000);
+    QVERIFY(moved.error().isEmpty());
+    QVERIFY(QFile::exists(directory.path() + "/active"));
+    QVERIFY(QFile::exists(directory.path() + "/active.restarted"));
+    unit.close();
+    QVERIFY(unit.open(QIODevice::ReadOnly));
+    QVERIFY(unit.readAll().contains(
+        "ExecStart=\"" + movedClient.fileName().toUtf8() + "\" daemon\n"));
+    unit.close();
+    QVERIFY(unit.remove());
+    QVERIFY(QFile::remove(directory.path() + "/active"));
+    qputenv("SOTTO_TEST_LOAD_STATE", "loaded");
+    qputenv("SOTTO_TEST_FRAGMENT",
+            "/usr/lib/systemd/user/sotto-client.service");
+    DesktopIntegration external(false, nullptr, client.fileName());
+    external.setUpClientService();
+    QTRY_VERIFY_WITH_TIMEOUT(!external.clientServiceBusy(), 3000);
+    QVERIFY(!external.error().isEmpty());
+    QVERIFY(!unit.exists());
+    qunsetenv("SOTTO_TEST_LOAD_STATE");
+    qunsetenv("SOTTO_TEST_FRAGMENT");
+    qputenv("PATH", oldPath);
+    qputenv("XDG_CONFIG_HOME", oldConfig);
+    qunsetenv("SOTTO_TEST_ACTIVE");
   }
   void repeatedLaunchForwardsOnlyExplicitOpen() {
     QTemporaryDir directory;

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQml.Models
 
 ColumnLayout {
     id: root
@@ -12,9 +13,21 @@ ColumnLayout {
     readonly property var audio: record ? record.inferenceAudio || record.originalAudio : null
     readonly property var processing: record ? record.textProcessing : null
     readonly property bool terminal: !!record && ["completed", "failed", "cancelled"].includes(record.status)
+    property string copiedID: ""
+    onRecordChanged: copiedID = ""
 
     function model(value) {
         return value ? value.modelID + " · " + value.backend : "";
+    }
+
+    function sourceLabel(filename) {
+        return ({
+            "source.json": "Full source data",
+            "source.wav": "Wispr Flow audio",
+            "opus.json": "Opus packets",
+            "screenshot.png": "Screenshot",
+            "built-in-audio.bin": "Built-in audio"
+        })[filename] || filename;
     }
 
     function duration() {
@@ -29,20 +42,26 @@ ColumnLayout {
     spacing: 12
 
     RowLayout {
+        visible: !!root.record
         SLabel {
             ui: root.ui
-            text: root.record ? root.record.device.name : "Your words, together"
+            objectName: "historyDetailDate"
+            text: root.record ? new Date(root.record.createdAt).toLocaleString(undefined, { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""
             Layout.fillWidth: true
-            color: root.ui.c.muted
+            font.weight: Font.DemiBold
         }
 
         SButton {
             ui: root.ui
             objectName: "copyHistory"
-            text: "Copy"
+            symbolName: root.record && root.copiedID === root.record.id ? "check" : "copy"
+            accessibleLabel: root.record && root.copiedID === root.record.id ? "Copied transcript" : "Copy transcript"
+            ToolTip.visible: hovered
+            ToolTip.text: accessibleLabel
             enabled: root.transcript.length > 0
             onClicked: {
                 bridge.copy(root.transcript);
+                root.copiedID = root.record.id;
                 root.history.message = "Copied.";
             }
         }
@@ -60,13 +79,15 @@ ColumnLayout {
     SLabel {
         ui: root.ui
         Layout.fillWidth: true
+        visible: !!root.record
         color: root.ui.c.muted
         font.pixelSize: 12
-        text: root.record ? (root.record.importedSource ? "Wispr Flow · " : "Sotto · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
+        text: root.record ? root.record.device.name + " · " + (root.record.importedSource ? "Wispr Flow · " : "Sotto · ") + root.record.status + (root.duration() ? " · " + root.duration() : "") + " · Delivery: " + (root.record.delivery ? root.record.delivery.status : "not reported") : ""
     }
 
     ScrollView {
         id: scroll
+        visible: !!root.record
 
         Layout.fillWidth: true
         Layout.fillHeight: true
@@ -197,6 +218,7 @@ ColumnLayout {
     }
 
     Flow {
+        visible: !!root.record
         Layout.fillWidth: true
         spacing: 8
 
@@ -225,6 +247,53 @@ ColumnLayout {
             onClicked: root.history.openAudio("imported")
         }
 
+        SButton {
+            id: sourceFilesButton
+            ui: root.ui
+            text: "Source files"
+            visible: !!root.record && (root.record.importedSource?.artifactNames || []).length > 0
+            enabled: root.history.available && !root.history.acting && !bridge.preview
+            onClicked: sourceFilesMenu.popup()
+            Menu {
+                id: sourceFilesMenu
+                Instantiator {
+                    model: root.record?.importedSource?.artifactNames || []
+                    delegate: MenuItem {
+                        required property string modelData
+                        text: root.sourceLabel(modelData)
+                        onTriggered: root.history.openArtifact(modelData)
+                    }
+                    onObjectAdded: (index, object) => sourceFilesMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => sourceFilesMenu.removeItem(object)
+                }
+            }
+        }
+
+    }
+
+    Item {
+        visible: !root.record
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 12
+            SLabel {
+                ui: root.ui
+                text: "☰"
+                font.pixelSize: 45
+                color: root.ui.c.muted
+                Layout.alignment: Qt.AlignHCenter
+            }
+            SLabel {
+                ui: root.ui
+                text: "Select a dictation"
+                font.pixelSize: 22
+                font.weight: Font.DemiBold
+                color: root.ui.c.muted
+                Layout.alignment: Qt.AlignHCenter
+            }
+        }
     }
 
 }

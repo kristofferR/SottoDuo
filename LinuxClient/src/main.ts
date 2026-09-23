@@ -4,10 +4,11 @@ import { configPath, initialize, readConfig, token } from "./config.ts";
 import { ConnectionSettings } from "./connection.ts";
 import { command, HyprlandDesktop } from "./desktop.ts";
 import { isCommand, send, serve } from "./ipc.ts";
+import { isPlasmaDesktop, PlasmaDesktop } from "./plasma.ts";
 import { ClientRuntime } from "./runtime.ts";
 import { ShortcutSettings } from "./shortcuts.ts";
 
-const help = `Sotto for Hyprland
+const help = `Sotto for Linux
   sotto init SERVER_ORIGIN CAPTURE_HOST_ID TOKEN_FILE [DESTINATION_HELPER]
   sotto sources          List available server capture inputs (no microphone opened)
   sotto daemon           Run the desktop client in the graphical session
@@ -44,12 +45,20 @@ try {
   } else if (action === "daemon") {
     const helper = resolve(`${dirname(process.execPath)}/sotto-destination`);
     const settings = await ConnectionSettings.open(helper);
-    const desktop = new HyprlandDesktop(settings.config?.destinationHelper ?? helper);
+    const plasma = isPlasmaDesktop([
+      process.env.XDG_CURRENT_DESKTOP,
+      process.env.XDG_SESSION_DESKTOP,
+      process.env.DESKTOP_SESSION,
+    ]);
+    const desktop = plasma
+      ? new PlasmaDesktop(settings.config?.destinationHelper ?? helper)
+      : new HyprlandDesktop(settings.config?.destinationHelper ?? helper);
     const runtime = new ClientRuntime(settings, desktop);
-    runtime.shortcuts = new ShortcutSettings(
-      (args) => command(args, 3000),
-      () => runtime.busy,
-    );
+    if (!plasma)
+      runtime.shortcuts = new ShortcutSettings(
+        (args) => command(args, 3000),
+        () => runtime.busy,
+      );
     let close: (() => Promise<void>) | undefined;
     const shutdown = async (exitCode = 0) => {
       await runtime.close();
@@ -72,13 +81,17 @@ try {
         },
         (request) => runtime.gui(request),
       );
-      await desktop.monitorSession(
-        () => runtime.unsafe(),
-        (action) => {
-          void runtime.command(action).catch(() => desktop.notify("Shortcut failed."));
-        },
-      );
-      await runtime.shortcuts.refresh();
+      if (desktop instanceof HyprlandDesktop) {
+        await desktop.monitorSession(
+          () => runtime.unsafe(),
+          (action) => {
+            void runtime.command(action).catch(() => desktop.notify("Shortcut failed."));
+          },
+        );
+        await runtime.shortcuts?.refresh();
+      } else {
+        await desktop.monitorSession(() => runtime.unsafe());
+      }
       console.log(
         settings.api
           ? "Sotto is ready. Waiting for a shortcut."

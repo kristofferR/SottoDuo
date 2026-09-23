@@ -87,7 +87,7 @@ export async function serve(
             if (!gui) throw new Error();
             const request: unknown = JSON.parse(input);
             if (request !== null && typeof request === "object" && "action" in request) {
-              if (request.action === "historyAudio")
+              if (request.action === "historyAudio" || request.action === "historyArtifact")
                 socket.setTimeout(365_000, () => socket.destroy());
               else if (request.action === "history")
                 socket.setTimeout(65_000, () => socket.destroy());

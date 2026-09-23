@@ -55,7 +55,7 @@ ColumnLayout {
     readonly property bool available: bridge.connected && !bridge.snapshot.setupRequired && server === bridge.snapshot.server
 
     function reconcile() {
-        if (!filtered.some((r) => {
+        if (selectedID && !filtered.some((r) => {
             return r.id === selectedID;
         }))
             selectedID = filtered.length ? filtered[0].id : "";
@@ -81,6 +81,14 @@ ColumnLayout {
             args.source = source;
 
         bridge.request("history", args);
+    }
+
+    function maybeLoadOlder() {
+        if (!visible || !cursor || loading || acting || !available)
+            return;
+
+        if (historyList.contentY + historyList.height >= historyList.contentHeight - 48)
+            load(true);
     }
 
     function filterSource(value) {
@@ -109,6 +117,19 @@ ColumnLayout {
         });
     }
 
+    function openArtifact(filename) {
+        if (!selected || acting || !available || bridge.preview || !(selected.importedSource?.artifactNames || []).includes(filename))
+            return;
+        audioID = selected.id;
+        audioKind = filename;
+        message = "Downloading saved source file…";
+        bridge.request("historyArtifact", {
+            "id": audioID,
+            "filename": filename,
+            "server": server
+        });
+    }
+
     function confirmDelete() {
         if (!selected || !available || acting || bridge.preview)
             return ;
@@ -121,6 +142,7 @@ ColumnLayout {
     objectName: "historyPage"
     spacing: 14
     onFilteredChanged: reconcile()
+    onVisibleChanged: if (visible) Qt.callLater(maybeLoadOlder)
     Component.onCompleted: {
         server = bridge.snapshot.server || "";
         load(false);
@@ -149,9 +171,10 @@ ColumnLayout {
                     seen.add(r.id);
                     return true;
                 });
-                root.cursor = data.nextCursor || "";
+                root.cursor = root.append && (data.nextCursor === root.cursor || data.items.length === 0) ? "" : data.nextCursor || "";
                 root.loading = false;
                 root.reconcile();
+                Qt.callLater(root.maybeLoadOlder);
             }
             if (action === "deleteHistory") {
                 root.deleting = false;
@@ -166,24 +189,24 @@ ColumnLayout {
                 root.load(false);
                 root.message = "Deleted from shared history.";
             }
-            if (action === "historyAudio") {
-                const wanted = root.audioID === data.id && root.audioKind === data.kind && data.server === root.server && root.selectedID === data.id;
+            if (action === "historyAudio" || action === "historyArtifact") {
+                const wanted = root.audioID === data.id && root.audioKind === (action === "historyAudio" ? data.kind : data.filename) && data.server === root.server && root.selectedID === data.id;
                 root.audioID = "";
                 if (!wanted)
                     return ;
 
-                root.message = Qt.openUrlExternally(data.url) ? "Opened in your audio player." : "No audio player could open this recording. Choose a default WAV player in your desktop settings.";
+                root.message = Qt.openUrlExternally(data.url) ? "Opened saved file." : "No application could open this saved file. Choose a default app in your desktop settings.";
             }
         }
 
         function onFailed(action, message) {
-            if (!["history", "historyAudio", "deleteHistory"].includes(action))
+            if (!["history", "historyAudio", "historyArtifact", "deleteHistory"].includes(action))
                 return ;
 
             if (action === "history")
                 root.loading = false;
 
-            if (action === "historyAudio")
+            if (action === "historyAudio" || action === "historyArtifact")
                 root.audioID = "";
 
             if (action === "deleteHistory")
@@ -214,6 +237,8 @@ ColumnLayout {
     }
 
     RowLayout {
+        Layout.fillWidth: true
+        spacing: 12
         SLabel {
             ui: root.ui
             text: "History"
@@ -222,20 +247,9 @@ ColumnLayout {
             Layout.fillWidth: true
         }
 
-        SButton {
-            ui: root.ui
-            objectName: "refreshHistory"
-            text: "Refresh"
-            enabled: !root.loading && !root.acting && root.available
-            onClicked: root.load(false)
-        }
-
-    }
-
-    RowLayout {
         ComboBox {
             objectName: "historyDeviceFilter"
-            Layout.preferredWidth: 220
+            Layout.preferredWidth: 178
             model: root.devices
             textRole: "name"
             currentIndex: Math.max(0, root.devices.findIndex((d) => {
@@ -251,7 +265,7 @@ ColumnLayout {
 
         ComboBox {
             objectName: "historySourceFilter"
-            Layout.preferredWidth: 160
+            Layout.preferredWidth: 146
             model: ["All sources", "Sotto", "Wispr Flow"]
             currentIndex: ["", "sotto", "wispr-flow"].indexOf(root.source)
             enabled: !root.loading && !root.acting && root.available
@@ -259,14 +273,36 @@ ColumnLayout {
             onActivated: root.filterSource(["", "sotto", "wispr-flow"][currentIndex])
         }
 
+        SButton {
+            ui: root.ui
+            objectName: "refreshHistory"
+            symbolName: "refresh"
+            accessibleLabel: "Refresh shared history"
+            ToolTip.visible: hovered
+            ToolTip.text: "Refresh shared history"
+            enabled: !root.loading && !root.acting && root.available
+            onClicked: root.load(false)
+        }
+
     }
 
-    SLabel {
-        ui: root.ui
-        text: root.filtered.length + " entries shown · " + root.records.length + " loaded · Shared across computers"
-        color: root.ui.c.muted
-        font.pixelSize: 12
+    RowLayout {
         Layout.fillWidth: true
+        spacing: 9
+        StatusDot {
+            objectName: "historyConnectionDot"
+            ready: root.ui.serverReady
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.connection
+            Layout.fillWidth: true
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.snapshot.server || ""
+            color: root.ui.c.muted
+        }
     }
 
     SLabel {
@@ -277,24 +313,44 @@ ColumnLayout {
         Layout.fillWidth: true
     }
 
-    RowLayout {
+    SplitView {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 20
+        orientation: Qt.Horizontal
+        handle: Rectangle {
+            objectName: "historyResizeHandle"
+            implicitWidth: 12
+            color: "transparent"
+            Rectangle {
+                anchors.centerIn: parent
+                width: SplitHandle.hovered || SplitHandle.pressed ? 3 : 1
+                height: parent.height
+                color: SplitHandle.hovered || SplitHandle.pressed ? root.ui.c.accent : root.ui.c.line
+            }
+            HoverHandler {
+                cursorShape: Qt.SplitHCursor
+            }
+        }
 
         ListView {
+            id: historyList
             objectName: "historyList"
-            Layout.preferredWidth: 225
-            Layout.fillHeight: true
+            SplitView.preferredWidth: Math.max(225, root.width * 0.38)
+            SplitView.minimumWidth: 220
+            SplitView.maximumWidth: 380
+            SplitView.fillHeight: true
             clip: true
             model: root.filtered
-            spacing: 8
+            spacing: 0
+            onContentYChanged: root.maybeLoadOlder()
+            onContentHeightChanged: root.maybeLoadOlder()
+            onHeightChanged: root.maybeLoadOlder()
 
             SLabel {
                 ui: root.ui
                 anchors.centerIn: parent
                 width: parent.width
-                text: root.loading ? "Loading history…" : root.cursor ? "No matching entries loaded. Try Load older." : "No dictations to show."
+                text: root.loading ? "Loading history…" : "No dictations to show."
                 visible: root.filtered.length === 0
                 color: root.ui.c.muted
             }
@@ -306,8 +362,9 @@ ColumnLayout {
                 required property var modelData
 
                 width: ListView.view.width
-                implicitHeight: summary.implicitHeight + 26
+                implicitHeight: summary.implicitHeight + 30
                 onClicked: root.selectedID = modelData.id
+                Accessible.name: modelData.device.name + ", " + (modelData.finalText || modelData.insertionText || modelData.previewText || modelData.status)
 
                 contentItem: ColumnLayout {
                     id: summary
@@ -316,8 +373,8 @@ ColumnLayout {
 
                     SLabel {
                         ui: root.ui
-                        text: new Date(modelData.createdAt).toLocaleString()
-                        font.pixelSize: 11
+                        text: new Date(modelData.createdAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+                        font.pixelSize: 12
                         color: root.ui.c.muted
                         Layout.fillWidth: true
                     }
@@ -325,7 +382,7 @@ ColumnLayout {
                     SLabel {
                         ui: root.ui
                         text: modelData.finalText || modelData.insertionText || modelData.previewText || modelData.status
-                        maximumLineCount: 3
+                        maximumLineCount: 2
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -341,36 +398,50 @@ ColumnLayout {
                 }
 
                 background: Rectangle {
-                    radius: 10
-                    color: root.selectedID === modelData.id ? root.ui.c.tint : root.ui.c.surface
-                    border.color: parent.activeFocus ? root.ui.c.accent : root.ui.c.line
+                    radius: 8
+                    color: root.selectedID === modelData.id ? root.ui.c.tint : parent.hovered ? root.ui.c.surface : "transparent"
+                    border.width: parent.activeFocus ? 2 : 0
+                    border.color: root.ui.c.accent
+                }
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    height: 1
+                    color: root.ui.c.line
+                    opacity: 0.7
                 }
 
             }
 
         }
 
-        Rectangle {
-            Layout.fillHeight: true
-            implicitWidth: 1
-            color: root.ui.c.line
-        }
-
         HistoryDetail {
             ui: root.ui
             history: root
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            SplitView.minimumWidth: 280
+            SplitView.fillWidth: true
+            SplitView.fillHeight: true
         }
 
     }
 
-    SButton {
-        ui: root.ui
-        objectName: "olderHistory"
-        text: root.loading ? "Loading…" : "Load older"
-        enabled: root.cursor.length > 0 && !root.loading && !root.acting && root.available
-        onClicked: root.load(true)
+    RowLayout {
+        Layout.fillWidth: true
+        SLabel {
+            ui: root.ui
+            text: root.records.length + (root.cursor ? " sessions loaded" : " sessions")
+            color: root.ui.c.muted
+            Layout.fillWidth: true
+        }
+        SLabel {
+            ui: root.ui
+            text: "Loading older…"
+            color: root.ui.c.muted
+            visible: root.loading && root.append
+        }
     }
 
     Dialog {

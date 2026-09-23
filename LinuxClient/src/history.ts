@@ -1,13 +1,25 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readdir, unlink } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { API, APIError } from "./api.ts";
+import type { components } from "../../Server/src/generated/api.ts";
 import { ClientNotice } from "./errors.ts";
 
 const maximumAudioBytes = 128 * 1024 * 1024;
 const retention = 15 * 60 * 1000;
 const terminal = new Set(["completed", "failed", "cancelled"]);
+type ArtifactName = components["schemas"]["WisprFlowArtifactName"];
+const artifactNames = new Set<ArtifactName>([
+  "source.json",
+  "source.wav",
+  "opus.json",
+  "screenshot.png",
+  "built-in-audio.bin",
+]);
+function artifactName(value: unknown): value is ArtifactName {
+  return typeof value === "string" && artifactNames.has(value as ArtifactName);
+}
 function identifier(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value))
     throw new ClientNotice("Choose a valid history entry.");
@@ -61,7 +73,10 @@ export class HistoryTools {
       return notice(error, "Loading history");
     }
   }
-  async action(action: "deleteHistory" | "historyAudio", request: Record<string, unknown>) {
+  async action(
+    action: "deleteHistory" | "historyAudio" | "historyArtifact",
+    request: Record<string, unknown>,
+  ) {
     if (request.server !== this.api.endpoint)
       throw new ClientNotice("The connected server changed. Refresh history before continuing.");
     const id = identifier(request.id);
@@ -79,32 +94,45 @@ export class HistoryTools {
       }
       const kind = request.kind;
       const filename =
-        kind === "inference" && record.inferenceAudio
-          ? "inference.wav"
-          : kind === "original" && record.originalAudio
-            ? "original.wav"
-            : kind === "imported" && record.importedSource?.artifactNames.includes("source.wav")
-              ? "source.wav"
-              : undefined;
-      if (!filename) throw new ClientNotice("This entry has no saved recording of that kind.");
+        action === "historyArtifact"
+          ? artifactName(request.filename) &&
+            record.importedSource?.artifactNames.includes(request.filename)
+            ? request.filename
+            : undefined
+          : kind === "inference" && record.inferenceAudio
+            ? "inference.wav"
+            : kind === "original" && record.originalAudio
+              ? "original.wav"
+              : kind === "imported" && record.importedSource?.artifactNames.includes("source.wav")
+                ? "source.wav"
+                : undefined;
+      if (!filename)
+        throw new ClientNotice(
+          action === "historyArtifact"
+            ? "This entry has no saved source file of that kind."
+            : "This entry has no saved recording of that kind.",
+        );
       const directory = await this.directory();
       await this.prune();
-      const path = join(directory, `${this.scope}-${id}-${randomUUID()}.wav`);
+      const path = join(
+        directory,
+        `${this.scope}-${id}-${randomUUID()}.${filename.split(".").at(-1)}`,
+      );
       const file = await open(path, "wx+", 0o600);
       try {
         const response = await this.api.historyAudio(id, filename);
         if (!response.body) throw new Error("Empty audio response");
         const reader = response.body.getReader();
         try {
-          if (Number(response.headers.get("content-length")) > maximumAudioBytes)
-            throw new ClientNotice("This recording is too large to open here (128 MB limit).");
+          const maximumBytes = filename.endsWith(".json") ? 8 * 1024 * 1024 : maximumAudioBytes;
+          if (Number(response.headers.get("content-length")) > maximumBytes)
+            throw new ClientNotice("This file is too large to open here.");
           let size = 0;
           for (;;) {
             const { value, done } = await reader.read();
             if (done) break;
             size += value.byteLength;
-            if (size > maximumAudioBytes)
-              throw new ClientNotice("This recording is too large to open here (128 MB limit).");
+            if (size > maximumBytes) throw new ClientNotice("This file is too large to open here.");
             let offset = 0;
             while (offset < value.byteLength) {
               const { bytesWritten } = await file.write(value.subarray(offset));
@@ -116,10 +144,26 @@ export class HistoryTools {
           await reader.cancel().catch(() => {});
           reader.releaseLock();
         }
-        const header = Buffer.alloc(12);
-        await file.read(header, 0, 12, 0);
-        if (header.toString("ascii", 0, 4) !== "RIFF" || header.toString("ascii", 8, 12) !== "WAVE")
-          throw new ClientNotice("The server did not return a playable WAV recording.");
+        if (filename.endsWith(".wav")) {
+          const header = Buffer.alloc(12);
+          await file.read(header, 0, 12, 0);
+          if (
+            header.toString("ascii", 0, 4) !== "RIFF" ||
+            header.toString("ascii", 8, 12) !== "WAVE"
+          )
+            throw new ClientNotice("The server did not return a playable WAV recording.");
+        } else if (filename.endsWith(".png")) {
+          const header = Buffer.alloc(8);
+          await file.read(header, 0, 8, 0);
+          if (!header.equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+            throw new ClientNotice("The server did not return a PNG screenshot.");
+        } else if (filename.endsWith(".json")) {
+          try {
+            JSON.parse(await readFile(path, "utf8"));
+          } catch {
+            throw new ClientNotice("The server did not return a JSON source file.");
+          }
+        }
       } catch (error) {
         await unlink(path).catch(() => {});
         throw error;
@@ -127,9 +171,12 @@ export class HistoryTools {
         await file.close();
       }
       setTimeout(() => void unlink(path).catch(() => {}), retention).unref();
-      return { id, kind, server: this.api.endpoint, url: pathToFileURL(path).href };
+      return { id, kind, filename, server: this.api.endpoint, url: pathToFileURL(path).href };
     } catch (error) {
-      return notice(error, action === "deleteHistory" ? "Deleting the entry" : "Opening audio");
+      return notice(
+        error,
+        action === "deleteHistory" ? "Deleting the entry" : "Opening the saved file",
+      );
     } finally {
       this.busy = false;
     }
@@ -150,7 +197,9 @@ export class HistoryTools {
     const directory = await this.directory();
     const candidates = await Promise.all(
       (await readdir(directory))
-        .filter((name) => /^[a-f0-9]{24}-[A-F0-9-]{36}-[a-f0-9-]{36}\.wav$/.test(name))
+        .filter((name) =>
+          /^[a-f0-9]{24}-[A-F0-9-]{36}-[a-f0-9-]{36}\.(wav|json|png|bin)$/.test(name),
+        )
         .map(async (name) => ({
           name,
           info: await lstat(join(directory, name)).catch(() => undefined),

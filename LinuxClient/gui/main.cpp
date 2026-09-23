@@ -1,12 +1,14 @@
 #include "Bridge.h"
 #include "GuiInstance.h"
 #include "HudSurface.h"
+#include "PortalShortcuts.h"
 #include <LayerShellQt/Shell>
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDir>
 #include <QIcon>
 #include <QMenu>
+#include <QPainter>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -63,11 +65,19 @@ int main(int argc, char **argv) {
       "Sotto.Native", 1, 0, "HudSurface",
       [](QQmlEngine *, QJSEngine *) -> QObject * { return new HudSurface; });
   Bridge bridge(preview);
+  PortalShortcuts portalShortcuts(!preview);
+  if (!preview) {
+    QObject::connect(&portalShortcuts, &PortalShortcuts::pressed, &bridge,
+                     [&bridge] { bridge.requestShortcutEdge("start"); });
+    QObject::connect(&portalShortcuts, &PortalShortcuts::released, &bridge,
+                     [&bridge] { bridge.requestShortcutEdge("stop"); });
+  }
   if (parser.isSet("theme"))
     bridge.setTheme(parser.value("theme"));
   QQmlApplicationEngine engine;
   engine.setInitialProperties({{"startHidden", background}});
   engine.rootContext()->setContextProperty("bridge", &bridge);
+  engine.rootContext()->setContextProperty("portalShortcuts", &portalShortcuts);
   QObject::connect(
       &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
       [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
@@ -79,6 +89,21 @@ int main(int argc, char **argv) {
     return 1;
   QSystemTrayIcon tray(QIcon(":/qt/qml/Sotto/mark.svg"));
   QMenu menu;
+  auto *connectionStatus = menu.addAction("Checking server");
+  menu.addSeparator();
+  QObject::connect(&menu, &QMenu::aboutToShow, &app,
+                   [window, connectionStatus] {
+                     const bool ready = window->property("serverReady").toBool();
+                     QPixmap dot(12, 12);
+                     dot.fill(Qt::transparent);
+                     QPainter painter(&dot);
+                     painter.setRenderHint(QPainter::Antialiasing);
+                     painter.setPen(Qt::NoPen);
+                     painter.setBrush(QColor(ready ? "#4ade80" : "#fb923c"));
+                     painter.drawEllipse(QRectF(3, 3, 6, 6));
+                     connectionStatus->setIcon(QIcon(dot));
+                     connectionStatus->setText(window->property("connection").toString());
+                   });
   auto show = [window] {
     window->show();
     window->raise();
@@ -95,7 +120,10 @@ int main(int argc, char **argv) {
       window->requestActivate();
     }
   };
-  menu.addAction("Quit Sotto feedback (dictation stays running)", &app, quit);
+  menu.addAction(portalShortcuts.plasma()
+                     ? "Quit Sotto feedback (Plasma shortcut stops)"
+                     : "Quit Sotto feedback (dictation stays running)",
+                 &app, quit);
   QObject::connect(bridge.desktop(), &DesktopIntegration::quitRequested, &app,
                    quit);
   tray.setToolTip("Sotto");

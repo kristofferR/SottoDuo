@@ -5,13 +5,15 @@ import QtQuick.Layouts
 Group {
     id: root
     objectName: "connectionSettings"
-    title: "CONNECTION · THIS COMPUTER"
+    title: "Connection"
     property string ticket: ""
     property var hosts: []
     property string message: ""
     property bool pending: false
     property bool tested: false
     property bool dirty: false
+    property bool editing: false
+    readonly property bool configured: !ui.snapshot.setupRequired && !!ui.snapshot.server
     property string activeRequestID: ""
     function loadConnection() {
         server.text = ui.snapshot.server || "";
@@ -60,6 +62,7 @@ Group {
                 root.ticket = "";
                 root.tested = false;
                 root.dirty = false;
+                root.editing = false;
                 root.message = "Connection saved. To use the pairing button here, select this computer again below.";
                 root.clearSecret();
                 bridge.request("snapshot");
@@ -86,6 +89,76 @@ Group {
         }
     }
     ColumnLayout {
+        visible: root.configured && !root.editing
+        Layout.fillWidth: true
+        Layout.margins: 12
+        spacing: 0
+        Setting {
+            ui: root.ui
+            title: "Server address"
+            SLabel {
+                ui: root.ui
+                text: root.ui.snapshot.server || ""
+                color: root.ui.c.muted
+            }
+        }
+        Setting {
+            ui: root.ui
+            title: "Access token"
+            SLabel {
+                ui: root.ui
+                text: "Saved"
+                color: root.ui.c.muted
+            }
+        }
+        Setting {
+            ui: root.ui
+            title: "Device name"
+            SLabel {
+                ui: root.ui
+                text: root.ui.snapshot.device?.name || "This computer"
+                color: root.ui.c.muted
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.margins: 14
+            spacing: 9
+            StatusDot {
+                objectName: "computerConnectionDot"
+                ready: root.ui.serverReady
+            }
+            SLabel {
+                ui: root.ui
+                text: root.ui.connection
+                Layout.fillWidth: true
+            }
+            SLabel {
+                ui: root.ui
+                objectName: "connectionStatusAddress"
+                text: root.ui.snapshot.server || ""
+                color: root.ui.c.muted
+                wrapMode: Text.NoWrap
+                elide: Text.ElideMiddle
+                Layout.preferredWidth: Math.min(260, root.width * 0.35)
+            }
+            SButton {
+                ui: root.ui
+                text: "Edit connection"
+                onClicked: root.editing = true
+            }
+        }
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            Layout.preferredHeight: 1
+            color: root.ui.c.line
+            opacity: 0.65
+        }
+    }
+    ColumnLayout {
+        visible: !root.configured || root.editing
         Layout.fillWidth: true
         Layout.margins: 12
         spacing: 10
@@ -194,6 +267,18 @@ Group {
         RowLayout {
             SButton {
                 ui: root.ui
+                visible: root.configured
+                text: "Cancel"
+                onClicked: {
+                    root.clearSecret();
+                    root.edited();
+                    root.dirty = false;
+                    root.loadConnection();
+                    root.editing = false;
+                }
+            }
+            SButton {
+                ui: root.ui
                 objectName: "testConnectionButton"
                 text: root.pending ? "Please wait…" : "Test connection"
                 enabled: root.available && !root.pending && server.text.trim().length > 0 && deviceName.text.trim().length > 0
@@ -225,19 +310,21 @@ Group {
                 }
             }
         }
-        SLabel {
-            ui: root.ui
-            objectName: "connectionSetupMessage"
-            Layout.fillWidth: true
-            visible: text.length > 0
-            text: !bridge.connected ? "Start the installed background dictation service, then reconnect. In a terminal: systemctl --user start sotto-client.service" : root.message || root.ui.snapshot.setupMessage || ""
-            Accessible.role: Accessible.AlertMessage
-        }
-        SButton {
-            ui: root.ui
-            visible: !bridge.connected
-            text: "Reconnect"
-            onClicked: bridge.request("snapshot")
-        }
+    }
+    SLabel {
+        ui: root.ui
+        objectName: "connectionSetupMessage"
+        Layout.fillWidth: true
+        Layout.margins: 12
+        visible: text.length > 0
+        text: !bridge.connected ? "Start the installed background dictation service, then reconnect. In a terminal: systemctl --user start sotto-client.service" : root.message || root.ui.snapshot.setupMessage || ""
+        Accessible.role: Accessible.AlertMessage
+    }
+    SButton {
+        ui: root.ui
+        Layout.margins: 12
+        visible: !bridge.connected
+        text: "Reconnect"
+        onClicked: bridge.request("snapshot")
     }
 }

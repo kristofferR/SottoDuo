@@ -15,14 +15,30 @@ ScrollView {
     property string revision: ""
     property bool dirty: false
     property bool pending: false
+    property bool conflicted: false
+    property bool awaitingSnapshot: false
+    property string submittedRevision: ""
+    property string submittedDraft: ""
     property string message: ""
     property var seenInputs: []
     readonly property bool scopeChanged: !!ui.snapshot.microphones && (draft.server !== ui.snapshot.microphones.value.server || draft.hostID !== ui.snapshot.microphones.value.hostID)
-    readonly property bool editable: bridge.connected && !bridge.preview && !ui.busy && !ui.snapshot.connectionChanging && !pending && !!revision && !scopeChanged
+    readonly property bool editable: bridge.connected && !bridge.preview && !ui.busy && !ui.snapshot.connectionChanging && !conflicted && !!revision && !scopeChanged
     readonly property var activeProfile: draft.profiles.find(p => p.id === draft.activeProfileID) || ({
             name: "Default",
             priority: []
         })
+    readonly property var inputChoices: {
+        const choices = [
+            { label: "Automatic · priority list", mode: "automatic" },
+            { label: "System default", mode: "systemDefault" }
+        ];
+        for (const source of ui.sources.items)
+            choices.push({ label: source.name, mode: "fixed", identity: source.identity });
+        if (draft.mode === "fixed" && draft.fixed && !choices.some(choice => choice.identity && key(choice.identity) === key(draft.fixed)))
+            choices.push({ label: nameFor(draft.fixed) + " (disconnected)", mode: "fixed", identity: draft.fixed });
+        return choices;
+    }
+    readonly property int selectedInputIndex: draft.mode === "fixed" ? inputChoices.findIndex(choice => choice.identity && draft.fixed && key(choice.identity) === key(draft.fixed)) : draft.mode === "systemDefault" ? 1 : 0
     clip: true
     contentWidth: availableWidth
     function clone(value) {
@@ -55,6 +71,11 @@ ScrollView {
         draft = clone(saved.value);
         revision = saved.revision;
         dirty = false;
+        pending = false;
+        conflicted = false;
+        awaitingSnapshot = false;
+        submittedRevision = "";
+        submittedDraft = "";
         message = "";
         rememberInputs();
     }
@@ -66,6 +87,34 @@ ScrollView {
         draft = next;
         dirty = true;
         message = "";
+        saveChanges();
+    }
+    function saveChanges() {
+        if (!dirty || pending || awaitingSnapshot || !editable || (draft.mode === "fixed" && !draft.fixed))
+            return;
+        const current = ui.snapshot.microphones;
+        if (current && current.revision !== revision) {
+            conflicted = true;
+            message = "Microphone settings changed on another device. Reload the latest settings to continue.";
+            return;
+        }
+        rememberInputs();
+        let value = clone(draft);
+        const inputs = seenInputs.slice();
+        for (const input of value.knownInputs || [])
+            if (!inputs.some(x => key(x.identity) === key(input.identity)))
+                inputs.push(input);
+        const referenced = [];
+        for (const profile of value.profiles)
+            for (const id of profile.priority)
+                referenced.push(id);
+        if (value.fixed)
+            referenced.push(value.fixed);
+        value.knownInputs = inputs.filter(input => referenced.some(id => key(id) === key(input.identity)));
+        submittedRevision = revision;
+        submittedDraft = JSON.stringify(draft);
+        pending = true;
+        bridge.request("saveMicrophones", { value: value, revision: revision });
     }
     function selectProfile(id) {
         let next = clone(draft);
@@ -82,6 +131,21 @@ ScrollView {
             next.priority.splice(index, 1);
         if (action === "up" && index > 0)
             [next.priority[index - 1], next.priority[index]] = [next.priority[index], next.priority[index - 1]];
+        if (action === "down" && index >= 0 && index < next.priority.length - 1)
+            [next.priority[index + 1], next.priority[index]] = [next.priority[index], next.priority[index + 1]];
+        next.profiles.find(p => p.id === next.activeProfileID).priority = clone(next.priority);
+        edited(next);
+    }
+    function movePriority(id, targetID) {
+        if (!editable)
+            return;
+        let next = clone(draft);
+        const from = next.priority.findIndex(x => key(x) === key(id));
+        const to = next.priority.findIndex(x => key(x) === key(targetID));
+        if (from < 0 || to < 0 || from === to)
+            return;
+        const moved = next.priority.splice(from, 1)[0];
+        next.priority.splice(to, 0, moved);
         next.profiles.find(p => p.id === next.activeProfileID).priority = clone(next.priority);
         edited(next);
     }
@@ -132,26 +196,69 @@ ScrollView {
         target: bridge
         function onReply(action, data) {
             if (action === "saveMicrophones" && root.pending) {
-                root.draft = root.clone(data.value);
+                if (root.scopeChanged) {
+                    root.loadSaved();
+                    return;
+                }
+                const unchanged = JSON.stringify(root.draft) === root.submittedDraft;
                 root.revision = data.revision;
-                root.dirty = false;
                 root.pending = false;
-                root.message = "Microphone settings saved. They apply to your next take.";
+                root.awaitingSnapshot = root.ui.snapshot.microphones?.revision !== root.revision;
+                if (unchanged) {
+                    root.draft = root.clone(data.value);
+                    root.dirty = false;
+                    root.message = "";
+                }
+                if (!root.awaitingSnapshot && root.dirty)
+                    root.saveChanges();
                 bridge.request("snapshot");
-                root.ui.refresh();
+                root.ui.refreshSources();
             }
         }
         function onFailed(action, message) {
-            if (action === "saveMicrophones") {
+            if (action === "saveMicrophones" && root.pending) {
                 root.pending = false;
+                if (root.scopeChanged) {
+                    root.loadSaved();
+                    return;
+                }
+                root.conflicted = message.startsWith("Microphone settings changed.");
                 root.message = message;
             }
         }
         function onSnapshotChanged() {
-            if (!bridge.connected)
-                root.pending = false;
+            if (!bridge.connected) {
+                root.awaitingSnapshot = false;
+                return;
+            }
+            if (root.scopeChanged && !root.pending) {
+                root.loadSaved();
+                return;
+            }
+            if (root.awaitingSnapshot) {
+                const current = root.ui.snapshot.microphones;
+                if (!current || current.revision === root.submittedRevision)
+                    return;
+                root.awaitingSnapshot = false;
+                if (current.revision !== root.revision) {
+                    root.conflicted = true;
+                    root.message = "Microphone settings changed on another device. Reload the latest settings to continue.";
+                    return;
+                }
+            }
             if (!root.dirty && !root.pending && !profileDialog.visible && !deleteDialog.visible && root.ui.snapshot.microphones && root.ui.snapshot.microphones.revision !== root.revision)
                 root.loadSaved();
+            else if (root.dirty && !root.pending && !root.message)
+                root.saveChanges();
+        }
+    }
+    Timer {
+        interval: 4000
+        running: root.dirty && !root.pending && !root.conflicted && bridge.connected && root.message.length > 0
+        repeat: false
+        onTriggered: {
+            root.message = "";
+            root.saveChanges();
         }
     }
     ColumnLayout {
@@ -176,12 +283,16 @@ ScrollView {
                 ComboBox {
                     objectName: "microphoneMode"
                     implicitWidth: 245
-                    model: ["Automatic · priority list", "System default", "Fixed input"]
-                    currentIndex: ["automatic", "systemDefault", "fixed"].indexOf(root.draft.mode)
+                    model: root.inputChoices
+                    textRole: "label"
+                    currentIndex: root.selectedInputIndex
                     enabled: root.editable
                     onActivated: {
+                        const choice = root.inputChoices[currentIndex];
                         let next = root.clone(root.draft);
-                        next.mode = ["automatic", "systemDefault", "fixed"][currentIndex];
+                        next.mode = choice.mode;
+                        if (choice.identity)
+                            next.fixed = choice.identity;
                         root.edited(next);
                     }
                 }
@@ -189,7 +300,7 @@ ScrollView {
             Setting {
                 ui: root.ui
                 title: "Next dictation"
-                detail: root.dirty ? "Unsaved changes. The current settings stay active until you save." : root.ui.sources.reason || "Availability is checked again when dictation starts."
+                detail: root.pending ? "Saving microphone settings for your next dictation…" : root.ui.sources.reason || "Availability is checked again when dictation starts."
                 SLabel {
                     ui: root.ui
                     objectName: "nextMicrophone"
@@ -206,7 +317,7 @@ ScrollView {
         }
         Group {
             ui: root.ui
-            title: "PRIORITY LISTS · ONLY THIS COMPUTER"
+            title: "Input priority"
             Setting {
                 ui: root.ui
                 title: "Saved list"
@@ -219,63 +330,181 @@ ScrollView {
                     enabled: root.editable
                     onActivated: root.selectProfile(root.draft.profiles[currentIndex].id)
                 }
-            }
-            RowLayout {
-                Layout.margins: 12
                 SButton {
                     ui: root.ui
-                    text: "New list"
+                    objectName: "useMicrophonePriorityList"
+                    text: root.draft.mode === "automatic" ? "In use" : "Use list"
+                    enabled: root.editable && root.draft.mode !== "automatic"
+                    onClicked: {
+                        let next = root.clone(root.draft);
+                        next.mode = "automatic";
+                        root.edited(next);
+                    }
+                }
+                SButton {
+                    ui: root.ui
+                    text: "+"
                     objectName: "newMicrophoneProfile"
+                    Accessible.name: "New priority list"
+                    Layout.preferredWidth: 44
+                    horizontalPadding: 10
                     enabled: root.editable && root.draft.profiles.length < 16
                     onClicked: root.editName(true)
                 }
                 SButton {
+                    id: profileActions
                     ui: root.ui
-                    text: "Rename"
+                    text: "⋯"
+                    objectName: "microphoneProfileOptions"
+                    Accessible.name: "Priority list options"
+                    Layout.preferredWidth: 44
+                    horizontalPadding: 10
                     enabled: root.editable
-                    onClicked: root.editName(false)
-                }
-                SButton {
-                    ui: root.ui
-                    text: "Delete"
-                    objectName: "deleteMicrophoneProfile"
-                    enabled: root.editable && root.draft.profiles.length > 1
-                    onClicked: deleteDialog.open()
+                    onClicked: profileMenu.open()
+                    Menu {
+                        id: profileMenu
+                        objectName: "microphoneProfileMenu"
+                        y: profileActions.height
+                        MenuItem {
+                            text: "Rename list…"
+                            enabled: root.editable
+                            onTriggered: root.editName(false)
+                        }
+                        MenuItem {
+                            objectName: "deleteMicrophoneProfile"
+                            text: "Delete list…"
+                            enabled: root.editable && root.draft.profiles.length > 1
+                            onTriggered: deleteDialog.open()
+                        }
+                    }
                 }
             }
             Repeater {
                 model: root.draft.priority
-                Setting {
+                Item {
+                    id: priorityRow
                     required property var modelData
                     required property int index
-                    ui: root.ui
-                    title: (index + 1) + ". " + root.nameFor(modelData)
-                    detail: root.detailFor(modelData)
-                    SButton {
+                    readonly property var identity: modelData
+                    Layout.fillWidth: true
+                    implicitHeight: prioritySetting.implicitHeight
+                    Setting {
+                        id: prioritySetting
+                        anchors.fill: parent
                         ui: root.ui
-                        text: "Move up"
-                        enabled: root.editable && index > 0
-                        onClicked: root.changePriority(modelData, "up")
+                        title: (priorityRow.index + 1) + ". " + root.nameFor(priorityRow.identity)
+                        detail: root.detailFor(priorityRow.identity)
+                        Rectangle {
+                            id: reorderHandle
+                            objectName: "microphoneReorderHandle" + priorityRow.index
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 38
+                            color: "transparent"
+                            Accessible.role: Accessible.Button
+                            Accessible.name: "Drag to reorder " + root.nameFor(priorityRow.identity)
+                            Text {
+                                anchors.centerIn: parent
+                                text: "⠿"
+                                font.pixelSize: 23
+                                color: root.editable ? root.ui.c.muted : root.ui.c.line
+                            }
+                            HoverHandler {
+                                cursorShape: root.editable ? reorderDrag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor : Qt.ArrowCursor
+                            }
+                            DragHandler {
+                                id: reorderDrag
+                                enabled: root.editable && root.draft.priority.length > 1
+                                xAxis.enabled: false
+                                onActiveChanged: {
+                                    if (active) {
+                                        reorderHandle.Drag.start();
+                                    } else {
+                                        reorderHandle.Drag.drop();
+                                        reorderHandle.y = 0;
+                                    }
+                                }
+                            }
+                            Drag.source: priorityRow
+                            Drag.keys: ["sotto/microphone-priority"]
+                            Drag.hotSpot.x: width / 2
+                            Drag.hotSpot.y: height / 2
+                        }
+                        SButton {
+                            id: priorityActions
+                            ui: root.ui
+                            objectName: "microphonePriorityActions" + priorityRow.index
+                            text: "⋯"
+                            Accessible.name: "Actions for " + root.nameFor(priorityRow.identity)
+                            Layout.preferredWidth: 44
+                            horizontalPadding: 10
+                            enabled: root.editable
+                            onClicked: priorityMenu.open()
+                            Menu {
+                                id: priorityMenu
+                                objectName: "microphonePriorityMenu" + priorityRow.index
+                                y: priorityActions.height
+                                MenuItem {
+                                    text: "Move up"
+                                    enabled: root.editable && priorityRow.index > 0
+                                    onTriggered: root.changePriority(priorityRow.identity, "up")
+                                }
+                                MenuItem {
+                                    text: "Move down"
+                                    enabled: root.editable && priorityRow.index < root.draft.priority.length - 1
+                                    onTriggered: root.changePriority(priorityRow.identity, "down")
+                                }
+                                MenuItem {
+                                    objectName: "microphoneMoveTop" + priorityRow.index
+                                    text: "Move to top"
+                                    enabled: root.editable && priorityRow.index > 0
+                                    onTriggered: root.movePriority(priorityRow.identity, root.draft.priority[0])
+                                }
+                                MenuSeparator {}
+                                MenuItem {
+                                    text: "Remove from priority list"
+                                    enabled: root.editable
+                                    onTriggered: root.changePriority(priorityRow.identity, "remove")
+                                }
+                            }
+                        }
                     }
-                    SButton {
-                        ui: root.ui
-                        text: "Remove"
-                        enabled: root.editable
-                        onClicked: root.changePriority(modelData, "remove")
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "transparent"
+                        radius: 8
+                        border.width: dropArea.containsDrag && dropArea.drag.source !== priorityRow ? 2 : 0
+                        border.color: root.ui.c.accent
+                    }
+                    DropArea {
+                        id: dropArea
+                        anchors.fill: parent
+                        keys: ["sotto/microphone-priority"]
+                        onDropped: drop => {
+                            if (root.editable && drop.source && drop.source !== priorityRow) {
+                                root.movePriority(drop.source.identity, priorityRow.identity);
+                                drop.acceptProposedAction();
+                            }
+                        }
                     }
                 }
             }
             Setting {
                 ui: root.ui
-                title: "System fallback"
-                detail: "After preferred inputs, Sotto uses an eligible microphone on the configured capture host. An empty list uses this fallback directly."
+                visible: root.draft.priority.length === 0
+                title: "No priorities yet"
+                detail: "Add a microphone from the connected inputs below."
             }
-        }
-        Group {
-            ui: root.ui
-            title: "AVAILABLE INPUTS"
+            SLabel {
+                ui: root.ui
+                visible: root.ui.sources.items.some(source => root.rank(source.identity) < 0)
+                text: "Available inputs"
+                color: root.ui.c.muted
+                font.pixelSize: 13
+                Layout.leftMargin: 14
+                Layout.topMargin: 12
+            }
             Repeater {
-                model: root.ui.sources.items
+                model: root.ui.sources.items.filter(source => root.rank(source.identity) < 0)
                 Setting {
                     required property var modelData
                     ui: root.ui
@@ -283,16 +512,12 @@ ScrollView {
                     detail: modelData.identity.hostID + " · " + (modelData.eligible ? "Available · " + modelData.transport : modelData.unavailableReason || "Unavailable or not ready")
                     SButton {
                         ui: root.ui
-                        text: root.draft.mode === "fixed" ? (root.draft.fixed && root.key(root.draft.fixed) === root.key(modelData.identity) ? "Selected" : "Choose") : root.rank(modelData.identity) >= 0 ? "In priority list" : "Add to list"
-                        enabled: root.editable && (root.draft.mode === "fixed" || (root.rank(modelData.identity) < 0 && root.draft.priority.length < 32))
-                        onClicked: {
-                            if (root.draft.mode === "fixed") {
-                                let next = root.clone(root.draft);
-                                next.fixed = modelData.identity;
-                                root.edited(next);
-                            } else
-                                root.changePriority(modelData.identity, "add");
-                        }
+                        text: "+"
+                        Accessible.name: "Add " + modelData.name + " to priority list"
+                        Layout.preferredWidth: 44
+                        horizontalPadding: 10
+                        enabled: root.editable && root.draft.priority.length < 32
+                        onClicked: root.changePriority(modelData.identity, "add")
                     }
                 }
             }
@@ -300,63 +525,42 @@ ScrollView {
                 ui: root.ui
                 visible: root.ui.sources.items.length === 0
                 title: "No inputs reported"
-                detail: "Saved microphones stay in their lists. Check the server connection, then refresh."
+                detail: "Saved microphones stay in their lists. Inputs update automatically while connected."
             }
         }
         SLabel {
             ui: root.ui
-            text: "A recording keeps the microphone it started with. If that input is lost, start a new take to use a fallback. Pairing-button dictation always uses its receiver."
+            text: "Drag a handle to reorder. Disconnected microphones keep their place. After this list, Sotto uses an available microphone on the capture computer."
             color: root.ui.c.muted
             font.pixelSize: 13
             Layout.fillWidth: true
         }
-        SLabel {
-            ui: root.ui
-            text: root.scopeChanged ? "The server or capture host changed. Discard changes to reload microphone settings before editing." : root.message
-            visible: text.length > 0
-            Layout.fillWidth: true
-        }
         RowLayout {
-            SButton {
+            visible: root.message.length > 0 || root.conflicted
+            spacing: 12
+            SLabel {
                 ui: root.ui
-                objectName: "saveMicrophonesButton"
-                text: root.pending ? "Saving…" : "Save changes"
-                primary: true
-                enabled: root.dirty && root.editable && (root.draft.mode !== "fixed" || !!root.draft.fixed)
-                onClicked: {
-                    root.rememberInputs();
-                    let value = root.clone(root.draft);
-                    const inputs = root.seenInputs.slice();
-                    for (const input of value.knownInputs || [])
-                        if (!inputs.some(x => root.key(x.identity) === root.key(input.identity)))
-                            inputs.push(input);
-                    const referenced = value.profiles.flatMap(p => p.priority).concat(value.fixed ? [value.fixed] : []);
-                    value.knownInputs = inputs.filter(input => referenced.some(id => root.key(id) === root.key(input.identity)));
-                    root.pending = true;
-                    root.message = "";
-                    bridge.request("saveMicrophones", {
-                        value: value,
-                        revision: root.revision
-                    });
-                }
+                text: root.message
+                Layout.fillWidth: true
             }
             SButton {
                 ui: root.ui
-                text: "Discard changes"
-                enabled: root.dirty && !root.pending
+                objectName: "reloadMicrophoneSettings"
+                text: "Reload latest settings"
+                visible: root.conflicted
                 onClicked: root.loadSaved()
             }
-            SButton {
-                ui: root.ui
-                text: "Refresh inputs"
-                onClicked: root.ui.refresh()
-            }
+        }
+        MicrophoneTestButton {
+            objectName: "microphonePageTestButton"
+            ui: root.ui
+            Layout.fillWidth: true
         }
     }
     Dialog {
         id: profileDialog
         objectName: "microphoneProfileDialog"
-        onClosed: if (!root.dirty)
+        onClosed: if (!root.dirty && !root.pending && !root.awaitingSnapshot)
             root.loadSaved()
         property bool creating: true
         property string error: ""
@@ -398,7 +602,7 @@ ScrollView {
     }
     Dialog {
         id: deleteDialog
-        onClosed: if (!root.dirty)
+        onClosed: if (!root.dirty && !root.pending && !root.awaitingSnapshot)
             root.loadSaved()
         title: "Delete “" + root.activeProfile.name + "”?"
         parent: Overlay.overlay
@@ -408,7 +612,7 @@ ScrollView {
         contentItem: ColumnLayout {
             SLabel {
                 ui: root.ui
-                text: "This removes the saved list when you save changes. Another list will be selected. Microphones are not removed."
+                text: "This removes the saved list immediately. Another list will be selected. Microphones are not removed."
                 Layout.fillWidth: true
             }
             RowLayout {

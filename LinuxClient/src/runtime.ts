@@ -15,6 +15,7 @@ export class ClientRuntime {
   private changing = false;
   private mutations = 0;
   private generation = 0;
+  private shortcutQueue: Promise<unknown> = Promise.resolve();
   shortcuts?: ShortcutSettings;
   constructor(
     readonly settings: ConnectionSettings,
@@ -68,7 +69,22 @@ export class ClientRuntime {
     )
       void controller.cancel().catch(() => {});
   }
-  async gui(request: unknown): Promise<unknown> {
+  gui(request: unknown): Promise<unknown> {
+    if (
+      request &&
+      typeof request === "object" &&
+      "action" in request &&
+      (request.action === "start" ||
+        request.action === "stop" ||
+        request.action === "releasePortalShortcut")
+    ) {
+      const next = this.shortcutQueue.then(() => this.handleGUI(request));
+      this.shortcutQueue = next.catch(() => {});
+      return next;
+    }
+    return this.handleGUI(request);
+  }
+  private async handleGUI(request: unknown): Promise<unknown> {
     if (
       !request ||
       typeof request !== "object" ||
@@ -103,7 +119,12 @@ export class ClientRuntime {
         connectionRevision: this.generation,
       };
     }
-    if (!(await this.desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
+    if (action === "releasePortalShortcut") {
+      this.current?.controller.stop();
+      return {};
+    }
+    if (action !== "stop" && !(await this.desktop.unlocked()))
+      throw new ClientNotice("Unlock this computer first.");
     if (this.changing) throw new ClientNotice("The connection is changing. Try again in a moment.");
     if (action === "testConnection") return this.settings.test(input);
     if (action === "saveConnection") {

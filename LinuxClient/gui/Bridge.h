@@ -1,10 +1,12 @@
 #pragma once
 #include "DesktopIntegration.h"
 #include <QObject>
+#include <QQueue>
 #include <QSet>
 #include <QSettings>
 #include <QTimer>
 #include <QVariantMap>
+#include <functional>
 
 class Bridge : public QObject {
   Q_OBJECT
@@ -31,6 +33,7 @@ public:
   Q_INVOKABLE void request(const QString &action,
                            const QVariantMap &arguments = {},
                            const QString &requestID = {});
+  void requestShortcutEdge(const QString &action);
   Q_INVOKABLE void copy(const QString &text);
   Q_INVOKABLE void previewPhase(const QString &phase);
 signals:
@@ -46,6 +49,9 @@ private:
   void updateColors();
   void receive(const QString &action, const QByteArray &bytes,
                const QString &requestID);
+  void sendRequest(const QString &action, const QVariantMap &arguments,
+                   const QString &requestID, std::function<void()> complete);
+  void sendNextShortcutEdge();
   bool m_preview = false;
   DesktopIntegration m_desktop;
   bool m_connected = false;
@@ -57,6 +63,8 @@ private:
   QVariantMap m_colors;
   QVariantMap m_fixture;
   QSet<QString> m_pending;
+  QQueue<QString> m_shortcutEdges;
+  bool m_shortcutEdgeInFlight = false;
   QTimer m_poll;
   QTimer m_themePoll;
   QSettings m_settings;

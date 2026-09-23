@@ -180,17 +180,40 @@ void Bridge::request(const QString &action, const QVariantMap &arguments,
   if (m_pending.contains(pendingKey))
     return;
   m_pending.insert(pendingKey);
+  sendRequest(action, arguments, requestID,
+              [this, pendingKey] { m_pending.remove(pendingKey); });
+}
+void Bridge::requestShortcutEdge(const QString &action) {
+  if (action != "start" && action != "stop")
+    return;
+  m_shortcutEdges.enqueue(action);
+  sendNextShortcutEdge();
+}
+void Bridge::sendNextShortcutEdge() {
+  if (m_shortcutEdgeInFlight || m_shortcutEdges.isEmpty())
+    return;
+  m_shortcutEdgeInFlight = true;
+  const QString action = m_shortcutEdges.dequeue();
+  sendRequest(action, {}, {}, [this] {
+    m_shortcutEdgeInFlight = false;
+    QTimer::singleShot(0, this, [this] { sendNextShortcutEdge(); });
+  });
+}
+void Bridge::sendRequest(const QString &action, const QVariantMap &arguments,
+                         const QString &requestID,
+                         std::function<void()> complete) {
   auto *socket = new QLocalSocket(this);
   auto *timer = new QTimer(socket);
   timer->setSingleShot(true);
   auto bytes = std::make_shared<QByteArray>();
   auto finished = std::make_shared<bool>(false);
-  auto finish = [this, socket, timer, action, requestID, pendingKey, bytes, finished](bool valid) {
+  auto finish = [this, socket, timer, action, requestID, bytes, finished,
+                 complete](bool valid) {
     if (*finished)
       return;
     *finished = true;
     timer->stop();
-    m_pending.remove(pendingKey);
+    complete();
     if (valid)
       receive(action, *bytes, requestID);
     else {
@@ -230,7 +253,7 @@ void Bridge::request(const QString &action, const QVariantMap &arguments,
     timeout = 70000;
   else if (action == "deleteHistory")
     timeout = 75000;
-  else if (action == "historyAudio")
+  else if (action == "historyAudio" || action == "historyArtifact")
     timeout = 370000;
   timer->start(timeout);
   const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");

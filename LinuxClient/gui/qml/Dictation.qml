@@ -5,35 +5,36 @@ import QtQuick.Layouts
 ColumnLayout {
     id: root
     required property var ui
-    spacing: height < 620 ? 16 : 24
+    spacing: height < 620 ? 16 : 22
     SLabel {
         ui: root.ui
-        text: root.ui.busy ? "Current dictation" : !bridge.connected || !root.ui.serverReady ? "Keyboard dictation" : "Ready when you are"
-        color: root.ui.c.muted
-        font.pixelSize: 13
+        text: "Sotto · Dictation"
+        font.pixelSize: 18
+        font.weight: Font.DemiBold
     }
     RowLayout {
         Layout.fillWidth: true
-        spacing: 22
+        Layout.topMargin: 24
+        spacing: 20
         Rectangle {
             objectName: "shortcutKeycap"
-            Layout.preferredWidth: 90
-            Layout.preferredHeight: 96
-            radius: 19
+            Layout.preferredWidth: 72
+            Layout.preferredHeight: 76
+            radius: 16
             color: root.ui.c.line
             Accessible.role: Accessible.Graphic
-            Accessible.name: root.ui.shortcut.key ? "Hold " + root.ui.shortcut.key + " to dictate" : "Dictation keyboard shortcut"
+            Accessible.name: portalShortcuts.plasma ? "Hold " + (portalShortcuts.trigger || "your Plasma shortcut") + " to dictate" : root.ui.shortcut.key ? "Hold " + root.ui.shortcut.key + " to dictate" : "Dictation keyboard shortcut"
             Rectangle {
                 width: parent.width
                 height: parent.height - 6
-                radius: 19
+                radius: 16
                 color: root.ui.c.surface
                 border.color: root.ui.c.line
                 Image {
-                    visible: !root.ui.shortcut.key
+                    visible: !(portalShortcuts.plasma ? portalShortcuts.trigger : root.ui.shortcut.key)
                     anchors.centerIn: parent
-                    width: 44
-                    height: 44
+                    width: 36
+                    height: 36
                     sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
                     Accessible.ignored: true
                     source: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="' + root.ui.c.accent + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 15h10"/></svg>')
@@ -42,9 +43,9 @@ ColumnLayout {
                     objectName: "configuredShortcutKey"
                     ui: root.ui
                     anchors.centerIn: parent
-                    text: root.ui.shortcut.key || ""
+                    text: (portalShortcuts.plasma ? portalShortcuts.trigger : root.ui.shortcut.key) || ""
                     visible: text.length > 0
-                    font.pixelSize: 22
+                    font.pixelSize: 18
                     font.weight: Font.DemiBold
                 }
             }
@@ -52,9 +53,28 @@ ColumnLayout {
         SLabel {
             ui: root.ui
             text: root.ui.shortcut.changing ? "Saving shortcut…" : !root.ui.busy && root.ui.shortcutBlocked ? "Checking shortcut…" : root.ui.activity.phase === "completed" ? "Hold to dictate." : root.ui.messageFor(root.ui.activity.phase)
-            font.pixelSize: 38
+            font.pixelSize: 34
             font.weight: Font.DemiBold
             Layout.fillWidth: true
+        }
+    }
+    RowLayout {
+        Layout.fillWidth: true
+        visible: root.ui.busy
+        SLabel {
+            ui: root.ui
+            text: "Microphone"
+            color: root.ui.c.muted
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.activity.source || root.ui.sources.next?.name || "Checking input…"
+            Layout.fillWidth: true
+        }
+        SLabel {
+            ui: root.ui
+            text: root.ui.activity.trigger === "test" ? "Test in Sotto" : root.ui.snapshot.device?.name || "This computer"
+            color: root.ui.c.muted
         }
     }
     Rectangle {
@@ -63,6 +83,7 @@ ColumnLayout {
         radius: 12
         color: root.ui.c.surface
         border.color: root.ui.c.line
+        visible: !root.ui.busy
         RowLayout {
             id: route
             anchors.fill: parent
@@ -70,7 +91,7 @@ ColumnLayout {
             spacing: 16
             SLabel {
                 ui: root.ui
-                text: root.ui.activity.source && root.ui.busy ? root.ui.activity.source : root.ui.sources.next ? root.ui.sources.next.name : !root.ui.sourcesChecked ? "Microphone not checked" : "No available microphone"
+            text: root.ui.sources.next ? root.ui.sources.next.name : !root.ui.sourcesChecked ? "Checking microphone…" : "No available microphone"
                 Layout.fillWidth: true
             }
             SLabel {
@@ -80,17 +101,32 @@ ColumnLayout {
             }
             SLabel {
                 ui: root.ui
-                text: root.ui.activity.trigger === "test" && root.ui.busy ? "Test in Sotto" : root.ui.snapshot.device ? root.ui.snapshot.device.name : "This computer"
+                text: root.ui.snapshot.device ? root.ui.snapshot.device.name : "This computer"
             }
         }
     }
     RowLayout {
         Layout.fillWidth: true
+        spacing: 9
+        StatusDot {
+            objectName: "dictationConnectionDot"
+            ready: root.ui.serverReady
+        }
         SLabel {
             ui: root.ui
             text: root.ui.connection
-            color: root.ui.c.muted
             Layout.fillWidth: true
+        }
+        SLabel {
+            ui: root.ui
+            objectName: "dictationServerAddress"
+            text: root.ui.snapshot.server || ""
+            visible: text.length > 0
+            color: root.ui.c.muted
+            font.pixelSize: 13
+            wrapMode: Text.NoWrap
+            elide: Text.ElideMiddle
+            Layout.preferredWidth: Math.min(200, root.width * 0.28)
         }
         SButton {
             ui: root.ui
@@ -131,6 +167,7 @@ ColumnLayout {
         SButton {
             ui: root.ui
             text: "Copy"
+            symbolName: "copy"
             enabled: !!root.ui.result && !root.ui.busy
             onClicked: {
                 bridge.copy(root.ui.result.text);
@@ -165,7 +202,8 @@ ColumnLayout {
         Layout.fillWidth: true
         color: root.ui.c.muted
         font.pixelSize: 13
-        text: root.ui.activity.phase === "failed" ? root.ui.snapshot.message : root.ui.result ? root.ui.result.delivery === "uncertain" ? "Insertion could not be confirmed. Check your field before copying to avoid a duplicate." : root.ui.result.delivery === "inserted" ? "Inserted at your cursor." : "Nothing was inserted. Your transcript is ready to copy." : root.ui.busy ? root.ui.feedback.partialText ? "Live text may change. Only the finished dictation is delivered." : root.ui.feedback.streamAvailable === false ? "Live feedback is unavailable. Dictation is still controlled by its recording session." : "You can cancel this take below." : "Use your configured desktop shortcut while your writing app is focused."
+        text: root.ui.activity.phase === "failed" ? root.ui.snapshot.message : root.ui.result ? root.ui.result.delivery === "uncertain" ? "Insertion could not be confirmed. Check your field before copying to avoid a duplicate." : root.ui.result.delivery === "inserted" ? "Inserted at your cursor." : "Nothing was inserted. Your transcript is ready to copy." : root.ui.busy ? root.ui.feedback.partialText ? "Live text may change. Only the finished dictation is delivered." : root.ui.feedback.streamAvailable === false ? "Live feedback is unavailable. Dictation is still controlled by its recording session." : "You can cancel this take below." : ""
+        visible: text.length > 0
     }
     Rectangle {
         Layout.fillWidth: true
@@ -174,14 +212,10 @@ ColumnLayout {
     }
     RowLayout {
         Layout.fillWidth: true
-        SButton {
+        MicrophoneTestButton {
             objectName: "microphoneTestButton"
             ui: root.ui
-            primary: true
-            readonly property bool testing: root.ui.microphoneTestActive
-            text: root.ui.microphoneTestStarting ? "Starting test…" : testing ? root.ui.activity.phase === "recording" ? "Finish test" : root.ui.activity.phase === "preparing" ? "Starting test…" : "Transcribing…" : "Test microphone"
-            enabled: bridge.connected && !root.ui.shortcutBlocked && !root.ui.microphoneTestStarting && (root.ui.busy ? testing && root.ui.activity.phase === "recording" : root.ui.serverReady)
-            onClicked: root.ui.busy ? bridge.request("stop") : root.ui.startMicrophoneTest()
+            Layout.fillWidth: true
         }
         SButton {
             objectName: "cancelDictationButton"
@@ -190,20 +224,16 @@ ColumnLayout {
             visible: root.ui.busy && ["preparing", "recording", "processing"].includes(root.ui.activity.phase)
             onClicked: bridge.request("cancel")
         }
-        Item {
-            Layout.fillWidth: true
-        }
         SButton {
             ui: root.ui
             text: "History"
             onClicked: root.ui.page = 1
         }
-    }
-    SLabel {
-        ui: root.ui
-        text: "Microphone tests stay in Sotto and shared history. They are never inserted."
-        font.pixelSize: 11
-        color: root.ui.c.muted
-        Layout.fillWidth: true
+        SButton {
+            ui: root.ui
+            text: "⚙"
+            Accessible.name: "This computer preferences"
+            onClicked: root.ui.page = 4
+        }
     }
 }

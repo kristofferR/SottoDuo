@@ -14,14 +14,20 @@ ApplicationWindow {
             quitRequested = false;
             page = 0;
             notice = "Finish or cancel the microphone test before closing Sotto.";
-        } else if (quitRequested && (shortcutCheckPending || shortcut.check && shortcut.check.active || endingShortcutCheck)) {
+        } else if (quitRequested && (portalShortcuts.plasma || shortcutCheckPending || shortcut.check && shortcut.check.active || endingShortcutCheck)) {
             close.accepted = false;
+            if (portalShortcuts.plasma && !portalReleasePending) {
+                portalReleasePending = true;
+                bridge.request("releasePortalShortcut");
+            }
             finishShortcutCheck();
         }
     }
     onVisibleChanged: {
         if (!visible)
             finishShortcutCheck();
+        else if (bridge.connected)
+            refresh();
     }
     property bool startHidden: false
     visible: !startHidden
@@ -41,6 +47,7 @@ ApplicationWindow {
     property bool finishShortcutCheckAfterReply: false
     property bool endingShortcutCheck: false
     property bool quitRequested: false
+    property bool portalReleasePending: false
     property bool microphoneTestStarting: false
     readonly property bool microphoneTestActive: microphoneTestStarting || (busy && activity.trigger === "test")
     property var feedback: snapshot.feedback || ({})
@@ -66,6 +73,7 @@ ApplicationWindow {
     property string notice: ""
     property bool serverReady: false
     property var pages: ["Dictation", "History", "Microphone", "Server preferences", "This computer"]
+    onPageChanged: if (page === 2) refreshSources()
     palette.window: c.canvas
     palette.windowText: c.ink
     palette.base: c.surface
@@ -86,8 +94,13 @@ ApplicationWindow {
         if (snapshot.setupRequired)
             return;
         bridge.request("connection");
-        bridge.request("sources");
-        bridge.request("shortcuts");
+        refreshSources();
+        if (!portalShortcuts.plasma)
+            bridge.request("shortcuts");
+    }
+    function refreshSources() {
+        if (bridge.connected && !snapshot.setupRequired)
+            bridge.request("sources");
     }
     function startMicrophoneTest() {
         microphoneTestStarting = true;
@@ -130,6 +143,7 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         wasConnected = bridge.connected;
+        bridge.desktop.refreshClientService();
         refresh();
     }
     Connections {
@@ -169,7 +183,12 @@ ApplicationWindow {
             }
             if (action === "endShortcutCheck") {
                 app.endingShortcutCheck = false;
-                if (app.quitRequested)
+                if (app.quitRequested && !app.portalReleasePending)
+                    Qt.quit();
+            }
+            if (action === "releasePortalShortcut" && app.portalReleasePending) {
+                app.portalReleasePending = false;
+                if (!app.shortcutCheckPending && !app.endingShortcutCheck && !app.finishShortcutCheckAfterReply)
                     Qt.quit();
             }
             if (action === "saveConnection") {
@@ -206,13 +225,18 @@ ApplicationWindow {
             }
             if (action === "endShortcutCheck") {
                 app.endingShortcutCheck = false;
-                if (app.quitRequested)
+                if (app.quitRequested && !app.portalReleasePending)
                     Qt.quit();
+            }
+            if (action === "releasePortalShortcut" && app.portalReleasePending) {
+                app.portalReleasePending = false;
+                app.quitRequested = false;
+                app.notice = "Could not release the Plasma shortcut. Reconnect before quitting.";
             }
             if (!bridge.connected)
                 return;
             // Receiver controls display their errors beside the affected settings.
-            if (["history", "historyAudio", "deleteHistory", "preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
+            if (["history", "historyAudio", "historyArtifact", "deleteHistory", "preferences", "savePreferences", "processingDefaults", "saveMicrophones", "testConnection", "saveConnection", "receiver", "saveButton", "arm", "disarm", "shortcuts", "saveShortcut", "checkShortcut", "endShortcutCheck"].includes(action))
                 return;
             if (action === "connection") {
                 app.serverConnection = "Server unavailable";
@@ -232,6 +256,12 @@ ApplicationWindow {
         running: app.visible && bridge.connected
         repeat: true
         onTriggered: app.refresh()
+    }
+    Timer {
+        interval: 2000
+        running: app.visible && app.page === 2 && bridge.connected && !app.snapshot.setupRequired
+        repeat: true
+        onTriggered: app.refreshSources()
     }
     RowLayout {
         anchors.fill: parent
@@ -299,18 +329,20 @@ ApplicationWindow {
                 Item {
                     Layout.fillHeight: true
                 }
-                SLabel {
-                    ui: app
-                    text: bridge.preview ? "Preview · sample data" : app.connection
-                    font.pixelSize: 12
-                    color: app.c.muted
+                RowLayout {
                     Layout.fillWidth: true
-                }
-                SLabel {
-                    ui: app
-                    text: "Sotto for Linux"
-                    font.pixelSize: 11
-                    color: app.c.muted
+                    spacing: 9
+                    StatusDot {
+                        objectName: "sidebarConnectionDot"
+                        ready: app.serverReady
+                    }
+                    SLabel {
+                        ui: app
+                        text: bridge.preview ? "Preview · sample data" : app.connection
+                        font.pixelSize: 12
+                        color: app.c.ink
+                        Layout.fillWidth: true
+                    }
                 }
             }
         }
@@ -336,7 +368,7 @@ ApplicationWindow {
                     ui: app
                     anchors.fill: parent
                     anchors.margins: 12
-                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.connectionStatus === "setupRequired" ? "Start background dictation, then open This computer to set up your server connection." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
+                    text: app.snapshot.setupRequired ? "Set up your server connection in This computer to start dictating." : bridge.desktop.clientService === "Systemd user service unavailable" ? "Background dictation is unavailable. Start the Sotto client with your desktop’s startup tools." : bridge.desktop.clientService !== "Running" ? "Background dictation is stopped. Open This computer to set it up and start it." : "Dictation is unavailable. Sotto couldn’t connect to its background service. Try reconnecting in This computer."
                 }
             }
             Rectangle {

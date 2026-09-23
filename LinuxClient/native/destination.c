@@ -141,8 +141,9 @@ preview:
 int main(int argc, char **argv) {
   if (argc != 2) return 2;
   char *end = NULL;
-  guint64 pid = g_ascii_strtoull(argv[1], &end, 10);
-  if (!pid || pid > G_MAXUINT || *end) return 2;
+  gboolean focused_mode = g_strcmp0(argv[1], "focused") == 0;
+  guint64 pid = focused_mode ? 0 : g_ascii_strtoull(argv[1], &end, 10);
+  if (!focused_mode && (!pid || pid > G_MAXUINT || *end)) return 2;
   pid_t parent = getppid();
   if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent) return 2;
   /* Allow capture, drain, cold model loading, full processing and delivery. */
@@ -157,14 +158,30 @@ int main(int argc, char **argv) {
   }
   AtspiAccessible *desktop = atspi_get_desktop(0);
   gint count = desktop ? atspi_accessible_get_child_count(desktop, NULL) : 0;
-  for (gint i = 0; i < count && !target && g_get_monotonic_time() <= deadline; i++) {
+  gboolean ambiguous = FALSE;
+  for (gint i = 0; i < count && g_get_monotonic_time() <= deadline; i++) {
     AtspiAccessible *app = atspi_accessible_get_child_at_index(desktop, i, NULL);
     if (!app) continue;
-    if (atspi_accessible_get_process_id(app, NULL) == pid) target = find(app, 0);
+    if (focused_mode || atspi_accessible_get_process_id(app, NULL) == pid) {
+      visited = 0;
+      AtspiAccessible *candidate = find(app, 0);
+      if (candidate && target) {
+        ambiguous = TRUE;
+        g_object_unref(candidate);
+        g_object_unref(app);
+        break;
+      }
+      if (candidate) target = candidate;
+    }
     g_object_unref(app);
+    if (target && !focused_mode) break;
   }
   g_clear_object(&desktop);
-  if (!target || !(original = snapshot(&caret))) { reply("preview"); atspi_exit(); return 0; }
+  if (focused_mode && g_get_monotonic_time() > deadline) ambiguous = TRUE;
+  if (ambiguous || !target || !(original = snapshot(&caret))) {
+    g_clear_object(&target);
+    reply("preview"); atspi_exit(); return 0;
+  }
   reply("ready");
   GIOChannel *channel = g_io_channel_unix_new(STDIN_FILENO);
   g_io_channel_set_flags(channel, G_IO_FLAG_NONBLOCK, NULL);

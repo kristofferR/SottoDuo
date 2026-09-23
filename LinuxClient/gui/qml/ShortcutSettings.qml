@@ -5,7 +5,8 @@ import QtQuick.Layouts
 Group {
     id: root
     objectName: "shortcutSettings"
-    title: "SHORTCUTS"
+    title: "Shortcuts"
+    property bool enabledForDesktop: true
     readonly property var config: ui.snapshot.shortcut || ({})
     readonly property var check: config.check || ({})
     readonly property var choices: config.choices || []
@@ -13,10 +14,11 @@ Group {
     property string error: ""
     property string saved: ""
     property bool pending: false
+    property bool showDiagnostics: false
     readonly property bool blocked: !!config.changing || !!check.blocked
     readonly property var selected: choices.find(choice => choice.key === (selectedKey || config.key)) || ({})
-    Component.onCompleted: bridge.request("shortcuts")
-    Component.onDestruction: root.ui.finishShortcutCheck()
+    Component.onCompleted: if (enabledForDesktop) bridge.request("shortcuts")
+    Component.onDestruction: if (enabledForDesktop) root.ui.finishShortcutCheck()
     Connections {
         target: root.ui
         function onVisibleChanged() {
@@ -106,8 +108,10 @@ Group {
                 root.error = "";
                 if (root.check.active)
                     bridge.request("endShortcutCheck");
-                else
+                else {
+                    root.showDiagnostics = true;
                     root.ui.startShortcutCheck();
+                }
             }
         }
     }
@@ -118,6 +122,28 @@ Group {
         Layout.margins: 12
         visible: !!root.check.presses || !!root.check.releases
         text: "Presses: " + (root.check.presses || 0) + " · Releases: " + (root.check.releases || 0) + (root.check.releases > 0 ? " · Press and release detected" : "")
+        color: root.ui.c.muted
+    }
+    Setting {
+        ui: root.ui
+        title: "Shortcut diagnostics"
+        detail: "Shows only Sotto shortcut commands received during the last check."
+        SButton {
+            ui: root.ui
+            objectName: "shortcutDiagnosticsToggle"
+            text: root.showDiagnostics ? "Hide details" : "Show details"
+            onClicked: root.showDiagnostics = !root.showDiagnostics
+        }
+    }
+    SLabel {
+        ui: root.ui
+        objectName: "shortcutDiagnosticsEvents"
+        Layout.fillWidth: true
+        Layout.margins: 12
+        visible: root.showDiagnostics
+        text: root.check.events && root.check.events.length ? root.check.events.join("\n") : "Run a shortcut check to see events."
+        font.family: "monospace"
+        font.pixelSize: 12
         color: root.ui.c.muted
     }
     SLabel {

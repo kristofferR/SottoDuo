@@ -2,6 +2,7 @@
 #include "../HudSurface.h"
 #include <LayerShellQt/Shell>
 #include <QApplication>
+#include <QColor>
 #include <QDir>
 #include <QFile>
 #include <QJSValue>
@@ -19,6 +20,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 
 class BridgeTest : public QObject {
   Q_OBJECT
@@ -37,6 +39,8 @@ private slots:
     QQmlEngine engine;
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QQmlComponent model(&engine);
     model.setData(R"(
       import QtQml
@@ -132,6 +136,40 @@ private slots:
     QVERIFY(bridge.snapshot().isEmpty());
     QCOMPARE(bridge.connectionStatus(), "unavailable");
   }
+  void portalEdgesPreserveRepeatedPressRelease() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
+    QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
+    QLocalServer server;
+    QVERIFY(server.listen(directory.path() + "/sotto-client/control.sock"));
+    QStringList edges;
+    connect(&server, &QLocalServer::newConnection, &server, [&] {
+      auto *socket = server.nextPendingConnection();
+      connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
+        if (!socket->canReadLine())
+          return;
+        const QString action = QJsonDocument::fromJson(socket->readLine())
+                                   .object()["action"].toString();
+        if (action == "snapshot") {
+          socket->write("{\"ok\":true,\"data\":{\"version\":1}}\n");
+          return;
+        }
+        edges.append(action);
+        auto respond = [socket] { socket->write("{\"ok\":true,\"data\":{}}\n"); };
+        if (edges.size() == 2)
+          QTimer::singleShot(100, socket, respond);
+        else
+          respond();
+      });
+    });
+    Bridge bridge(false);
+    QTRY_VERIFY(bridge.connected());
+    for (const auto &action : {"start", "stop", "start", "stop"})
+      bridge.requestShortcutEdge(action);
+    QTRY_COMPARE_WITH_TIMEOUT(edges.size(), 4, 3000);
+    QCOMPARE(edges, (QStringList{"start", "stop", "start", "stop"}));
+  }
   void offlinePagesShareOneConnectionNotice() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
@@ -140,6 +178,8 @@ private slots:
     Bridge bridge(false);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -158,6 +198,9 @@ private slots:
     }
     auto *key = window->findChild<QQuickItem *>("shortcutKeycap");
     QVERIFY(key && key->isVisible());
+    auto *offlineDot = window->findChild<QQuickItem *>("dictationConnectionDot");
+    QVERIFY(offlineDot);
+    QCOMPARE(offlineDot->property("color").value<QColor>(), QColor("#fb923c"));
     QVERIFY(key->width() > 0 && key->height() > 0);
     QVERIFY(!window->property("sourcesChecked").toBool());
     const QString capture = qEnvironmentVariable("SOTTO_GUI_TEST_CAPTURE");
@@ -172,6 +215,34 @@ private slots:
     QVERIFY(!notice->isVisible());
     QCOMPARE(warnings.count(), 0);
     qunsetenv("SOTTO_CLIENT_CONFIG");
+  }
+  void connectionStatusDotsCoverEachPage() {
+    Bridge bridge(true);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_VERIFY(window->property("serverReady").toBool());
+    auto *sidebar = window->findChild<QQuickItem *>("sidebarConnectionDot");
+    QVERIFY(sidebar);
+    const int pages[] = {0, 1, 3, 4};
+    const char *names[] = {"dictationConnectionDot", "historyConnectionDot",
+                           "preferencesConnectionDot", "computerConnectionDot"};
+    for (int index = 0; index < 4; ++index) {
+      window->setProperty("page", pages[index]);
+      QTRY_VERIFY(window->findChild<QQuickItem *>(names[index]));
+      auto *dot = window->findChild<QQuickItem *>(names[index]);
+      window->setProperty("serverReady", true);
+      QCOMPARE(dot->property("color").value<QColor>(), QColor("#4ade80"));
+      QCOMPARE(sidebar->property("color").value<QColor>(), QColor("#4ade80"));
+      window->setProperty("serverReady", false);
+      QCOMPARE(dot->property("color").value<QColor>(), QColor("#fb923c"));
+      QCOMPARE(sidebar->property("color").value<QColor>(), QColor("#fb923c"));
+    }
   }
   void djiSettingsGuardDestinationAndRetainSaveErrors() {
     QTemporaryDir directory;
@@ -192,6 +263,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     QQmlComponent model(&engine);
     model.setData(R"(
@@ -244,6 +317,8 @@ private slots:
     bridge.setTheme("dark");
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -298,6 +373,8 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     engine.setInitialProperties({{"startHidden", true}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
@@ -344,6 +421,8 @@ private slots:
     bridge.setTheme("dark");
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -402,6 +481,8 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -417,6 +498,7 @@ private slots:
                                     {"held", true},
                                     {"presses", 1},
                                     {"releases", 0},
+                                    {"events", QVariantList{"0.0s  Check started", "0.5s  Press detected"}},
                                     {"remainingSeconds", 20},
                                     {"message", "Press detected"}};
     state["shortcut"] = shortcut;
@@ -428,6 +510,12 @@ private slots:
     auto *result = window->findChild<QQuickItem *>("shortcutCheckResult");
     QVERIFY(result);
     QVERIFY(result->property("text").toString().contains("Presses: 1"));
+    auto *events = window->findChild<QQuickItem *>("shortcutDiagnosticsEvents");
+    auto *toggle = window->findChild<QQuickItem *>("shortcutDiagnosticsToggle");
+    QVERIFY(events && toggle);
+    QVERIFY(QMetaObject::invokeMethod(toggle, "clicked"));
+    QVERIFY(events->isVisible());
+    QVERIFY(events->property("text").toString().contains("Press detected"));
     auto *settings = window->findChild<QQuickItem *>("shortcutSettings");
     QVERIFY(settings);
     const QString capture = qEnvironmentVariable("SOTTO_GUI_SHORTCUT_CAPTURE");
@@ -446,7 +534,7 @@ private slots:
     }
     QCOMPARE(warnings.count(), 0);
   }
-  void microphoneProfilesKeepEditsAndDisableChangesWhileBusy() {
+  void microphoneSettingsSaveImmediatelyAndKeepInputsCurrent() {
     QTemporaryDir directory;
     qputenv("XDG_RUNTIME_DIR", directory.path().toUtf8());
     QVERIFY(QDir().mkpath(directory.path() + "/sotto-client"));
@@ -455,115 +543,153 @@ private slots:
     QFile fixture(":/qt/qml/Sotto/preview.json");
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
+    int saves = 0;
+    bool holdFirstSave = true;
+    bool failNextSave = false;
+    QLocalSocket *heldSocket = nullptr;
+    QJsonObject heldRequest;
+    auto completeSave = [&](QLocalSocket *socket, const QJsonObject &request) {
+      auto snapshot = sample["snapshot"].toObject();
+      auto microphones = snapshot["microphones"].toObject();
+      if (request["revision"] != microphones["revision"]) {
+        socket->write("{\"ok\":false,\"error\":\"Microphone settings changed. Reload the latest settings, then edit again.\"}\n");
+        return;
+      }
+      microphones["value"] = request["value"];
+      microphones["revision"] = QString("saved-%1").arg(++saves);
+      snapshot["microphones"] = microphones;
+      sample["snapshot"] = snapshot;
+      socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", microphones}})
+                        .toJson(QJsonDocument::Compact) + '\n');
+    };
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
       connect(socket, &QLocalSocket::readyRead, socket, [&, socket] {
         if (!socket->canReadLine())
           return;
-        const auto request =
-            QJsonDocument::fromJson(socket->readLine()).object();
+        const auto request = QJsonDocument::fromJson(socket->readLine()).object();
         const auto action = request["action"].toString();
+        if (action == "saveMicrophones") {
+          if (failNextSave) {
+            failNextSave = false;
+            socket->write("{\"ok\":false,\"error\":\"Microphone settings changed. Reload the latest settings, then edit again.\"}\n");
+            return;
+          }
+          if (holdFirstSave) {
+            holdFirstSave = false;
+            heldSocket = socket;
+            heldRequest = request;
+          } else {
+            completeSave(socket, request);
+          }
+          return;
+        }
         const auto data = sample.contains(action) ? sample[action]
                                                   : QJsonValue(QJsonObject());
         socket->write(QJsonDocument(QJsonObject{{"ok", true}, {"data", data}})
-                          .toJson(QJsonDocument::Compact) +
-                      '\n');
+                          .toJson(QJsonDocument::Compact) + '\n');
       });
     });
     Bridge bridge(false);
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     QVERIFY(window);
     window->setProperty("page", 2);
-    QTest::qWait(50);
+    auto *page = window->findChild<QQuickItem *>("microphonePage");
+    auto *mode = window->findChild<QQuickItem *>("microphoneMode");
     auto *picker = window->findChild<QQuickItem *>("microphoneProfilePicker");
     auto *create = window->findChild<QQuickItem *>("newMicrophoneProfile");
-    auto *save = window->findChild<QQuickItem *>("saveMicrophonesButton");
-    auto *remove = window->findChild<QQuickItem *>("deleteMicrophoneProfile");
-    QVERIFY(picker && create && save && remove);
-    QVERIFY(create->isEnabled());
-    QVERIFY(!remove->isEnabled());
-    QVERIFY(!save->isEnabled());
-    auto *page = window->findChild<QQuickItem *>("microphonePage");
-    QVERIFY(page);
-    auto draft = page->property("draft").value<QJSValue>().toVariant().toMap();
-    if (draft.isEmpty())
-      draft = page->property("draft").toMap();
-    auto profiles = draft["profiles"].toList();
-    profiles.append(QVariantMap{
-        {"id", "travel"}, {"name", "Travel"}, {"priority", QVariantList{}}});
-    draft["profiles"] = profiles;
-    page->setProperty("draft", draft);
-    QVERIFY(QMetaObject::invokeMethod(page, "selectProfile",
-                                      Q_ARG(QVariant, "travel")));
-    QVERIFY(page->property("dirty").toBool());
-    QVERIFY(save->isEnabled());
-    QCOMPARE(picker->property("currentIndex").toInt(), 1);
-    window->setProperty("page", 0);
-    window->setProperty("page", 2);
-    QCOMPARE(window->findChild<QQuickItem *>("microphonePage"), page);
-    QCOMPARE(picker->property("currentIndex").toInt(), 1);
-    QVERIFY(page->property("dirty").toBool());
-    // A changed server snapshot cannot replace an unsaved profile choice.
-    auto polledSnapshot = sample["snapshot"].toObject();
-    auto polledMicrophones = polledSnapshot["microphones"].toObject();
-    polledMicrophones["revision"] = "poll-update";
-    polledSnapshot["microphones"] = polledMicrophones;
-    sample["snapshot"] = polledSnapshot;
-    QSignalSpy snapshotChanged(&bridge, &Bridge::snapshotChanged);
-    bridge.request("snapshot");
-    QTRY_VERIFY(snapshotChanged.count() > 0);
-    QCOMPARE(bridge.snapshot()["microphones"].toMap()["revision"].toString(),
-             QString("poll-update"));
-    QCOMPARE(picker->property("currentIndex").toInt(), 1);
-    auto changedValue = polledMicrophones["value"].toObject();
-    changedValue["hostID"] = "other-host";
-    polledMicrophones["value"] = changedValue;
-    polledSnapshot["microphones"] = polledMicrophones;
-    sample["snapshot"] = polledSnapshot;
-    bridge.request("snapshot");
-    QTRY_COMPARE(bridge.snapshot()["microphones"].toMap()["value"].toMap()["hostID"].toString(),
-                 QString("other-host"));
-    QVERIFY(page->property("dirty").toBool());
-    QVERIFY(!save->isEnabled());
-    QVERIFY(!create->isEnabled());
-    QVERIFY(!picker->isEnabled());
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
-    QVERIFY(create->isEnabled());
-    QVERIFY(!page->property("dirty").toBool());
-    auto snapshot = bridge.snapshot();
+    QVERIFY(page && mode && picker && create);
+    QTRY_COMPARE(mode->property("count").toInt(), 4);
+    const QString capture = qEnvironmentVariable("SOTTO_GUI_MICROPHONE_CAPTURE");
+    if (!capture.isEmpty()) {
+      auto *content = page->property("contentItem").value<QQuickItem *>();
+      QVERIFY(content);
+      content->setProperty("contentY",
+                           qMax(0.0, content->property("contentHeight").toReal() -
+                                         content->height()));
+      QTest::qWait(50);
+      QVERIFY(window->grabWindow().save(capture));
+      content->setProperty("contentY", 0);
+    }
+
+    // A second edit during the first write must persist the latest choice.
+    QVERIFY(mode->setProperty("currentIndex", 3));
+    QVERIFY(QMetaObject::invokeMethod(mode, "activated", Q_ARG(int, 3)));
+    QTRY_VERIFY(heldSocket);
+    QVERIFY(page->property("pending").toBool());
+    auto *useList = window->findChild<QQuickItem *>("useMicrophonePriorityList");
+    QVERIFY(useList && useList->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(useList, "clicked"));
+    completeSave(heldSocket, heldRequest);
+    QTRY_COMPARE(saves, 2);
+    QTRY_VERIFY(!page->property("dirty").toBool() &&
+                !page->property("pending").toBool() &&
+                !page->property("awaitingSnapshot").toBool());
+    QCOMPARE(sample["snapshot"].toObject()["microphones"].toObject()["value"]
+                 .toObject()["mode"].toString(), QString("automatic"));
+
+    // Reordering and profile creation also persist on the action itself.
+    const QVariantMap dji{{"hostID", "desktop"}, {"id", "dji"}};
+    const QVariantMap airpods{{"hostID", "desktop"}, {"id", "airpods"}};
+    QVERIFY(QMetaObject::invokeMethod(page, "movePriority",
+                                      Q_ARG(QVariant, dji), Q_ARG(QVariant, airpods)));
+    QTRY_COMPARE(saves, 3);
+    QCOMPARE(sample["snapshot"].toObject()["microphones"].toObject()["value"]
+                 .toObject()["priority"].toArray().first().toObject()["id"].toString(),
+             QString("airpods"));
+    QVERIFY(QMetaObject::invokeMethod(page, "editName", Q_ARG(QVariant, true)));
+    auto *name = window->findChild<QQuickItem *>("microphoneProfileName");
+    QVERIFY(name);
+    name->setProperty("text", "Travel");
+    QVERIFY(QMetaObject::invokeMethod(page, "saveName"));
+    QTRY_COMPARE(saves, 4);
+    QTRY_COMPARE(picker->property("currentIndex").toInt(), 1);
+    QTRY_VERIFY(!page->property("dirty").toBool());
+
+    failNextSave = true;
+    QVERIFY(mode->setProperty("currentIndex", 1));
+    QVERIFY(QMetaObject::invokeMethod(mode, "activated", Q_ARG(int, 1)));
+    QTRY_VERIFY(page->property("conflicted").toBool());
+    QCOMPARE(page->property("draft").value<QJSValue>().toVariant().toMap()["mode"].toString(),
+             QString("systemDefault"));
+    auto *reload = window->findChild<QQuickItem *>("reloadMicrophoneSettings");
+    QVERIFY(reload && reload->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(reload, "clicked"));
+    QTRY_VERIFY(!page->property("dirty").toBool() &&
+                !page->property("conflicted").toBool());
+    QCOMPARE(mode->property("currentIndex").toInt(), 0);
+
+    auto snapshot = sample["snapshot"].toObject();
     snapshot["busy"] = true;
-    window->setProperty("snapshot", snapshot);
-    QVERIFY(!save->isEnabled());
-    QVERIFY(!create->isEnabled());
-    QVERIFY(!picker->isEnabled());
-    snapshot["busy"] = false;
-    window->setProperty("snapshot", snapshot);
-    QVERIFY(QMetaObject::invokeMethod(page, "loadSaved"));
-    QVERIFY(!page->property("dirty").toBool());
-    QCOMPARE(picker->property("currentIndex").toInt(), 0);
-    QVERIFY(
-        QMetaObject::invokeMethod(page, "editName", Q_ARG(QVariant, false)));
-    auto *dialog = window->findChild<QObject *>("microphoneProfileDialog");
-    QVERIFY(dialog);
-    const auto revision = page->property("revision").toString();
-    auto microphones = snapshot["microphones"].toMap();
-    microphones["revision"] = "external-change";
-    snapshot["microphones"] = microphones;
-    sample["snapshot"] = QJsonObject::fromVariantMap(snapshot);
+    sample["snapshot"] = snapshot;
     bridge.request("snapshot");
-    QTRY_COMPARE(
-        bridge.snapshot()["microphones"].toMap()["revision"].toString(),
-        QString("external-change"));
-    QCOMPARE(page->property("revision").toString(), revision);
-    QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
-    QTRY_COMPARE(page->property("revision").toString(),
-                 QString("external-change"));
+    QTRY_VERIFY(!create->isEnabled() && !picker->isEnabled());
+    snapshot["busy"] = false;
+    sample["snapshot"] = snapshot;
+    bridge.request("snapshot");
+    QTRY_VERIFY(create->isEnabled() && picker->isEnabled());
+
+    auto reportedSources = sample["sources"].toObject();
+    auto liveInputs = reportedSources["items"].toArray();
+    liveInputs.append(QJsonObject{
+        {"identity", QJsonObject{{"hostID", "desktop"}, {"id", "webcam"}}},
+        {"name", "Webcam microphone"}, {"transport", "usb"},
+        {"eligible", true}});
+    reportedSources["items"] = liveInputs;
+    sample["sources"] = reportedSources;
+    QTRY_COMPARE_WITH_TIMEOUT(mode->property("count").toInt(), 5, 6000);
+    liveInputs.removeLast();
+    reportedSources["items"] = liveInputs;
+    sample["sources"] = reportedSources;
+    QTRY_COMPARE_WITH_TIMEOUT(mode->property("count").toInt(), 4, 6000);
     QCOMPARE(warnings.count(), 0);
   }
   void historyKeepsSelectionAndScopesConfirmedActions() {
@@ -576,9 +702,12 @@ private slots:
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     auto sample = QJsonDocument::fromJson(fixture.readAll()).object();
     auto items = sample["history"].toObject()["items"].toArray();
+    auto olderItem = items[1].toObject();
+    olderItem["id"] = "preview-older";
     QJsonObject deleted, audio;
     QString requestedSource;
     int reads = 0;
+    int olderReads = 0;
     bool correlate = true;
     connect(&server, &QLocalServer::newConnection, &server, [&] {
       auto *socket = server.nextPendingConnection();
@@ -589,8 +718,10 @@ private slots:
         auto data = sample.value(action);
         if (action == "history") {
           ++reads;
+          const bool older = !request["before"].toString().isEmpty();
+          if (older) ++olderReads;
           requestedSource = request["source"].toString();
-          data = QJsonObject{{"items", items}, {"nextCursor", "older"}, {"queryID",correlate ? request["queryID"] : QJsonValue()}, {"server",sample["snapshot"].toObject()["server"]}};
+          data = QJsonObject{{"items", older ? QJsonArray{olderItem} : items}, {"nextCursor", older ? QJsonValue() : QJsonValue("older")}, {"queryID",correlate ? request["queryID"] : QJsonValue()}, {"server",sample["snapshot"].toObject()["server"]}};
         } else if (action == "deleteHistory") {
           deleted = request;
           items.removeAt(0);
@@ -607,6 +738,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -615,12 +748,21 @@ private slots:
     window->setProperty("page",1);
     auto *page = window->findChild<QQuickItem *>("historyPage");
     QVERIFY(page);
-    QTRY_COMPARE(page->property("selectedID").toString(), "preview");
-    auto *older = page->findChild<QQuickItem *>("olderHistory");
+    QTRY_COMPARE(page->property("records").toList().size(), 3);
+    QTRY_VERIFY(olderReads > 0);
+    QTRY_VERIFY(!page->property("loading").toBool());
+    QCOMPARE(page->property("selectedID").toString(), "");
+    page->setProperty("selectedID", "preview");
     auto *remove = page->findChild<QQuickItem *>("deleteHistory");
+    auto *copy = page->findChild<QQuickItem *>("copyHistory");
+    auto *date = page->findChild<QQuickItem *>("historyDetailDate");
     auto *open = page->findChild<QQuickItem *>("openHistoryAudio");
     auto *transcript = page->findChild<QQuickItem *>("historyTranscript");
-    QVERIFY(older && remove && open && transcript);
+    QVERIFY(remove && copy && date && open && transcript);
+    QVERIFY(!date->property("text").toString().isEmpty());
+    QVERIFY(QMetaObject::invokeMethod(copy, "clicked"));
+    QCOMPARE(copy->property("symbolName").toString(), QString("check"));
+    QCOMPARE(copy->property("accessibleLabel").toString(), QString("Copied transcript"));
     QVERIFY(open->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(open,"clicked"));
     QTRY_VERIFY(!audio.isEmpty());
@@ -628,12 +770,23 @@ private slots:
     QCOMPARE(audio["kind"].toString(),"inference");
     QTRY_VERIFY(page->property("message").toString().contains("no longer available"));
     page->setProperty("selectedID","preview-2");
-    QVERIFY(QMetaObject::invokeMethod(older,"clicked"));
-    QTRY_VERIFY(!page->property("loading").toBool());
+    QCOMPARE(copy->property("symbolName").toString(), QString("copy"));
+    QCOMPARE(copy->property("accessibleLabel").toString(), QString("Copy transcript"));
     QCOMPARE(page->property("selectedID").toString(),"preview-2");
     auto *list = page->findChild<QQuickItem *>("historyList");
     QVERIFY(list);
-    QCOMPARE(list->property("count").toInt(),2);
+    QCOMPARE(list->property("count").toInt(),3);
+    auto *handle = window->findChild<QQuickItem *>("historyResizeHandle");
+    QVERIFY(handle);
+    const auto originalWidth = list->width();
+    const auto start = handle->mapToScene(QPointF(handle->width() / 2,
+                                                  handle->height() / 2)).toPoint();
+    const auto end = start + QPoint(65, 0);
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+    for (int step = 1; step <= 5; ++step)
+      QTest::mouseMove(window, start + (end - start) * step / 5, 20);
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+    QTRY_VERIFY(list->width() > originalWidth + 30);
     page->setProperty("deviceID","desktop");
     QCOMPARE(list->property("count").toInt(),1);
     QCOMPARE(page->property("selectedID").toString(),"preview");
@@ -651,7 +804,7 @@ private slots:
     QCOMPARE(deleted["id"].toString(),"preview");
     QTRY_VERIFY(!page->property("loading").toBool());
     QCOMPARE(page->property("selectedID").toString(),"preview-2");
-    QCOMPARE(list->property("count").toInt(),1);
+    QTRY_COMPARE(list->property("count").toInt(),2);
     QVERIFY(QMetaObject::invokeMethod(page,"filterSource",Q_ARG(QVariant,"wispr-flow")));
     QTRY_COMPARE(requestedSource, "wispr-flow");
     QTRY_VERIFY(!page->property("loading").toBool());
@@ -706,6 +859,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -725,7 +880,7 @@ private slots:
     auto *dictionary = page->findChild<QQuickItem *>("dictionaryEditor");
     auto *readiness = page->findChild<QQuickItem *>("speechModelReadiness");
     QVERIFY(cleanup && vocabulary && reset && save && dictionary && readiness);
-    QTRY_COMPARE(readiness->property("text").toString(), "Ready");
+    QTRY_COMPARE(readiness->property("status").toString(), "Ready");
     QTRY_VERIFY(!page->property("defaultPrompt").toString().isEmpty());
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Keep my wording.");
@@ -763,16 +918,45 @@ private slots:
     // A reset must retain the text binding for later edits and reloads.
     cleanup->forceActiveFocus();
     cleanup->setProperty("text", "Final cleanup.");
-    auto *listName = dictionary->findChild<QQuickItem *>("dictionaryListName");
+    auto findVisual = [&](const QString &name) -> QQuickItem * {
+      QList<QQuickItem *> pending{window->contentItem()};
+      while (!pending.isEmpty()) {
+        auto *item = pending.takeLast();
+        if (item->objectName() == name)
+          return item;
+        for (auto *child : item->childItems())
+          pending.append(child);
+      }
+      return nullptr;
+    };
+    auto *firstToggle = findVisual("dictionaryListToggle_personal");
+    QVERIFY(firstToggle);
+    QVERIFY(QMetaObject::invokeMethod(firstToggle, "clicked"));
+    auto *listName = findVisual("dictionaryListName_personal");
     QVERIFY(listName);
+    QVERIFY(listName->isVisible());
     listName->forceActiveFocus();
     listName->setProperty("text", "Edited personal");
     QVERIFY(QMetaObject::invokeMethod(listName, "textEdited"));
     QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
-    QCOMPARE(listName->property("text").toString(), "New list");
-    dictionary->setProperty("selectedIndex", 0);
+    const auto lists = dictionary->property("lists").value<QJSValue>().toVariant().toList();
+    QCOMPARE(lists.size(), 2);
+    const auto newID = lists.last().toMap()["id"].toString();
+    listName = findVisual("dictionaryListName_personal");
+    auto *newName = findVisual("dictionaryListName_" + newID);
+    QVERIFY(listName && newName);
     QCOMPARE(listName->property("text").toString(), "Edited personal");
-    auto *words = dictionary->findChild<QQuickItem *>("dictionaryWords");
+    QCOMPARE(newName->property("text").toString(), "New list");
+    QVERIFY(listName->isVisible());
+    QVERIFY(newName->isVisible());
+    firstToggle = findVisual("dictionaryListToggle_personal");
+    QVERIFY(firstToggle);
+    QVERIFY(QMetaObject::invokeMethod(firstToggle, "clicked"));
+    QVERIFY(!listName->isVisible());
+    QVERIFY(newName->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(firstToggle, "clicked"));
+    QVERIFY(listName->isVisible());
+    auto *words = findVisual("dictionaryWords_personal");
     QVERIFY(words);
     auto *word = words->property("currentItem").value<QQuickItem *>();
     QVERIFY(word);
@@ -810,6 +994,8 @@ private slots:
     QCOMPARE(page->property("message").toString(), "Check the dictionary replacement phrases.");
     const QString capture = qEnvironmentVariable("SOTTO_GUI_PROCESSING_CAPTURE");
     if (!capture.isEmpty()) {
+      const auto expanded = dictionary->property("expandedIDs");
+      dictionary->setProperty("expandedIDs", QVariantList{});
       for (auto *parent = dictionary->parentItem(); parent; parent = parent->parentItem()) {
         if (parent->property("contentY").isValid()) {
           parent->setProperty("contentY", dictionary->mapToItem(parent, QPointF()).y() + parent->property("contentY").toReal());
@@ -818,6 +1004,7 @@ private slots:
       }
       QTest::qWait(50);
       QVERIFY(window->grabWindow().save(capture));
+      dictionary->setProperty("expandedIDs", expanded);
     }
     auto legacy = newer;
     auto legacyPreferences = legacy["preferences"].toObject();
@@ -826,9 +1013,7 @@ private slots:
     QVERIFY(QMetaObject::invokeMethod(page, "load", Q_ARG(QVariant, legacy.toVariantMap())));
     QCOMPARE(dictionary->property("wordCount").toInt(), 0);
     QVERIFY(QMetaObject::invokeMethod(dictionary, "addList"));
-    auto *listPicker = dictionary->findChild<QQuickItem *>("dictionaryListPicker");
-    QVERIFY(listPicker);
-    QCOMPARE(listPicker->property("count").toInt(), 1);
+    QCOMPARE(dictionary->property("lists").value<QJSValue>().toVariant().toList().size(), 1);
     QVERIFY(page->property("dirty").toBool());
     QCOMPARE(warnings.count(), 0);
   }
@@ -865,6 +1050,8 @@ private slots:
     QTRY_VERIFY(bridge.connected());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -903,6 +1090,11 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false},
+                                         {"supported", false},
+                                         {"trigger", ""},
+                                         {"message", ""}});
     QSignalSpy warnings(&engine, &QQmlEngine::warnings);
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
@@ -930,6 +1122,8 @@ private slots:
     Bridge bridge(true);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
     engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());

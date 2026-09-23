@@ -25,6 +25,7 @@ export function createGUIHandler(
   file = configPath(),
 ) {
   let config = initial;
+  let shortcutQueue: Promise<unknown> = Promise.resolve();
   const history = new HistoryTools(api);
   const saveConfig = (next: Config) => {
     // Synchronous compare-and-replace keeps new takes and settings writes ordered.
@@ -43,7 +44,7 @@ export function createGUIHandler(
     config = next;
     onConfigSaved?.(next);
   };
-  return async (request: unknown): Promise<unknown> => {
+  const handle = async (request: unknown): Promise<unknown> => {
     if (!object(request) || request.version !== 1 || typeof request.action !== "string")
       throw new ClientNotice("Unsupported GUI request.");
     if (request.action === "snapshot")
@@ -68,11 +69,19 @@ export function createGUIHandler(
               selectedHere: buttons.selectedHere,
             }
           : null,
-        desktop: "hyprland",
+        desktop: desktop.kind ?? "hyprland",
         configPath: file,
       };
+    if (request.action === "stop") {
+      controller.stop();
+      return {};
+    }
     if (!(await desktop.unlocked())) throw new ClientNotice("Unlock this computer first.");
     switch (request.action) {
+      case "start":
+        if (!controller.start())
+          throw new ClientNotice("Finish dictation or the shortcut check first.");
+        return {};
       case "shortcuts":
         if (!shortcuts)
           throw new ClientNotice("Update the background client for shortcut settings.");
@@ -91,9 +100,6 @@ export function createGUIHandler(
       case "test":
         if (!controller.start(undefined, true))
           throw new ClientNotice("Finish dictation or the shortcut check before testing.");
-        return {};
-      case "stop":
-        controller.stop();
         return {};
       case "cancel":
         await controller.cancel();
@@ -155,6 +161,7 @@ export function createGUIHandler(
       case "history":
         return history.list(request.before, request.source, request.queryID);
       case "historyAudio":
+      case "historyArtifact":
       case "deleteHistory":
         return history.action(request.action, request);
       case "processingDefaults":
@@ -172,7 +179,7 @@ export function createGUIHandler(
           throw new ClientNotice("Finish dictation before changing microphone lists.");
         if (request.revision !== microphoneSnapshot(config.sources).revision)
           throw new ClientNotice(
-            "Microphone settings changed. Use Discard changes to reload them, then edit again.",
+            "Microphone settings changed. Reload the latest settings, then edit again.",
           );
         if (
           !object(request.value) ||
@@ -200,5 +207,13 @@ export function createGUIHandler(
       default:
         throw new ClientNotice("Unknown GUI action.");
     }
+  };
+  return (request: unknown): Promise<unknown> => {
+    if (object(request) && (request.action === "start" || request.action === "stop")) {
+      const next = shortcutQueue.then(() => handle(request));
+      shortcutQueue = next.catch(() => {});
+      return next;
+    }
+    return handle(request);
   };
 }
