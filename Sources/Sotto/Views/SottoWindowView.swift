@@ -156,9 +156,9 @@ struct DictationPage: View {
                 }
                 .frame(height: 32)
 
-                if !controller.allPermissionsGranted {
+                if !controller.allPermissionsGranted || (controller.mayUseLocalMicrophone && !controller.permissions.microphone) {
                     VStack(spacing: 10) {
-                        if !controller.usesRemoteInput {
+                        if controller.mayUseLocalMicrophone {
                             PermissionRow(title: "Microphone", detail: "Use a Mac microphone, including fallback.",
                                           granted: controller.permissions.microphone, action: controller.requestMicrophone)
                         }

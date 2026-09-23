@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -579,4 +579,31 @@ test("disarming while button capture prepares stops it before readiness", async 
   release();
   expect((await pending).statusCode).not.toBe(201);
   expect(f.provider.options?.signal.aborted).toBe(true);
+});
+
+test("capture deadline and lease no longer cancel a take while its stop drains", async () => {
+  const f = await fixture();
+  const id = (await f.start()).json().id;
+  let releaseStop: (() => void) | undefined;
+  f.provider.stopGate = new Promise<void>((resolve) => {
+    releaseStop = resolve;
+  });
+  const stopping = f.app.inject({
+    method: "POST",
+    url: `/v1/generations/${id}/capture/stop`,
+    headers: f.headers,
+    payload: {},
+  });
+  await until(() => f.provider.stopCalls === 1);
+  const now = Date.now();
+  const clock = spyOn(Date, "now").mockReturnValue(now + 181_000);
+  try {
+    await Bun.sleep(350);
+    expect(f.provider.options!.signal.aborted).toBe(false);
+  } finally {
+    clock.mockRestore();
+    releaseStop?.();
+  }
+  expect((await stopping).statusCode).toBe(202);
+  expect((await f.service.get(id)).capture?.state).toBe("sealed");
 });

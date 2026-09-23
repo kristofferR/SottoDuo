@@ -68,7 +68,7 @@ export class HistoryTools {
     if (this.busy) throw new ClientNotice("Wait for the current history action to finish.");
     this.busy = true;
     try {
-      const record = await this.api.get(id);
+      const record = await this.api.get(id, 60_000);
       if (action === "deleteHistory") {
         if (!terminal.has(record.status))
           throw new ClientNotice("Finish or cancel this recording before deleting it.");

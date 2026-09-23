@@ -152,8 +152,11 @@ export class API {
   async cancel(id: string, owner: string) {
     await this.request(`/v1/generations/${id}/cancel`, "POST", {}, owner);
   }
-  async get(id: string) {
-    return validateBody("GenerationRecord", await this.request(`/v1/generations/${id}`));
+  async get(id: string, timeout = 3000) {
+    return validateBody(
+      "GenerationRecord",
+      await this.request(`/v1/generations/${id}`, "GET", undefined, undefined, timeout),
+    );
   }
   async events(id: string, signal: AbortSignal, update: (record: Generation) => void) {
     const response = await fetch(`${this.endpoint}/v1/generations/${id}/events`, {

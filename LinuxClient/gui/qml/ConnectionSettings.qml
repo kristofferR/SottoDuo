@@ -12,6 +12,7 @@ Group {
     property bool pending: false
     property bool tested: false
     property bool dirty: false
+    property string activeRequestID: ""
     function loadConnection() {
         server.text = ui.snapshot.server || "";
         deviceName.text = ui.snapshot.device ? ui.snapshot.device.name : "This computer";
@@ -22,6 +23,7 @@ Group {
         ticket = "";
         tested = false;
         message = "";
+        activeRequestID = "";
     }
     function clearSecret() {
         accessToken.clear();
@@ -32,14 +34,18 @@ Group {
             if (!root.ui.visible) {
                 root.clearSecret();
                 root.edited();
+                root.pending = false;
             }
         }
     }
     Connections {
         target: bridge
-        function onReply(action, data) {
-            if (action === "testConnection" && root.pending) {
+        function onReply(action, data, requestID) {
+            if (requestID !== root.activeRequestID || !root.pending)
+                return;
+            if (action === "testConnection") {
                 root.pending = false;
+                root.activeRequestID = "";
                 if (!root.ui.visible)
                     return;
                 root.ticket = data.ticket;
@@ -50,6 +56,7 @@ Group {
                 root.message = data.message;
             } else if (action === "saveConnection") {
                 root.pending = false;
+                root.activeRequestID = "";
                 root.ticket = "";
                 root.tested = false;
                 root.dirty = false;
@@ -59,9 +66,10 @@ Group {
                 root.ui.refresh();
             }
         }
-        function onFailed(action, message) {
-            if (["testConnection", "saveConnection"].includes(action)) {
+        function onFailed(action, message, requestID) {
+            if (requestID === root.activeRequestID && root.pending && ["testConnection", "saveConnection"].includes(action)) {
                 root.pending = false;
+                root.activeRequestID = "";
                 root.ticket = "";
                 root.message = message;
                 root.clearSecret();
@@ -192,11 +200,12 @@ Group {
                 onClicked: {
                     root.pending = true;
                     root.edited();
+                    root.activeRequestID = String(Date.now()) + ":" + String(Math.random());
                     bridge.request("testConnection", {
                         server: server.text,
                         name: deviceName.text,
                         accessToken: accessToken.text
-                    });
+                    }, root.activeRequestID);
                     root.clearSecret();
                 }
             }
@@ -208,10 +217,11 @@ Group {
                 onClicked: {
                     root.pending = true;
                     root.message = "";
+                    root.activeRequestID = String(Date.now()) + ":" + String(Math.random());
                     bridge.request("saveConnection", {
                         ticket: root.ticket,
                         hostID: root.hosts.length ? hostPicker.currentText : hostID.text.trim()
-                    });
+                    }, root.activeRequestID);
                 }
             }
         }

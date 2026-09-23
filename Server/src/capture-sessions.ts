@@ -173,9 +173,12 @@ export class CaptureSessions {
         session.detachButton = () => button?.signal.removeEventListener("abort", aborted);
       }
       session.timer = setInterval(() => {
-        if (Date.now() >= session.leaseUntil)
+        if (session.state !== "stopping" && Date.now() >= session.leaseUntil)
           void this.fail(session, "The destination stopped renewing its recording lease.");
-        else if (Date.now() - session.startedAt >= captureLimits.maximumMS)
+        else if (
+          session.state !== "stopping" &&
+          Date.now() - session.startedAt >= captureLimits.maximumMS
+        )
           void this.fail(session, "The recording reached its time limit.");
         else if (!this.safeEligible(session.source)) {
           if (session.state === "preparing")
@@ -264,7 +267,7 @@ export class CaptureSessions {
     if (
       this.active !== session ||
       session.controller.signal.aborted ||
-      Date.now() >= session.leaseUntil
+      (session.state !== "stopping" && Date.now() >= session.leaseUntil)
     )
       throw closed();
   }

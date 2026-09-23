@@ -164,39 +164,41 @@ void Bridge::updateColors() {
     emit themeChanged();
   }
 }
-void Bridge::request(const QString &action, const QVariantMap &arguments) {
+void Bridge::request(const QString &action, const QVariantMap &arguments,
+                     const QString &requestID) {
   if (m_preview) {
-    QTimer::singleShot(0, this, [this, action] {
+    QTimer::singleShot(0, this, [this, action, requestID] {
       if (m_fixture.contains(action))
-        emit reply(action, m_fixture.value(action));
+        emit reply(action, m_fixture.value(action), requestID);
       else
         emit failed(action,
-                    "Preview mode uses sample data. No changes were made.");
+                    "Preview mode uses sample data. No changes were made.", requestID);
     });
     return;
   }
-  if (m_pending.contains(action))
+  const QString pendingKey = requestID.isEmpty() ? action : action + ':' + requestID;
+  if (m_pending.contains(pendingKey))
     return;
-  m_pending.insert(action);
+  m_pending.insert(pendingKey);
   auto *socket = new QLocalSocket(this);
   auto *timer = new QTimer(socket);
   timer->setSingleShot(true);
   auto bytes = std::make_shared<QByteArray>();
   auto finished = std::make_shared<bool>(false);
-  auto finish = [this, socket, timer, action, bytes, finished](bool valid) {
+  auto finish = [this, socket, timer, action, requestID, pendingKey, bytes, finished](bool valid) {
     if (*finished)
       return;
     *finished = true;
     timer->stop();
-    m_pending.remove(action);
+    m_pending.remove(pendingKey);
     if (valid)
-      receive(action, *bytes);
+      receive(action, *bytes, requestID);
     else {
       disconnected();
       if (action != "snapshot")
         emit failed(
             action,
-            "Dictation is unavailable. Try reconnecting in This computer.");
+            "Dictation is unavailable. Try reconnecting in This computer.", requestID);
     }
     socket->abort();
     socket->deleteLater();
@@ -236,7 +238,8 @@ void Bridge::request(const QString &action, const QVariantMap &arguments) {
   }
   socket->connectToServer(runtime + "/sotto-client/control.sock");
 }
-void Bridge::receive(const QString &action, const QByteArray &bytes) {
+void Bridge::receive(const QString &action, const QByteArray &bytes,
+                     const QString &requestID) {
   QJsonParseError error;
   const auto document = QJsonDocument::fromJson(bytes, &error);
   const auto object = document.object();
@@ -245,7 +248,7 @@ void Bridge::receive(const QString &action, const QByteArray &bytes) {
       disconnected();
     } else
       emit failed(action,
-                  object.value("error").toString("Invalid client response."));
+                  object.value("error").toString("Invalid client response."), requestID);
     return;
   }
   if (action == "snapshot") {
@@ -266,7 +269,7 @@ void Bridge::receive(const QString &action, const QByteArray &bytes) {
       emit snapshotChanged();
     }
   } else
-    emit reply(action, object.value("data").toVariant());
+    emit reply(action, object.value("data").toVariant(), requestID);
 }
 void Bridge::copy(const QString &text) {
   if (!text.isEmpty())
