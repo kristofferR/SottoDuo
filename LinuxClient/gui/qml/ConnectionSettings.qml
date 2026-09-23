@@ -112,9 +112,19 @@ Group {
                 color: root.ui.c.muted
             }
         }
-        Setting {
-            ui: root.ui
-            title: root.ui.connection
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.margins: 14
+            spacing: 9
+            StatusDot {
+                objectName: "computerConnectionDot"
+                ready: root.ui.serverReady
+            }
+            SLabel {
+                ui: root.ui
+                text: root.ui.connection
+                Layout.fillWidth: true
+            }
             SLabel {
                 ui: root.ui
                 objectName: "connectionStatusAddress"
@@ -129,6 +139,14 @@ Group {
                 text: "Edit connection"
                 onClicked: root.editing = true
             }
+        }
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            Layout.preferredHeight: 1
+            color: root.ui.c.line
+            opacity: 0.65
         }
     }
     ColumnLayout {

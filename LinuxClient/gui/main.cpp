@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QIcon>
 #include <QMenu>
+#include <QPainter>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -88,6 +89,21 @@ int main(int argc, char **argv) {
     return 1;
   QSystemTrayIcon tray(QIcon(":/qt/qml/Sotto/mark.svg"));
   QMenu menu;
+  auto *connectionStatus = menu.addAction("Checking server");
+  menu.addSeparator();
+  QObject::connect(&menu, &QMenu::aboutToShow, &app,
+                   [window, connectionStatus] {
+                     const bool ready = window->property("serverReady").toBool();
+                     QPixmap dot(12, 12);
+                     dot.fill(Qt::transparent);
+                     QPainter painter(&dot);
+                     painter.setRenderHint(QPainter::Antialiasing);
+                     painter.setPen(Qt::NoPen);
+                     painter.setBrush(QColor(ready ? "#4ade80" : "#fb923c"));
+                     painter.drawEllipse(QRectF(3, 3, 6, 6));
+                     connectionStatus->setIcon(QIcon(dot));
+                     connectionStatus->setText(window->property("connection").toString());
+                   });
   auto show = [window] {
     window->show();
     window->raise();

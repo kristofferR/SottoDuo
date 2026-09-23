@@ -2,6 +2,7 @@
 #include "../HudSurface.h"
 #include <LayerShellQt/Shell>
 #include <QApplication>
+#include <QColor>
 #include <QDir>
 #include <QFile>
 #include <QJSValue>
@@ -162,6 +163,9 @@ private slots:
     }
     auto *key = window->findChild<QQuickItem *>("shortcutKeycap");
     QVERIFY(key && key->isVisible());
+    auto *offlineDot = window->findChild<QQuickItem *>("dictationConnectionDot");
+    QVERIFY(offlineDot);
+    QCOMPARE(offlineDot->property("color").value<QColor>(), QColor("#fb923c"));
     QVERIFY(key->width() > 0 && key->height() > 0);
     QVERIFY(!window->property("sourcesChecked").toBool());
     const QString capture = qEnvironmentVariable("SOTTO_GUI_TEST_CAPTURE");
@@ -176,6 +180,34 @@ private slots:
     QVERIFY(!notice->isVisible());
     QCOMPARE(warnings.count(), 0);
     qunsetenv("SOTTO_CLIENT_CONFIG");
+  }
+  void connectionStatusDotsCoverEachPage() {
+    Bridge bridge(true);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("bridge", &bridge);
+    engine.rootContext()->setContextProperty(
+        "portalShortcuts", QVariantMap{{"plasma", false}, {"supported", false}, {"trigger", ""}, {"message", ""}});
+    engine.load(QUrl::fromLocalFile(QString(SOTTO_QML_DIR) + "/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_VERIFY(window->property("serverReady").toBool());
+    auto *sidebar = window->findChild<QQuickItem *>("sidebarConnectionDot");
+    QVERIFY(sidebar);
+    const int pages[] = {0, 1, 3, 4};
+    const char *names[] = {"dictationConnectionDot", "historyConnectionDot",
+                           "preferencesConnectionDot", "computerConnectionDot"};
+    for (int index = 0; index < 4; ++index) {
+      window->setProperty("page", pages[index]);
+      QTRY_VERIFY(window->findChild<QQuickItem *>(names[index]));
+      auto *dot = window->findChild<QQuickItem *>(names[index]);
+      window->setProperty("serverReady", true);
+      QCOMPARE(dot->property("color").value<QColor>(), QColor("#4ade80"));
+      QCOMPARE(sidebar->property("color").value<QColor>(), QColor("#4ade80"));
+      window->setProperty("serverReady", false);
+      QCOMPARE(dot->property("color").value<QColor>(), QColor("#fb923c"));
+      QCOMPARE(sidebar->property("color").value<QColor>(), QColor("#fb923c"));
+    }
   }
   void djiSettingsGuardDestinationAndRetainSaveErrors() {
     QTemporaryDir directory;

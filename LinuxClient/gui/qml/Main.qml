@@ -282,11 +282,9 @@ ApplicationWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 9
-                    Rectangle {
-                        width: 8
-                        height: 8
-                        radius: 4
-                        color: bridge.preview || app.serverReady ? "#4ade80" : app.c.muted
+                    StatusDot {
+                        objectName: "sidebarConnectionDot"
+                        ready: app.serverReady
                     }
                     SLabel {
                         ui: app

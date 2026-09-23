@@ -159,11 +159,9 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         spacing: 9
-        Rectangle {
-            Layout.preferredWidth: 8
-            Layout.preferredHeight: 8
-            radius: 4
-            color: root.ui.serverReady || bridge.preview ? "#4ade80" : root.ui.c.muted
+        StatusDot {
+            objectName: "preferencesConnectionDot"
+            ready: root.ui.serverReady
         }
         SLabel {
             ui: root.ui
@@ -254,14 +252,12 @@ ColumnLayout {
                                 Layout.alignment: Qt.AlignRight
                             }
                         }
-                        Rectangle {
+                        StatusDot {
                             objectName: "speechModelReadiness"
                             property string status: root.health && root.health.speech ? root.health.speech.ready ? "Ready" : "Not ready" : "Unavailable"
+                            ready: !!(root.health && root.health.speech && root.health.speech.ready)
+                            Accessible.ignored: false
                             Accessible.name: "Voice " + status
-                            Layout.preferredWidth: 8
-                            Layout.preferredHeight: 8
-                            radius: 4
-                            color: root.health && root.health.speech && root.health.speech.ready ? "#4ade80" : "#fbbf24"
                         }
                     }
 
@@ -288,13 +284,11 @@ ColumnLayout {
                                 Layout.alignment: Qt.AlignRight
                             }
                         }
-                        Rectangle {
+                        StatusDot {
                             property string status: root.health && root.health.proofreading ? root.health.proofreading.ready ? "Ready" : "Not ready" : "Unavailable"
+                            ready: !!(root.health && root.health.proofreading && root.health.proofreading.ready)
+                            Accessible.ignored: false
                             Accessible.name: "Proofreading " + status
-                            Layout.preferredWidth: 8
-                            Layout.preferredHeight: 8
-                            radius: 4
-                            color: root.health && root.health.proofreading && root.health.proofreading.ready ? "#4ade80" : "#fbbf24"
                         }
                     }
 

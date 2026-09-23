@@ -286,11 +286,9 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         spacing: 9
-        Rectangle {
-            Layout.preferredWidth: 8
-            Layout.preferredHeight: 8
-            radius: 4
-            color: root.ui.serverReady || bridge.preview ? "#4ade80" : root.ui.c.muted
+        StatusDot {
+            objectName: "historyConnectionDot"
+            ready: root.ui.serverReady
         }
         SLabel {
             ui: root.ui

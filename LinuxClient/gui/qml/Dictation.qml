@@ -107,10 +107,14 @@ ColumnLayout {
     }
     RowLayout {
         Layout.fillWidth: true
+        spacing: 9
+        StatusDot {
+            objectName: "dictationConnectionDot"
+            ready: root.ui.serverReady
+        }
         SLabel {
             ui: root.ui
             text: root.ui.connection
-            color: root.ui.c.muted
             Layout.fillWidth: true
         }
         SLabel {
