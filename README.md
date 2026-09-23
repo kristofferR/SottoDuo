@@ -4,6 +4,8 @@ Hold a key, speak, and release to insert your dictation. SottoDuo is a native Sw
 
 The dev runner builds **SottoDuo Dev**, with separate settings and visible Dev labels. For the regular app, run `./scripts/build-app.sh` and install `build/SottoDuo.app` in Applications. Both connect to an independently running server.
 
+Upgrading the regular Mac app from Sotto installs a new app identity. In **System Settings → Privacy & Security**, grant SottoDuo Microphone and Accessibility access again, plus Input Monitoring if you use the DJI mic button. Under **General → Login Items**, remove the old app's login entry and enable **Start SottoDuo at login** in SottoDuo if you want it to start automatically. The old permissions and login entry do not transfer to the new bundle ID.
+
 ## Get started on one Mac
 
 You need Apple Silicon, macOS 14+, full Xcode 26+ with the Metal compiler, Bun 1.4.2, CMake, and Git. Xcode provides Swift; the client/MLX build requires Swift 6.2+. Python 3 is only needed for the test scripts. Bun manages JavaScript dependencies and builds standalone server executables.

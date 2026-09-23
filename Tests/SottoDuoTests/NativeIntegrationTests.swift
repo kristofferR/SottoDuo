@@ -424,7 +424,7 @@ final class NativeIntegrationTests: XCTestCase {
         let root = files.temporaryDirectory.appendingPathComponent("SottoDuo-cleanup-test-\(UUID())", isDirectory: true)
         try files.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? files.removeItem(at: root) }
-        let captures = ["SottoDuo-Dev-recording-\(UUID())"]
+        let captures = ["SottoDuo-Dev-recording-\(UUID())", "Sotto-Dev-recording-\(UUID())"]
         let unrelated = ["SottoDuo-recording-\(UUID())", "Murmur-recording-\(UUID())", "SottoDuo-recording-notes", "Murmur-recording-notes", "transcripts"]
         for name in captures + unrelated {
             let directory = root.appendingPathComponent(name, isDirectory: true)

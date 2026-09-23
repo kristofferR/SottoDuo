@@ -141,13 +141,13 @@ Mount a directory containing the Whisper `.bin` and Qwen `.gguf` files, plus a t
 ```sh
 docker run --rm --name sottoduo-server \
   -p 127.0.0.1:8391:8391 \
-  --mount type=volume,source=sottoduo-data,target=/data \
+  --mount type=volume,source=sotto-data,target=/data \
   --mount type=bind,source=/absolute/path/to/models,target=/models,readonly \
   --mount type=bind,source=/absolute/path/to/token,target=/run/secrets/sottoduo-token,readonly \
   sottoduo-server:cpu
 ```
 
-For a GPU server, use `sottoduo-server:cuda` and add `--gpus all`. The example exposes only host loopback; use the remote-access setup above for clients on other machines. The container runs as UID 10001, which must be able to read model/token files and write `/data`. The named volume preserves history across container replacement.
+For a GPU server, use `sottoduo-server:cuda` and add `--gpus all`. The example exposes only host loopback; use the remote-access setup above for clients on other machines. The container runs as UID 10001, which must be able to read model/token files and write `/data`. The existing `sotto-data` volume preserves history across container replacement, including upgrades from Sotto.
 
 ## Verify
 

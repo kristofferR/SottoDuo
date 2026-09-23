@@ -37,7 +37,7 @@ struct CapturedAudio: Sendable {
         guard let entries = try? files.contentsOfDirectory(at: temporaryDirectory, includingPropertiesForKeys: nil) else { return }
         for entry in entries {
             let name = entry.lastPathComponent
-            let isCapture = ["SottoDuo-Dev-recording-"].contains { prefix in
+            let isCapture = ["SottoDuo-Dev-recording-", "Sotto-Dev-recording-"].contains { prefix in
                 name.hasPrefix(prefix) && UUID(uuidString: String(name.dropFirst(prefix.count))) != nil
             }
             if isCapture { try? files.removeItem(at: entry) }

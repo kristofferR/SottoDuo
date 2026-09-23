@@ -12,6 +12,7 @@
 namespace {
 const QByteArray marker = "# Managed by SottoDuo\n";
 const QByteArray serviceMarker = "# Managed by SottoDuo Linux GUI\n";
+const QByteArray legacyServiceMarker = "# Managed by Sotto Linux GUI\n";
 
 struct ServiceUnit {
   bool available = false;
@@ -50,10 +51,11 @@ void runSystemctl(QObject *owner, const QStringList &arguments,
   process->start("systemctl", arguments);
 }
 
-void serviceUnit(QObject *owner, std::function<void(ServiceUnit)> done) {
+void serviceUnit(QObject *owner, const QString &name,
+                 std::function<void(ServiceUnit)> done) {
   runSystemctl(owner,
                {"--user", "show", "--property=LoadState",
-                "--property=FragmentPath", "sottoduo-client.service"},
+                "--property=FragmentPath", name},
                [done](ProcessResult result) {
                  if (!result.available || result.exitCode != 0) {
                    done({});
@@ -134,12 +136,18 @@ void DesktopIntegration::refreshClientService() {
                    m_clientService = "Running";
                    emit changed();
                  } else {
-                   serviceUnit(this, [this, refresh](ServiceUnit unit) {
+                   serviceUnit(this, "sottoduo-client.service",
+                               [this, refresh](ServiceUnit unit) {
                      if (refresh != m_serviceRefresh || m_clientServiceBusy)
                        return;
+                     QFile legacy(QStandardPaths::writableLocation(
+                                      QStandardPaths::GenericConfigLocation) +
+                                  "/systemd/user/sotto-client.service");
+                     const bool upgrade = legacy.open(QIODevice::ReadOnly) &&
+                                          legacy.readAll().startsWith(legacyServiceMarker);
                      m_clientService =
                          !unit.available ? "Systemd user service unavailable"
-                         : unit.loadState == "not-found" ? "Not installed"
+                         : unit.loadState == "not-found" ? (upgrade ? "Upgrade available" : "Not installed")
                                                          : "Stopped";
                      emit changed();
                    });
@@ -169,7 +177,8 @@ void DesktopIntegration::configureClientService(bool restartRunning) {
     emit changed();
     refreshClientService();
   };
-  serviceUnit(this, [this, fail, restartRunning](ServiceUnit loaded) {
+  serviceUnit(this, "sottoduo-client.service",
+              [this, fail, restartRunning](ServiceUnit loaded) {
     const QString path = servicePath();
     QFileInfo unit(path);
     if (!loaded.available) {
@@ -259,18 +268,60 @@ void DesktopIntegration::configureClientService(bool restartRunning) {
           },
           10000);
     };
+    auto migrateLegacy = [this, enable, fail] {
+      serviceUnit(this, "sotto-client.service",
+                  [this, enable, fail](ServiceUnit legacy) {
+        if (!legacy.available) {
+          fail("Couldn’t inspect the previous background service.");
+          return;
+        }
+        if (legacy.loadState == "not-found") {
+          enable();
+          return;
+        }
+        const QString path = QStandardPaths::writableLocation(
+                                 QStandardPaths::GenericConfigLocation) +
+                             "/systemd/user/sotto-client.service";
+        const QFileInfo file(path);
+        QFile contents(path);
+        if (file.isSymLink() || !file.isFile() ||
+            QFileInfo(legacy.fragment).absoluteFilePath() != file.absoluteFilePath() ||
+            !contents.open(QIODevice::ReadOnly) ||
+            !contents.readAll().startsWith(legacyServiceMarker)) {
+          fail("The previous background service is managed outside SottoDuo. "
+               "Update it through your desktop setup.");
+          return;
+        }
+        contents.close();
+        runSystemctl(this, {"--user", "disable", "--now", "sotto-client.service"},
+                     [this, path, enable, fail](ProcessResult result) {
+                       if (!result.available || result.exitCode != 0 ||
+                           !QFile::remove(path)) {
+                         fail("Couldn’t migrate the previous background service.");
+                         return;
+                       }
+                       runSystemctl(this, {"--user", "daemon-reload"},
+                                    [enable, fail](ProcessResult reload) {
+                                      if (reload.available && reload.exitCode == 0)
+                                        enable();
+                                      else
+                                        fail("Couldn’t reload background services.");
+                                    }, 10000);
+                     }, 10000);
+      });
+    };
     if (created)
       runSystemctl(
           this, {"--user", "daemon-reload"},
-          [enable, complete](ProcessResult result) {
+          [migrateLegacy, complete](ProcessResult result) {
             if (result.available && result.exitCode == 0)
-              enable();
+              migrateLegacy();
             else
               complete(result);
           },
           10000);
     else
-      enable();
+      migrateLegacy();
   });
 }
 
