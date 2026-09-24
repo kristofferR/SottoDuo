@@ -65,7 +65,7 @@ Linux visual consistency and Linux desktop integration are separate tasks. Keep 
 
 ## First implementation and remaining work
 
-All five pages are implemented in `LinuxClient/gui`, including real shared history/preferences, local source priorities, pairing-button destination selection, transcript recovery and a passive capsule. A dedicated microphone-test path cannot insert text or select a destination. See [the GUI README](../../LinuxClient/gui/README.md) for build/run commands, automated checks and exact scope.
+All five pages are implemented in `Clients/Linux/gui`, including real shared history/preferences, local source priorities, pairing-button destination selection, transcript recovery and a passive capsule. A dedicated microphone-test path cannot insert text or select a destination. See [the GUI README](../../Clients/Linux/gui/README.md) for build/run commands, automated checks and exact scope.
 
 Login startup and background GUI lifecycle are implemented: a standard XDG autostart entry launches settings hidden; a session-bus singleton reopens the existing window; closing settings retains feedback even without a tray. Explicit Quit leaves the separate dictation service running. Preview mode never writes startup settings.
 

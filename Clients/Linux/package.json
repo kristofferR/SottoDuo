@@ -1,0 +1,18 @@
+{
+  "name": "@sottoduo/linux-client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/main.ts",
+    "build": "bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/main.ts --outfile ../../build/linux-client/sottoduo",
+    "fmt": "prettier --write \"{src,tests}/**/*.ts\" package.json tsconfig.json",
+    "fmt:check": "prettier --check \"{src,tests}/**/*.ts\" package.json tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3"
+  }
+}

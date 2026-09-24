@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="LinuxClient/gui/mark.svg" width="128" height="128" alt="SottoDuo app icon">
+  <img src="Clients/Linux/gui/mark.svg" width="128" height="128" alt="SottoDuo app icon">
 </p>
 
 <h1 align="center">SottoDuo</h1>
@@ -136,7 +136,7 @@ to Applications. It still needs the independently running server.
 
 ### On Linux
 
-Start with the [Linux desktop guide](LinuxClient/gui/README.md) for dependencies
+Start with the [Linux desktop guide](Clients/Linux/gui/README.md) for dependencies
 and installation, and enable [PipeWire capture](docs/pipewire-capture.md) on the
 server. From a cloned repository with those dependencies installed:
 
@@ -206,12 +206,32 @@ an open client, quit and reopen it to load the new executable.
 
 For HTTP/audio smoke tests, native helper checks, and Linux GUI tests, see the
 [server](Server/README.md#verify) and
-[Linux desktop](LinuxClient/gui/README.md#automated-checks) guides.
+[Linux desktop](Clients/Linux/gui/README.md#automated-checks) guides.
+
+## Repository layout
+
+```text
+Clients/
+  macOS/       Swift app, core library, tests, and app resources
+  Linux/       Bun client, Qt Quick GUI, tests, and desktop integration
+Shared/        Swift API bindings, domain libraries, and their tests
+Server/        Production TypeScript server, API contract, and native capture
+  Swift/       Reference Swift server and parity tests
+Engine/        Whisper inference helper
+TextEngine/    Qwen inference helpers
+Resources/     Shared third-party license files
+scripts/       Build, development, and validation entry points
+docs/          Architecture and setup guides
+```
+
+Run build and test commands from the repository root. `Package.swift` connects
+the Swift targets across these directories; `package.json` defines the Bun
+workspaces. Build outputs stay in `build/` and `.build/`.
 
 ## Documentation
 
 - [Server setup, models, containers, and remote access](Server/README.md)
-- [Linux desktop setup and features](LinuxClient/gui/README.md)
+- [Linux desktop setup and features](Clients/Linux/gui/README.md)
 - [Soniox streaming and local fallback](docs/soniox-streaming.md)
 - [PipeWire microphone capture](docs/pipewire-capture.md)
 - [DJI button routing](docs/dji-button-routing.md)

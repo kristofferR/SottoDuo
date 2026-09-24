@@ -23,7 +23,7 @@ TypeScript transport types live in `Server/src/generated/api.ts` and are generat
 with the repository's Prettier configuration so formatting does not change the
 generation drift check. The public aliases
 in `Server/src/api.ts` make defaults required after archive/request normalization.
-Swift transport types live in `Sources/SottoDuoAPIWire`; `SottoDuoAPI.APIWireModel` bridges
+Swift transport types live in `Shared/Sources/SottoDuoAPIWire`; `SottoDuoAPI.APIWireModel` bridges
 them to the existing public Swift models while retaining dictionary validation,
 default preferences, and conveniences used by the app. The client retains its
 existing URLSession transport and bounded NDJSON parser.

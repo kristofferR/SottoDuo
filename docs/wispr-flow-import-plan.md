@@ -12,7 +12,7 @@ Wispr Flow documents that dictation history is local to each device and is not e
 
 ## Phase 1 — source snapshot and preview
 
-1. Add a macOS source reader near `Sources/SottoDuo/` that discovers `~/Library/Application Support/Wispr Flow/flow.sqlite` and inspects `History` and `Dictionary` by column name. Do not assume every installed Wispr Flow version has the same columns. A manually chosen `.sqlite` file can be added later.
+1. Add a macOS source reader near `Clients/macOS/Sources/SottoDuo/` that discovers `~/Library/Application Support/Wispr Flow/flow.sqlite` and inspects `History` and `Dictionary` by column name. Do not assume every installed Wispr Flow version has the same columns. A manually chosen `.sqlite` file can be added later.
 2. Take a consistent **read-only SQLite snapshot** into SottoDuo's private temporary directory before parsing. Prefer SQLite's backup API; handle a live WAL correctly and report snapshot failures rather than silently reading an inconsistent file. Never write into Wispr Flow's application-support directory.
 3. Build a preview with the source date range and separate counts for nonempty transcripts, empty-text/failed attempts, WAV audio, screenshots, dictionary entries, and already-imported source IDs. Show estimated transfer/storage bytes and the chosen destination server. Build the preview locally; a server deduplication check sends source IDs only, without transcript or context data.
 4. Scan complete Wispr Flow backups as well as the live database. Key rows by `transcriptEntityId`; prefer the current row for display and fill missing fields/media from older rows. A backup can restore media even when it adds no session IDs. Retain source row variants with their database provenance. Ignore incomplete `.tmp` backup files.
@@ -21,7 +21,7 @@ The source reader should iterate rows rather than loading all media blobs at onc
 
 ## Phase 2 — faithful archival record
 
-Extend [`GenerationRecord`](../Sources/SottoDuoAPI/API.swift) with an optional source descriptor. Keep the existing live-recording fields compatible with old metadata; source status and settings must be labeled as **Wispr Flow source data**, not presented as SottoDuo inference details. Imported records must be excluded from recording continuation and delivery logic.
+Extend [`GenerationRecord`](../Shared/Sources/SottoDuoAPI/API.swift) with an optional source descriptor. Keep the existing live-recording fields compatible with old metadata; source status and settings must be labeled as **Wispr Flow source data**, not presented as SottoDuo inference details. Imported records must be excluded from recording continuation and delivery logic.
 
 ```swift
 struct ImportedSource: Codable, Equatable, Sendable {
@@ -44,7 +44,7 @@ Keep Wispr Flow dictionary state as an import artifact. Any change to SottoDuo's
 
 ## Phase 3 — server import path and safe reruns
 
-Add authenticated import routes in [`SottoDuoHTTPServer.swift`](../Sources/SottoDuoServerKit/SottoDuoHTTPServer.swift) and archival writes in [`GenerationService.swift`](../Sources/SottoDuoServerKit/GenerationService.swift). The existing `POST /v1/generations` and audio/finish routes require a live recording and model readiness, so they must not be reused for historical rows. The server cannot open a client-side Wispr Flow path, especially when it runs on another machine.
+Add authenticated import routes in [`SottoDuoHTTPServer.swift`](../Server/Swift/Sources/SottoDuoServerKit/SottoDuoHTTPServer.swift) and archival writes in [`GenerationService.swift`](../Server/Swift/Sources/SottoDuoServerKit/GenerationService.swift). The existing `POST /v1/generations` and audio/finish routes require a live recording and model readiness, so they must not be reused for historical rows. The server cannot open a client-side Wispr Flow path, especially when it runs on another machine.
 
 Use a bounded per-session protocol: send a small manifest and display text, upload allowlisted files with byte counts/checksums, then commit. Validate source ID, dates, text sizes, file signatures, attachment limits, and checksums on the server. Place files in a private staging directory, write metadata last, atomically move the complete directory under `generations/<UUID>/`, then publish it in memory. Extend the artifact endpoint's allowlist for typed imported files; never accept arbitrary filesystem paths from the client.
 
@@ -52,7 +52,7 @@ Index `(provider, sourceID)` at server startup. Repeated imports skip unchanged 
 
 ## Phase 4 — History UX and verification
 
-Add the button, preview sheet, progress/cancel state, and import summary to [`HistoryPage.swift`](../Sources/SottoDuo/Views/HistoryPage.swift), with orchestration in [`SottoDuoController.swift`](../Sources/SottoDuo/SottoDuoController.swift) and transport in [`ServerClient.swift`](../Sources/SottoDuo/ServerClient.swift). Show an **Imported from Wispr Flow** label, source text variants, and available attachment actions in detail. Add a source filter so imported sessions remain findable among the existing 50-record History pages. Cancellation releases the sheet immediately while background extraction stops and cleans its snapshot. Keep the list's dimensions steady while preview/progress changes.
+Add the button, preview sheet, progress/cancel state, and import summary to [`HistoryPage.swift`](../Clients/macOS/Sources/SottoDuo/Views/HistoryPage.swift), with orchestration in [`SottoDuoController.swift`](../Clients/macOS/Sources/SottoDuo/SottoDuoController.swift) and transport in [`ServerClient.swift`](../Clients/macOS/Sources/SottoDuo/ServerClient.swift). Show an **Imported from Wispr Flow** label, source text variants, and available attachment actions in detail. Add a source filter so imported sessions remain findable among the existing 50-record History pages. Cancellation releases the sheet immediately while background extraction stops and cleans its snapshot. Keep the list's dimensions steady while preview/progress changes.
 
 Verify with synthetic SQLite fixtures covering text-only rows, audio rows, metadata-only attempts, duplicate IDs across backups, a WAL-mode source, and reruns that enrich rather than duplicate. Confirm preview counts and media extraction against read-only local snapshots; leave the actual import to the user's explicit test. Preserve SottoDuo's existing `swift test` and server checks.
 

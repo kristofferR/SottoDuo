@@ -6,14 +6,14 @@ var products: [Product] = [
     .executable(name: "sottoduo-server", targets: ["SottoDuoServer"]),
 ]
 var targets: [Target] = [
-    .target(name: "SottoDuoDomain"),
-    .target(name: "SottoDuoAPIWire", dependencies: [.product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"), .product(name: "HTTPTypes", package: "swift-http-types")]),
-    .target(name: "SottoDuoAPI", dependencies: ["SottoDuoDomain", "SottoDuoAPIWire"]),
-    .target(name: "SottoDuoServerKit", dependencies: ["SottoDuoAPI", "SottoDuoDomain", .product(name: "Hummingbird", package: "hummingbird"), .product(name: "Crypto", package: "swift-crypto")]),
-    .executableTarget(name: "SottoDuoServer", dependencies: ["SottoDuoServerKit"]),
-    .testTarget(name: "SottoDuoDomainTests", dependencies: ["SottoDuoDomain"]),
-    .testTarget(name: "SottoDuoAPITests", dependencies: ["SottoDuoAPI", "SottoDuoAPIWire"]),
-    .testTarget(name: "SottoDuoServerTests", dependencies: ["SottoDuoServerKit", .product(name: "HummingbirdTesting", package: "hummingbird"), .product(name: "Crypto", package: "swift-crypto")]),
+    .target(name: "SottoDuoDomain", path: "Shared/Sources/SottoDuoDomain"),
+    .target(name: "SottoDuoAPIWire", dependencies: [.product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"), .product(name: "HTTPTypes", package: "swift-http-types")], path: "Shared/Sources/SottoDuoAPIWire"),
+    .target(name: "SottoDuoAPI", dependencies: ["SottoDuoDomain", "SottoDuoAPIWire"], path: "Shared/Sources/SottoDuoAPI"),
+    .target(name: "SottoDuoServerKit", dependencies: ["SottoDuoAPI", "SottoDuoDomain", .product(name: "Hummingbird", package: "hummingbird"), .product(name: "Crypto", package: "swift-crypto")], path: "Server/Swift/Sources/SottoDuoServerKit"),
+    .executableTarget(name: "SottoDuoServer", dependencies: ["SottoDuoServerKit"], path: "Server/Swift/Sources/SottoDuoServer"),
+    .testTarget(name: "SottoDuoDomainTests", dependencies: ["SottoDuoDomain"], path: "Shared/Tests/SottoDuoDomainTests"),
+    .testTarget(name: "SottoDuoAPITests", dependencies: ["SottoDuoAPI", "SottoDuoAPIWire"], path: "Shared/Tests/SottoDuoAPITests"),
+    .testTarget(name: "SottoDuoServerTests", dependencies: ["SottoDuoServerKit", .product(name: "HummingbirdTesting", package: "hummingbird"), .product(name: "Crypto", package: "swift-crypto")], path: "Server/Swift/Tests/SottoDuoServerTests"),
 ]
 
 #if os(macOS)
@@ -22,10 +22,10 @@ products += [
     .library(name: "SottoDuoCore", targets: ["SottoDuoCore"]),
 ]
 targets += [
-    .target(name: "SottoDuoCore", dependencies: ["SottoDuoDomain"]),
-    .executableTarget(name: "SottoDuo", dependencies: ["SottoDuoCore", "SottoDuoAPI"]),
-    .testTarget(name: "SottoDuoCoreTests", dependencies: ["SottoDuoCore"]),
-    .testTarget(name: "SottoDuoTests", dependencies: ["SottoDuo"]),
+    .target(name: "SottoDuoCore", dependencies: ["SottoDuoDomain"], path: "Clients/macOS/Sources/SottoDuoCore"),
+    .executableTarget(name: "SottoDuo", dependencies: ["SottoDuoCore", "SottoDuoAPI"], path: "Clients/macOS/Sources/SottoDuo"),
+    .testTarget(name: "SottoDuoCoreTests", dependencies: ["SottoDuoCore"], path: "Clients/macOS/Tests/SottoDuoCoreTests"),
+    .testTarget(name: "SottoDuoTests", dependencies: ["SottoDuo"], path: "Clients/macOS/Tests/SottoDuoTests"),
 ]
 #endif
 

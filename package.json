@@ -4,15 +4,15 @@
   "packageManager": "bun@1.4.2",
   "workspaces": [
     "Server",
-    "LinuxClient"
+    "Clients/Linux"
   ],
   "scripts": {
     "dev:server": "bun run --cwd Server dev",
     "build:server": "bun run --cwd Server build",
     "generate:api": "bun run --cwd Server generate",
-    "fmt": "bun run --cwd Server fmt && bun run --cwd LinuxClient fmt",
-    "fmt:check": "bun run --cwd Server fmt:check && bun run --cwd LinuxClient fmt:check",
-    "check": "bun run --cwd Server typecheck && bun run --cwd LinuxClient typecheck",
-    "test": "bun run --cwd Server test && bun run --cwd LinuxClient test"
+    "fmt": "bun run --cwd Server fmt && bun run --cwd Clients/Linux fmt",
+    "fmt:check": "bun run --cwd Server fmt:check && bun run --cwd Clients/Linux fmt:check",
+    "check": "bun run --cwd Server typecheck && bun run --cwd Clients/Linux typecheck",
+    "test": "bun run --cwd Server test && bun run --cwd Clients/Linux test"
   }
 }
