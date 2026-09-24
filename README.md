@@ -22,8 +22,9 @@
 
 ---
 
-SottoDuo is an MIT-licensed fork of [Sotto](https://github.com/davis7dotsh/sotto)
-with a Linux desktop client, Soniox streaming, and shared microphone support.
+SottoDuo is an fork of [Sotto](https://github.com/davis7dotsh/sotto)
+with a Linux desktop client, Soniox streaming (with local Whisper fallback),
+and shared microphone support.
 
 [Voxtype](https://github.com/peteonrails/voxtype) and
 [HyperWhisper](https://github.com/ray-amjad/hyperwhisper-app) already offer local
