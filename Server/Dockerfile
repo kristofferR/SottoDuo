@@ -12,8 +12,8 @@ COPY --from=bun-toolchain /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /src
 COPY Package.swift Package.resolved CMakeLists.txt THIRD_PARTY_NOTICES.md ./
 COPY package.json bun.lock ./
-COPY Sources ./Sources
-COPY Tests ./Tests
+COPY Clients/Linux ./Clients/Linux
+COPY Shared ./Shared
 COPY Engine ./Engine
 COPY TextEngine ./TextEngine
 COPY vendor ./vendor

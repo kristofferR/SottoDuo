@@ -13,10 +13,10 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --dev ) ]]; then
 fi
 if [[ "${1:-}" == --dev ]]; then
     app_name="SottoDuo Dev"
-    info_plist=Resources/Info-Dev.plist
+    info_plist=Clients/macOS/Resources/Info-Dev.plist
 else
     app_name=SottoDuo
-    info_plist=Resources/Info.plist
+    info_plist=Clients/macOS/Resources/Info.plist
 fi
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")
 build_jobs="${SOTTODUO_BUILD_JOBS:-8}"
@@ -57,7 +57,7 @@ if [[ -z "$signing_identity" ]]; then
     if [[ "$identity_count" == 1 ]]; then signing_identity="$identities"; else signing_identity=-; fi
 fi
 codesign --force --sign "$signing_identity" --options runtime \
-    --entitlements Resources/SottoDuo.entitlements --identifier "$bundle_id" "$staged_app"
+    --entitlements Clients/macOS/Resources/SottoDuo.entitlements --identifier "$bundle_id" "$staged_app"
 codesign --verify --deep --strict "$staged_app"
 if [[ -d "$app_path" ]]; then
     existing_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist")

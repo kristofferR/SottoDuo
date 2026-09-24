@@ -6,17 +6,25 @@ SottoDuo's native Swift macOS client handles microphone capture, shortcuts, and 
 
 | Component | Responsibility |
 | --- | --- |
-| `Sources/SottoDuo` | SwiftUI/AppKit app, device settings, HTTP client, capture, and guarded delivery. |
-| `Sources/SottoDuoCore` | Mac configuration, audio metering, microphone selection, and model manifests. |
-| `Sources/SottoDuoAPI` | Shared wire types and limits. |
-| `Sources/SottoDuoAPIWire` | Generated Swift transport types used through the API facade. |
+| `Clients/macOS/Sources/SottoDuo` | SwiftUI/AppKit app, device settings, HTTP client, capture, and guarded delivery. |
+| `Clients/macOS/Sources/SottoDuoCore` | Mac configuration, audio metering, microphone selection, and model manifests. |
+| `Clients/Linux` | Bun dictation client, Qt Quick GUI, desktop integration, and tests. |
+| `Shared/Sources/SottoDuoAPI` | Shared wire types and limits. |
+| `Shared/Sources/SottoDuoAPIWire` | Generated Swift transport types used through the API facade. |
 | `Server/api/openapi.yaml` | Language-neutral HTTP and wire-model contract. |
 | `Server/src` | Packaged TypeScript HTTP server, durable coordinator, text pipeline, and helper management. |
-| `Sources/SottoDuoDomain` | Dictionary, list formatting, rewrite validation, and composition. |
-| `Sources/SottoDuoServerKit` | Reference Swift server retained for migration parity tests. |
-| `Sources/SottoDuoServer` | Reference Swift server command-line entry point. |
+| `Shared/Sources/SottoDuoDomain` | Dictionary, list formatting, rewrite validation, and composition. |
+| `Server/Swift/Sources/SottoDuoServerKit` | Reference Swift server retained for migration parity tests. |
+| `Server/Swift/Sources/SottoDuoServer` | Reference Swift server command-line entry point. |
 | `Engine` | Persistent whisper.cpp speech helper; Metal on Mac, CPU/CUDA on Linux. |
 | `TextEngine` | Persistent Qwen helper; Swift MLX on Mac, llama.cpp on Linux. |
+
+Each client's tests live alongside its sources. Shared Swift tests live in
+`Shared/Tests`, and reference server tests in `Server/Swift/Tests`. The root
+Swift package keeps the existing product names and commands while assigning
+each target an explicit path. Root scripts coordinate platform builds;
+`Resources` holds license files shared by the app and server packages, while
+Mac bundle metadata and entitlements live in `Clients/macOS/Resources`.
 
 The server talks to helpers over bounded JSON-lines pipes. Models warm at startup and stay loaded. The client contains no model helpers; it never starts or stops the server. The application has no Python runtime dependency.
 

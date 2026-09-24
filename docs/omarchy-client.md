@@ -1,6 +1,6 @@
 # Essential Omarchy client
 
-Ref #8, #11. `LinuxClient` adds a small Bun executable and an AT-SPI destination helper. It uses the capture API from #5/#6 and can run independently of the later Linux GUI (#10). It is stacked on PR #12. Installation and the daily app/microphone trial are still pending; the existing SottoDuo server and Voxtype bindings have not been changed.
+Ref #8, #11. `Clients/Linux` adds a small Bun executable and an AT-SPI destination helper. It uses the capture API from #5/#6 and can run independently of the later Linux GUI (#10). It is stacked on PR #12. Installation and the daily app/microphone trial are still pending; the existing SottoDuo server and Voxtype bindings have not been changed.
 
 ## Everyday workflow
 
@@ -30,9 +30,9 @@ bash scripts/build-linux-client.sh
 
 The server must already be deployed with the optional PipeWire capture provider enabled. This client does not install the provider, grant USB access, pair Bluetooth devices, or change the daily server. A server with no registered sources cannot record from this client. Desktop inputs are captured by the same provider, with no second local capture path.
 
-For autostart, first place the executable and helper in `~/.local/opt/sottoduo-linux/current/` and put `sottoduo` on PATH. Configure the helper's installed absolute path, then adapt/install [the user service](../LinuxClient/integration/sottoduo-client.service). Enable it only after the desktop trial. It requires the graphical session's `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATURE`, `XDG_RUNTIME_DIR`, and session D-Bus environment. The installed Omarchy session already exports these to systemd. Restart begins idle; it never reloads old takes for insertion. If desktop monitoring fails, stop/restart the client before trying again.
+For autostart, first place the executable and helper in `~/.local/opt/sottoduo-linux/current/` and put `sottoduo` on PATH. Configure the helper's installed absolute path, then adapt/install [the user service](../Clients/Linux/integration/sottoduo-client.service). Enable it only after the desktop trial. It requires the graphical session's `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATURE`, `XDG_RUNTIME_DIR`, and session D-Bus environment. The installed Omarchy session already exports these to systemd. Restart begins idle; it never reloads old takes for insertion. If desktop monitoring fails, stop/restart the client before trying again.
 
-[The Lua binding example](../LinuxClient/integration/bindings.lua) uses Menu for press/release, Super+Menu to cancel, and Super+Shift+Menu to copy the last result. Kris chose to replace the existing Menu → Voxtype toggle; the example explicitly unbinds it before adding SottoDuo. F9 remains assigned to Voxtype. Recheck bindings before installation. Release ignores modifiers, so pressing another modifier while speaking still stops the take. Recording is not enabled on the lock screen. Validate changes with `hyprctl reload` followed by `hyprctl configerrors`.
+[The Lua binding example](../Clients/Linux/integration/bindings.lua) uses Menu for press/release, Super+Menu to cancel, and Super+Shift+Menu to copy the last result. Kris chose to replace the existing Menu → Voxtype toggle; the example explicitly unbinds it before adding SottoDuo. F9 remains assigned to Voxtype. Recheck bindings before installation. Release ignores modifiers, so pressing another modifier while speaking still stops the take. Recording is not enabled on the lock screen. Validate changes with `hyprctl reload` followed by `hyprctl configerrors`.
 
 The example follows the installed Omarchy `o.bind` helper and the [Hyprland bind flags](https://wiki.hypr.land/configuring/core/binds/flags/). No user desktop configuration is installed by the build.
 
@@ -88,8 +88,8 @@ bun run fmt:check
 
 # Supervised native test: briefly opens and closes disposable GTK windows.
 mkdir -p .local
-cc -Wall -Wextra -Werror LinuxClient/tests/entry-fixture.c $(pkg-config --cflags --libs gtk+-3.0) -o .local/entry-fixture
-SOTTODUO_TEST_DESKTOP=1 bun test LinuxClient/tests/native-destination.test.ts
+cc -Wall -Wextra -Werror Clients/Linux/tests/entry-fixture.c $(pkg-config --cflags --libs gtk+-3.0) -o .local/entry-fixture
+SOTTODUO_TEST_DESKTOP=1 bun test Clients/Linux/tests/native-destination.test.ts
 ```
 
 Remaining #8/#11 trials: chosen shortcut press/release including modifiers; daily terminal/browser/editor matrix; explicit clipboard copy while clipboard ownership changes; real lock/unlock and suspend/resume; server/provider stop and unplug; source fallback with actual desktop microphones; two-computer ownership; and a complete spoken DJI take. Those checks need the capture-enabled server deployment and user interaction. The earlier DJI range/dropout findings and the user's decision to skip receiver-placement testing remain unchanged.

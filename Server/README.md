@@ -23,7 +23,7 @@ Run these commands from the repository root. Weights use about 4 GB of disk; run
 SOTTODUO_MODEL_DIR="$PWD/.local/models" ./scripts/download-model.sh
 ```
 
-This installs and verifies `ggml-large-v3-turbo.bin`. The URL, revision, and checksum are pinned in `scripts/download-model.sh` and `Sources/SottoDuoCore/SpeechModel.swift`. The server build separately downloads the pinned Silero VAD model.
+This installs and verifies `ggml-large-v3-turbo.bin`. The URL, revision, and checksum are pinned in `scripts/download-model.sh` and `Clients/macOS/Sources/SottoDuoCore/SpeechModel.swift`. The server build separately downloads the pinned Silero VAD model.
 
 ### Qwen on macOS
 
@@ -41,7 +41,7 @@ The MLX directory must contain exactly the six files listed below. Download the 
 )
 ```
 
-`Sources/SottoDuoCore/TextModel.swift` defines the six-file size/hash manifest; the MLX helper verifies it before becoming ready. Use regular files, with no extra files or symlinks in the model directory.
+`Clients/macOS/Sources/SottoDuoCore/TextModel.swift` defines the six-file size/hash manifest; the MLX helper verifies it before becoming ready. Use regular files, with no extra files or symlinks in the model directory.
 
 ### Qwen on Linux
 
